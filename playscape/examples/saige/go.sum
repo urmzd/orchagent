@@ -1,0 +1,4 @@
+github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
+github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+github.com/urmzd/saige v0.12.1 h1:CK+6CVitutIGfvwBISyKZVo4QUFwHCS8BxCR3qPFRxI=
+github.com/urmzd/saige v0.12.1/go.mod h1:OMrfQKL5YWKo3Q0/oob3WbqxZ9Ky0HVTQB9FkeOoy3w=

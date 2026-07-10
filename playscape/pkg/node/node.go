@@ -1,0 +1,60 @@
+// Package node defines the agent execution node: the unit that consumes
+// tasks and runs tools. The interfaces here say nothing about where a node
+// runs — an in-process goroutine today, a Kubernetes pod or serverless
+// container tomorrow — so the execution substrate can change without
+// touching the control plane or the queue.
+package node
+
+import (
+	"context"
+
+	"github.com/urmzd/dispatch/pkg/sandbox"
+	"github.com/urmzd/dispatch/pkg/task"
+)
+
+// Health is a node's reported condition.
+type Health string
+
+const (
+	Ready   Health = "ready"
+	Stopped Health = "stopped"
+)
+
+// Node is one agent execution node.
+type Node interface {
+	// ID uniquely identifies the node within its deployment.
+	ID() string
+	// Run executes t and returns its result. Implementations must be safe
+	// for concurrent Run calls.
+	Run(ctx context.Context, t task.Task) (task.Result, error)
+	// Health reports the node's current condition.
+	Health(ctx context.Context) Health
+	// Close releases the node's resources. A closed node reports Stopped
+	// and rejects Run.
+	Close(ctx context.Context) error
+}
+
+// Spawner submits a sub-task back into the node's deployment and returns its
+// task ID. The control plane injects it when creating nodes; locally it
+// enqueues in memory, remotely it posts to the control plane API. Tools only
+// reach it through their policy's spawn allowlist.
+type Spawner func(ctx context.Context, t task.Task) (string, error)
+
+// Spec describes the nodes a Factory should produce for one deployment.
+type Spec struct {
+	// Deployment is the owning deployment's name; node IDs derive from it.
+	Deployment string
+	// Policies bind each tool the deployment exposes to the workspace
+	// areas it may touch and the tools it may spawn. Tools without a
+	// policy get no workspace access and cannot spawn.
+	Policies []sandbox.Policy
+	// Spawn is how this node's tools submit sub-tasks. Nil disables
+	// spawning entirely.
+	Spawn Spawner
+}
+
+// Factory creates nodes. Consumers call it when scaling out; it is the seam
+// where new execution substrates plug in.
+type Factory interface {
+	New(ctx context.Context, spec Spec) (Node, error)
+}

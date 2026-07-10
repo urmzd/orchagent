@@ -1,0 +1,32 @@
+name: Bug report
+description: Something is broken
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did you get instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. dispatch serve ...
+        2. curl ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: dispatch version
+      description: Output of `dispatch version`
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: macOS 15 / arm64

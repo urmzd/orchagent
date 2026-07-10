@@ -1,0 +1,23 @@
+# dispatch
+
+> Beta control plane for agent execution nodes: deploy one service, scale sandboxed agents with metrics on a shared workspace. Execution is producer/consumer over per-deployment queues, so capacity scales by adding consumers (local goroutines, Kubernetes pods, or serverless containers running `dispatch work`). Tools are locked to declared workspace areas and spawn targets (default deny), and agents can spawn sub-agents through policy-gated self-reference.
+
+Go module `github.com/urmzd/dispatch`; binary `dispatch` with `serve` (control plane API) and `work` (remote consumer) commands.
+
+## Documentation
+
+- [README](README.md): features, installation, quick start, Kubernetes scaling
+- [Architecture overview](docs/architecture/overview.md): package DAG, queue flow, sandbox model, roadmap
+- [AGENTS.md](AGENTS.md): AI-facing conventions, commands, extension guide
+- [Contributing](CONTRIBUTING.md): development workflow and commit convention
+
+## Examples
+
+- [Basic](examples/basic/main.go): deploy, scale, submit, observe with a sandboxed tool
+- [Saige agents](examples/saige/main.go): AI agents as workloads, including agent-spawns-agent
+
+## Optional
+
+- [Kubernetes manifests](deploy/k8s/dispatch.yaml): server + scalable worker fleet, validated on minikube
+- [Security policy](SECURITY.md): the sandbox is a security boundary
+- [Skills](skills/): portable agent skills for working in this repo
