@@ -15,6 +15,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/urmzd/dispatch/pkg/ngac"
 	"github.com/urmzd/dispatch/pkg/sandbox"
 	"github.com/urmzd/dispatch/pkg/task"
 )
@@ -35,8 +36,27 @@ type ServiceSpec struct {
 	Replicas int `json:"replicas,omitempty"`
 	// Policies grant each tool its workspace areas and spawn targets. A
 	// tool not listed here executes with no workspace access and no
-	// ability to spawn (default deny).
+	// ability to spawn (default deny). Compiled into an NGAC graph;
+	// mutually exclusive with Access.
 	Policies []sandbox.Policy `json:"policies,omitempty"`
+	// Access is the full NGAC form: define user attributes grouping
+	// agents, object attributes over workspace areas and spawn targets,
+	// associations, and prohibitions. Use it when flat per-tool policies
+	// cannot express the relationships you need.
+	Access *ngac.Spec `json:"access,omitempty"`
+}
+
+// PDP compiles the spec's access definition into the decision point that
+// governs its nodes. Exactly one of Policies or Access may be set; an empty
+// spec yields a deny-all PDP.
+func (s ServiceSpec) PDP() (sandbox.PDP, error) {
+	if s.Access != nil {
+		if len(s.Policies) > 0 {
+			return nil, errors.New("controlplane: define access with either policies or access, not both")
+		}
+		return ngac.Build(*s.Access)
+	}
+	return sandbox.FromPolicies(s.Policies), nil
 }
 
 // NodeStatus reports one local node's identity and condition.

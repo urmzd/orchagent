@@ -9,6 +9,7 @@ import (
 	"github.com/urmzd/dispatch/pkg/metrics"
 	"github.com/urmzd/dispatch/pkg/node"
 	"github.com/urmzd/dispatch/pkg/queue"
+	"github.com/urmzd/dispatch/pkg/sandbox"
 	"github.com/urmzd/dispatch/pkg/task"
 	"github.com/urmzd/dispatch/pkg/worker"
 )
@@ -28,6 +29,7 @@ type Memory struct {
 
 type deployment struct {
 	spec    ServiceSpec
+	pdp     sandbox.PDP
 	queue   queue.Queue
 	results queue.Results
 	workers []*localWorker
@@ -64,6 +66,10 @@ func (m *Memory) Deploy(ctx context.Context, spec ServiceSpec) error {
 	if spec.Name == "" {
 		return fmt.Errorf("controlplane: deployment name required")
 	}
+	pdp, err := spec.PDP()
+	if err != nil {
+		return err
+	}
 	replicas := spec.Replicas
 	switch {
 	case replicas == 0:
@@ -79,6 +85,7 @@ func (m *Memory) Deploy(ctx context.Context, spec ServiceSpec) error {
 	}
 	d := &deployment{
 		spec:    spec,
+		pdp:     pdp,
 		queue:   queue.NewMemory(0),
 		results: queue.NewMemoryResults(),
 	}
@@ -109,7 +116,7 @@ func (m *Memory) resize(ctx context.Context, d *deployment, want int) error {
 	for len(d.workers) < want {
 		n, err := m.factory.New(ctx, node.Spec{
 			Deployment: name,
-			Policies:   d.spec.Policies,
+			PDP:        d.pdp,
 			Spawn: func(ctx context.Context, t task.Task) (string, error) {
 				return m.SubmitAsync(ctx, name, t)
 			},

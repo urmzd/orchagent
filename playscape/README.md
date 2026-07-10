@@ -26,6 +26,7 @@
 - **Deploy a single service** and scale its agent execution nodes without changing it
 - **Producer/consumer execution**: tasks flow through a queue; scaling out is adding consumers, locally as goroutines or remotely as Kubernetes pods and serverless containers running `dispatch work`
 - **Sandboxed tools**: every tool is locked to declared workspace areas and spawn targets; anything not granted is denied, so a compromised tool cannot leak outside its area
+- **NGAC access control**: access is defined in a NIST-style policy machine (users, attributes, associations, prohibitions) and enforced by the sandbox; flat per-tool policies compile into the same graph, full `access` specs express group grants and overriding denials
 - **Shared workspace**: all nodes read and write one storage backend, so state lives in exactly one place
 - **Self-referential agents**: a tool can spawn sub-tasks back into its own deployment (an agent calling another agent), gated by its policy
 - **Metrics built in**: node counts, task throughput, and latency recorded behind a transport-agnostic interface
@@ -190,11 +191,12 @@ Deploy a service with `"replicas": -1` (no local nodes) and every task is execut
 | Example | Description |
 |---------|-------------|
 | [`basic`](examples/basic/) | Deploy, scale, submit, and observe with a sandboxed tool |
+| [`ngac`](examples/ngac/) | Define access as an NGAC policy graph: attribute grants, prohibitions, spawn objects |
 | [`saige`](examples/saige/) | Run [saige](https://github.com/urmzd/saige) AI agents as workloads, including an agent spawning a sub-agent |
 
 ## Architecture
 
-Tasks are produced onto per-deployment queues and executed by competing consumers. Each consumer is a node that resolves tools from a registry and confines every call to its sandbox policy: workspace areas plus a spawn allowlist. The packages form a strict one-way dependency graph so each concern can change independently.
+Tasks are produced onto per-deployment queues and executed by competing consumers. Each consumer is a node that resolves tools from a registry and confines every call through the deployment's NGAC policy graph: the executing tool is the policy-machine user, workspace keys and spawn targets are the objects, and the default is deny. The packages form a strict one-way dependency graph so each concern can change independently.
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for the full architecture guide.
 

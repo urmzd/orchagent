@@ -15,8 +15,9 @@ dispatch is a control plane for agent execution nodes. It exists so that a user 
 task        (leaf: Task, Result)
 workspace   (leaf: shared blob store; Local backend)
 metrics     (leaf: Recorder; Nop, Memory)
+ngac        (leaf: NGAC policy machine — Graph, Spec, decisions)
    |
-sandbox     -> workspace          (Policy: areas + spawn allowlist; Scope decorator)
+sandbox     -> ngac, workspace    (enforcement point: ScopePDP, Policy sugar)
 tool        -> task, workspace    (Tool, Runtime, Registry)
 queue       -> task               (Queue, Results; Memory, httpqueue)
 node        -> task, sandbox      (Node, Spec, Factory, Spawner)
@@ -49,14 +50,22 @@ Results flow back through `queue.Results`: synchronous submitters block on `Awai
 
 Beta caveats: the queue is in-memory and delivery is at-most-once (a consumer that dies mid-task drops it). Durable brokers (Redis, Pub/Sub, SQS) implement the same two interfaces when they land.
 
-## Sandbox Model
+## Access Control: NGAC Definition, Sandbox Enforcement
 
-A `sandbox.Policy` binds one tool name to its capabilities:
+Access is *defined* in an NGAC policy machine (`pkg/ngac`, after NIST SP 800-178) and *enforced* by the sandbox (`pkg/sandbox`). The policy graph relates:
 
-- **Areas**: workspace key prefixes the tool may touch, each optionally read-only. Matching is path-segment aware (`runs` matches `runs/1/out`, not `runs-archive`), and traversal (`..`, absolute keys) is rejected before matching.
-- **Spawn**: tool names this tool may submit sub-tasks for.
+- **Users** (agent and tool names) grouped by **user attributes** (e.g. `agents`, `trusted`)
+- **Objects** (workspace keys, spawn targets like `tool:auditor`) contained in **object attributes**; an attribute with a key prefix contains every workspace key under it, path-segment aware
+- **Policy classes** as top-level containers: access is granted only if *every* policy class containing the object is satisfied by some association
+- **Associations** granting operations (`read`, `write`, `delete`, `spawn`) from a user attribute over an object attribute
+- **Prohibitions** as overriding denials (e.g. a group may write, this one member may not)
 
-`sandbox.Scope` wraps the raw workspace in a policy-checking decorator; nodes hand tools that scoped view, never the backend. `List` filters out keys the policy cannot read, so a tool cannot even observe what exists outside its areas. A tool with no policy runs with an empty one: no areas, no spawn targets. The sandbox is a security boundary; a bypass is a vulnerability (see SECURITY.md).
+Deployments define access one of two ways in their `ServiceSpec`:
+
+1. **Flat policies** (`policies`): per-tool workspace areas plus a spawn allowlist. `sandbox.FromPolicies` compiles them into an NGAC graph, so both paths share one decision engine. This covers most deployments.
+2. **Full NGAC** (`access`): a declarative `ngac.Spec` (JSON-able) with attributes, associations, and prohibitions, for relationships flat policies cannot express.
+
+Enforcement: nodes never hand tools the raw workspace. `sandbox.ScopePDP` wraps it in a decision-checking decorator (the enforcement point); every read/write/delete is decided under the executing tool's name, `List` filters out keys the user cannot read, traversal (`..`, absolute keys) is rejected before any decision, and spawn attempts check the `spawn` operation against `tool:<target>` objects. Unknown users, ungoverned objects, empty graphs: all deny. The sandbox and the policy machine are a security boundary; a bypass is a vulnerability (see SECURITY.md).
 
 ## Self-Referential Agents
 
@@ -82,7 +91,7 @@ A Prometheus or OpenTelemetry recorder replaces the in-memory one without any ca
 
 ## Validated Paths
 
-- `go test ./...` covers sandbox confinement (including traversal and list-leak cases), queue-based scaling, policy-gated spawning, and a full remote-consumer round trip over HTTP.
+- `go test ./...` covers sandbox confinement (including traversal and list-leak cases), NGAC semantics (attribute inheritance, multi-policy-class conjunction, prohibition override), queue-based scaling, policy-gated spawning, and a full remote-consumer round trip over HTTP.
 - `examples/saige/` runs real [saige](https://github.com/urmzd/saige) agents as workloads, including an agent delegating to a sub-agent.
 - `deploy/k8s/dispatch.yaml` was validated on minikube: one server pod, a worker fleet scaled 2 to 5 with `kubectl scale`, all tasks executed remotely.
 

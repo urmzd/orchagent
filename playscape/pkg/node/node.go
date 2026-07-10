@@ -44,10 +44,10 @@ type Spawner func(ctx context.Context, t task.Task) (string, error)
 type Spec struct {
 	// Deployment is the owning deployment's name; node IDs derive from it.
 	Deployment string
-	// Policies bind each tool the deployment exposes to the workspace
-	// areas it may touch and the tools it may spawn. Tools without a
-	// policy get no workspace access and cannot spawn.
-	Policies []sandbox.Policy
+	// PDP decides every workspace operation and spawn attempt the node's
+	// tools make. It is compiled from the deployment's access definition
+	// (flat policies or an NGAC spec); nil denies everything.
+	PDP sandbox.PDP
 	// Spawn is how this node's tools submit sub-tasks. Nil disables
 	// spawning entirely.
 	Spawn Spawner

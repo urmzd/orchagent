@@ -61,6 +61,10 @@ func TestRemoteConsumerRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	pdp, err := spec.PDP()
+	if err != nil {
+		t.Fatal(err)
+	}
 	workerWS, err := workspace.NewLocal(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -74,7 +78,7 @@ func TestRemoteConsumerRoundTrip(t *testing.T) {
 	}
 	n, err := inproc.NewFactory(workerRegistry, workerWS).New(ctx, node.Spec{
 		Deployment: "svc",
-		Policies:   spec.Policies,
+		PDP:        pdp,
 		Spawn:      client.SubmitAsync,
 	})
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/urmzd/dispatch/pkg/controlplane"
 	"github.com/urmzd/dispatch/pkg/metrics"
+	"github.com/urmzd/dispatch/pkg/ngac"
 	"github.com/urmzd/dispatch/pkg/node/inproc"
 	"github.com/urmzd/dispatch/pkg/sandbox"
 	"github.com/urmzd/dispatch/pkg/task"
@@ -35,6 +36,12 @@ func newPlane(t *testing.T) (*controlplane.Memory, *metrics.Memory) {
 				return nil, err
 			}
 			return []byte(id), nil
+		}),
+		tool.Func("save", func(ctx context.Context, rt tool.Runtime, in []byte) ([]byte, error) {
+			if err := rt.Workspace().Write(ctx, "shared/out", strings.NewReader(string(in))); err != nil {
+				return nil, err
+			}
+			return []byte("saved"), nil
 		}),
 	}
 	for _, tl := range tools {
@@ -177,6 +184,66 @@ func TestSpawnIsPolicyGated(t *testing.T) {
 		_, err = plane.Submit(ctx, "svc", task.Task{Tool: "parent", Input: []byte("echo")})
 		if err == nil || !strings.Contains(err.Error(), "may not spawn") {
 			t.Fatalf("want spawn denial, got %v", err)
+		}
+	})
+}
+
+func TestDeployWithNGACAccess(t *testing.T) {
+	ctx := context.Background()
+
+	access := &ngac.Spec{
+		PolicyClasses: []string{"pc"},
+		UserAttrs:     []ngac.Node{{Name: "agents"}},
+		Users: []ngac.Node{
+			{Name: "save", Parents: []string{"agents"}},
+			{Name: "echo", Parents: []string{"agents"}},
+		},
+		ObjectAttrs: []ngac.ObjectAttr{
+			{Name: "shared", Prefix: "shared", Parents: []string{"pc"}},
+		},
+		Associations: []ngac.Association{
+			{UserAttr: "agents", Ops: []string{sandbox.OpRead, sandbox.OpWrite}, Target: "shared"},
+		},
+	}
+
+	t.Run("granted through user attribute", func(t *testing.T) {
+		plane, _ := newPlane(t)
+		if err := plane.Deploy(ctx, controlplane.ServiceSpec{Name: "svc", Access: access}); err != nil {
+			t.Fatal(err)
+		}
+		res, err := plane.Submit(ctx, "svc", task.Task{Tool: "save", Input: []byte("v1")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(res.Output) != "saved" {
+			t.Fatalf("result = %+v", res)
+		}
+	})
+
+	t.Run("prohibition overrides", func(t *testing.T) {
+		denied := *access
+		denied.Prohibitions = []ngac.Association{
+			{UserAttr: "save", Ops: []string{sandbox.OpWrite}, Target: "shared"},
+		}
+		plane, _ := newPlane(t)
+		if err := plane.Deploy(ctx, controlplane.ServiceSpec{Name: "svc", Access: &denied}); err != nil {
+			t.Fatal(err)
+		}
+		_, err := plane.Submit(ctx, "svc", task.Task{Tool: "save", Input: []byte("v1")})
+		if err == nil || !strings.Contains(err.Error(), "denied") {
+			t.Fatalf("want denial, got %v", err)
+		}
+	})
+
+	t.Run("policies and access are mutually exclusive", func(t *testing.T) {
+		plane, _ := newPlane(t)
+		err := plane.Deploy(ctx, controlplane.ServiceSpec{
+			Name:     "svc",
+			Access:   access,
+			Policies: []sandbox.Policy{{Tool: "echo"}},
+		})
+		if err == nil || !strings.Contains(err.Error(), "not both") {
+			t.Fatalf("want mutual-exclusion error, got %v", err)
 		}
 	})
 }

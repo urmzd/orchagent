@@ -63,6 +63,11 @@ func newWorkCmd() *cobra.Command {
 				}
 			}
 
+			pdp, err := spec.PDP()
+			if err != nil {
+				return fmt.Errorf("compile access definition: %w", err)
+			}
+
 			ws, err := workspace.NewLocal(root)
 			if err != nil {
 				return err
@@ -78,7 +83,7 @@ func newWorkCmd() *cobra.Command {
 			for i := 0; i < concurrency; i++ {
 				n, err := factory.New(ctx, node.Spec{
 					Deployment: deployment,
-					Policies:   spec.Policies,
+					PDP:        pdp,
 					Spawn:      client.SubmitAsync,
 				})
 				if err != nil {
