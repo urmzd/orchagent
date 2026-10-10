@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0 (2026-10-10)
+
+### Breaking
+
+- rename project from dispatch to legatus (#4) ([d4a21bd](https://github.com/urmzd/legatus/commit/d4a21bd34344b94005e3e38c15fb956c7cf217b3))
+
+### Misc
+
+- **release**: read the sr-releaser key from the release environment (#3) ([3053203](https://github.com/urmzd/legatus/commit/305320341aa3207ac23f132fda454e93d024fa54))
+- upgrade urmzd/sr action to v9 (#2) ([37bef3c](https://github.com/urmzd/legatus/commit/37bef3c19dde64f0a4e22f998edf4a3297ddd60b))
+
+[Full Changelog](https://github.com/urmzd/legatus/compare/v0.1.0...v0.2.0)
+
+
 ## 0.1.0 (2026-07-10)
 
 ### Features
