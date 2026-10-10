@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urmzd/dispatch/pkg/sandbox"
-	"github.com/urmzd/dispatch/pkg/workspace"
+	"github.com/urmzd/legatus/pkg/sandbox"
+	"github.com/urmzd/legatus/pkg/workspace"
 )
 
 func newWorkspace(t *testing.T) workspace.Workspace {

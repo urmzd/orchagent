@@ -1,20 +1,20 @@
 #!/bin/sh
-# install.sh — Installs dispatch from GitHub releases.
+# install.sh — Installs legatus from GitHub releases.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/urmzd/dispatch/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/urmzd/legatus/main/install.sh | sh
 #
 # Environment variables:
-#   DISPATCH_VERSION     — version to install (default: latest)
-#   DISPATCH_INSTALL_DIR — installation directory (default: $HOME/.local/bin)
-#   DISPATCH_SHA256      — optional SHA256 checksum to verify against
+#   LEGATUS_VERSION     — version to install (default: latest)
+#   LEGATUS_INSTALL_DIR — installation directory (default: $HOME/.local/bin)
+#   LEGATUS_SHA256      — optional SHA256 checksum to verify against
 
 set -eu
 
-REPO="urmzd/dispatch"
-BINARY="dispatch"
-VERSION="${DISPATCH_VERSION:-latest}"
-INSTALL_DIR="${DISPATCH_INSTALL_DIR:-$HOME/.local/bin}"
+REPO="urmzd/legatus"
+BINARY="legatus"
+VERSION="${LEGATUS_VERSION:-latest}"
+INSTALL_DIR="${LEGATUS_INSTALL_DIR:-$HOME/.local/bin}"
 
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 arch=$(uname -m)
@@ -51,8 +51,8 @@ trap 'rm -rf "$tmp"' EXIT
 echo "downloading $url" >&2
 curl -fsSL "$url" -o "$tmp/$BINARY"
 
-if [ -n "${DISPATCH_SHA256:-}" ]; then
-  echo "${DISPATCH_SHA256}  $tmp/$BINARY" | (sha256sum -c - 2>/dev/null || shasum -a 256 -c -) >&2
+if [ -n "${LEGATUS_SHA256:-}" ]; then
+  echo "${LEGATUS_SHA256}  $tmp/$BINARY" | (sha256sum -c - 2>/dev/null || shasum -a 256 -c -) >&2
 fi
 
 chmod +x "$tmp/$BINARY"

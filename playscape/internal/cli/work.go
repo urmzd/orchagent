@@ -10,14 +10,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/urmzd/dispatch/pkg/controlplane"
-	"github.com/urmzd/dispatch/pkg/metrics"
-	"github.com/urmzd/dispatch/pkg/node"
-	"github.com/urmzd/dispatch/pkg/node/inproc"
-	"github.com/urmzd/dispatch/pkg/queue/httpqueue"
-	"github.com/urmzd/dispatch/pkg/tool"
-	"github.com/urmzd/dispatch/pkg/worker"
-	"github.com/urmzd/dispatch/pkg/workspace"
+	"github.com/urmzd/legatus/pkg/controlplane"
+	"github.com/urmzd/legatus/pkg/metrics"
+	"github.com/urmzd/legatus/pkg/node"
+	"github.com/urmzd/legatus/pkg/node/inproc"
+	"github.com/urmzd/legatus/pkg/queue/httpqueue"
+	"github.com/urmzd/legatus/pkg/tool"
+	"github.com/urmzd/legatus/pkg/worker"
+	"github.com/urmzd/legatus/pkg/workspace"
 )
 
 func newWorkCmd() *cobra.Command {
@@ -102,7 +102,7 @@ func newWorkCmd() *cobra.Command {
 					w.Run(ctx) //nolint:errcheck // only returns ctx.Err on shutdown
 				}()
 			}
-			fmt.Fprintf(os.Stderr, "dispatch worker (beta): %d consumers on %q against %s\n",
+			fmt.Fprintf(os.Stderr, "legatus worker (beta): %d consumers on %q against %s\n",
 				concurrency, deployment, serverURL)
 
 			wg.Wait() // workers exit when ctx is canceled by a signal
@@ -112,6 +112,6 @@ func newWorkCmd() *cobra.Command {
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8484", "Control plane base URL")
 	cmd.Flags().StringVar(&deployment, "deployment", "", "Deployment to consume tasks for")
 	cmd.Flags().IntVar(&concurrency, "concurrency", 2, "Concurrent consumers in this process")
-	cmd.Flags().StringVar(&root, "workspace", ".dispatch/workspace", "Workspace root directory")
+	cmd.Flags().StringVar(&root, "workspace", ".legatus/workspace", "Workspace root directory")
 	return cmd
 }

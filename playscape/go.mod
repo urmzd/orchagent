@@ -1,4 +1,4 @@
-module github.com/urmzd/dispatch
+module github.com/urmzd/legatus
 
 go 1.26.4
 

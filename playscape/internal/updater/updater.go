@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const repo = "urmzd/dispatch"
+const repo = "urmzd/legatus"
 
 type release struct {
 	TagName string `json:"tag_name"`
@@ -40,7 +40,7 @@ func Update(current string) (string, error) {
 		return rel.TagName, nil
 	}
 
-	want := fmt.Sprintf("dispatch-%s-%s", runtime.GOOS, runtime.GOARCH)
+	want := fmt.Sprintf("legatus-%s-%s", runtime.GOOS, runtime.GOARCH)
 	var url string
 	for _, a := range rel.Assets {
 		if a.Name == want {
@@ -102,7 +102,7 @@ func download(url, dir string) (string, error) {
 		return "", fmt.Errorf("download %s: %s", url, resp.Status)
 	}
 
-	f, err := os.CreateTemp(dir, ".dispatch-update-*")
+	f, err := os.CreateTemp(dir, ".legatus-update-*")
 	if err != nil {
 		return "", err
 	}

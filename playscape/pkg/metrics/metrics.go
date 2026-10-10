@@ -1,4 +1,4 @@
-// Package metrics defines the recording interface every dispatch component
+// Package metrics defines the recording interface every legatus component
 // emits through. It depends on nothing else in the module: components take a
 // Recorder and stay ignorant of transport, so Prometheus, OpenTelemetry, or
 // an in-memory store can back it without any caller changing.

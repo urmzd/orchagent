@@ -12,8 +12,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/urmzd/dispatch/pkg/task"
-	"github.com/urmzd/dispatch/pkg/workspace"
+	"github.com/urmzd/legatus/pkg/task"
+	"github.com/urmzd/legatus/pkg/workspace"
 )
 
 // Runtime is the capability surface a tool executes against. Both methods

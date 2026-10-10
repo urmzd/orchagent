@@ -1,6 +1,6 @@
 .PHONY: all init build test lint fmt check run install record
 
-MOD := $(shell basename $(CURDIR))
+MOD := legatus
 CMD := cmd/$(MOD)
 
 all: check

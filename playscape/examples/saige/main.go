@@ -1,6 +1,6 @@
-// Saige integration example: run saige agents as dispatch workloads.
+// Saige integration example: run saige agents as legatus workloads.
 //
-// Each dispatch task runs a saige agent inside a sandboxed tool. The agent's
+// Each legatus task runs a saige agent inside a sandboxed tool. The agent's
 // answer is written to the tool's workspace area ("agents/..."); a write
 // outside that area is blocked by the sandbox. The deployment scales to
 // three competing consumer nodes, and the agent is self-referential: when
@@ -29,18 +29,18 @@ import (
 	"github.com/urmzd/saige/agent/agenttest"
 	"github.com/urmzd/saige/agent/types"
 
-	"github.com/urmzd/dispatch/pkg/controlplane"
-	"github.com/urmzd/dispatch/pkg/metrics"
-	"github.com/urmzd/dispatch/pkg/node/inproc"
-	"github.com/urmzd/dispatch/pkg/sandbox"
-	"github.com/urmzd/dispatch/pkg/task"
-	"github.com/urmzd/dispatch/pkg/tool"
-	"github.com/urmzd/dispatch/pkg/workspace"
+	"github.com/urmzd/legatus/pkg/controlplane"
+	"github.com/urmzd/legatus/pkg/metrics"
+	"github.com/urmzd/legatus/pkg/node/inproc"
+	"github.com/urmzd/legatus/pkg/sandbox"
+	"github.com/urmzd/legatus/pkg/task"
+	"github.com/urmzd/legatus/pkg/tool"
+	"github.com/urmzd/legatus/pkg/workspace"
 )
 
 const delegatePrefix = "delegate:"
 
-// agentTool wraps a saige agent as a dispatch tool. Each call constructs a
+// agentTool wraps a saige agent as a legatus tool. Each call constructs a
 // fresh agent (its own conversation tree), invokes it with the task input,
 // and persists the answer to the tool's sandboxed workspace area. Inputs
 // beginning with "delegate:" make the agent spawn a sub-task for the rest —
@@ -62,7 +62,7 @@ func agentTool() tool.Tool {
 		}
 		ag := saige.NewAgent(saige.AgentConfig{
 			Name:         "worker",
-			SystemPrompt: "You are a dispatch worker agent.",
+			SystemPrompt: "You are a legatus worker agent.",
 			Provider:     provider,
 		})
 
@@ -88,7 +88,7 @@ func agentTool() tool.Tool {
 func main() {
 	ctx := context.Background()
 
-	dir, err := os.MkdirTemp("", "dispatch-saige-*")
+	dir, err := os.MkdirTemp("", "legatus-saige-*")
 	if err != nil {
 		log.Fatal(err)
 	}

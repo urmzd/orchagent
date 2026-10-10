@@ -6,17 +6,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/dispatch/internal/server"
-	"github.com/urmzd/dispatch/pkg/controlplane"
-	"github.com/urmzd/dispatch/pkg/metrics"
-	"github.com/urmzd/dispatch/pkg/node"
-	"github.com/urmzd/dispatch/pkg/node/inproc"
-	"github.com/urmzd/dispatch/pkg/queue/httpqueue"
-	"github.com/urmzd/dispatch/pkg/sandbox"
-	"github.com/urmzd/dispatch/pkg/task"
-	"github.com/urmzd/dispatch/pkg/tool"
-	"github.com/urmzd/dispatch/pkg/worker"
-	"github.com/urmzd/dispatch/pkg/workspace"
+	"github.com/urmzd/legatus/internal/server"
+	"github.com/urmzd/legatus/pkg/controlplane"
+	"github.com/urmzd/legatus/pkg/metrics"
+	"github.com/urmzd/legatus/pkg/node"
+	"github.com/urmzd/legatus/pkg/node/inproc"
+	"github.com/urmzd/legatus/pkg/queue/httpqueue"
+	"github.com/urmzd/legatus/pkg/sandbox"
+	"github.com/urmzd/legatus/pkg/task"
+	"github.com/urmzd/legatus/pkg/tool"
+	"github.com/urmzd/legatus/pkg/worker"
+	"github.com/urmzd/legatus/pkg/workspace"
 )
 
 // TestRemoteConsumerRoundTrip exercises the full producer/consumer path a
@@ -54,7 +54,7 @@ func TestRemoteConsumerRoundTrip(t *testing.T) {
 	}
 
 	// Remote worker: its own workspace dir and registry, attached over HTTP —
-	// exactly what `dispatch work` builds.
+	// exactly what `legatus work` builds.
 	client := httpqueue.New(srv.URL, "svc")
 	client.LeaseWait = time.Second
 	spec, err := client.Spec(ctx)
@@ -100,7 +100,7 @@ func TestRemoteConsumerRoundTrip(t *testing.T) {
 		t.Fatalf("output = %q, want remote execution", res.Output)
 	}
 
-	key := `dispatch_tasks_total{deployment="svc",source="remote",status="ok"}`
+	key := `legatus_tasks_total{deployment="svc",source="remote",status="ok"}`
 	if got := rec.Snapshot()[key]; got != 1 {
 		t.Fatalf("%s = %v, want 1", key, got)
 	}

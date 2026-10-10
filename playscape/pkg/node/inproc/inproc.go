@@ -2,7 +2,7 @@
 // tools on the calling goroutine, resolving them from a shared registry and
 // confining each call through the deployment's policy decision point. It is
 // the execution substrate for both the single-binary control plane and the
-// `dispatch work` consumer that Kubernetes or serverless containers scale
+// `legatus work` consumer that Kubernetes or serverless containers scale
 // out.
 package inproc
 
@@ -12,11 +12,11 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/urmzd/dispatch/pkg/node"
-	"github.com/urmzd/dispatch/pkg/sandbox"
-	"github.com/urmzd/dispatch/pkg/task"
-	"github.com/urmzd/dispatch/pkg/tool"
-	"github.com/urmzd/dispatch/pkg/workspace"
+	"github.com/urmzd/legatus/pkg/node"
+	"github.com/urmzd/legatus/pkg/sandbox"
+	"github.com/urmzd/legatus/pkg/task"
+	"github.com/urmzd/legatus/pkg/tool"
+	"github.com/urmzd/legatus/pkg/workspace"
 )
 
 // Factory creates in-process nodes over a shared tool registry and

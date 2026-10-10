@@ -1,11 +1,11 @@
-module github.com/urmzd/dispatch/examples/saige
+module github.com/urmzd/legatus/examples/saige
 
 go 1.26.4
 
-replace github.com/urmzd/dispatch => ../..
+replace github.com/urmzd/legatus => ../..
 
 require (
-	github.com/urmzd/dispatch v0.0.0-00010101000000-000000000000
+	github.com/urmzd/legatus v0.0.0-00010101000000-000000000000
 	github.com/urmzd/saige v0.12.1
 )
 

@@ -1,4 +1,4 @@
-// Package cli wires the dispatch command tree: serve, version, update.
+// Package cli wires the legatus command tree: serve, version, update.
 package cli
 
 import (
@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/urmzd/dispatch/internal/updater"
+	"github.com/urmzd/legatus/internal/updater"
 )
 
 // Version metadata injected at build time via -ldflags.
@@ -20,12 +20,12 @@ type Version struct {
 
 var format string
 
-// Execute runs the dispatch CLI and returns its exit code.
+// Execute runs the legatus CLI and returns its exit code.
 func Execute(v Version) int {
 	root := &cobra.Command{
-		Use:           "dispatch",
+		Use:           "legatus",
 		Short:         "Control plane for agent execution nodes (beta)",
-		Long:          "dispatch (beta) — deploy a single service, scale sandboxed agent execution\nnodes, and observe them, all against one shared workspace backend.",
+		Long:          "legatus (beta) — deploy a single service, scale sandboxed agent execution\nnodes, and observe them, all against one shared workspace backend.",
 		Version:       v.Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -44,7 +44,7 @@ func Execute(v Version) int {
 func newVersionCmd(v Version) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
-		Short: "Print the dispatch version",
+		Short: "Print the legatus version",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if format == "json" {
 				enc := json.NewEncoder(cmd.OutOrStdout())
@@ -55,7 +55,7 @@ func newVersionCmd(v Version) *cobra.Command {
 					"date":    v.Date,
 				})
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "dispatch v%s\n", v.Version)
+			fmt.Fprintf(cmd.OutOrStdout(), "legatus v%s\n", v.Version)
 			return nil
 		},
 	}

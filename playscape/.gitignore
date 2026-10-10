@@ -3,7 +3,10 @@ bin/
 build/
 
 # Runtime state
-.dispatch/
+.legatus/
+
+# Git worktrees
+.worktrees/
 
 # Coverage
 *.out

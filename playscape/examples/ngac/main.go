@@ -18,14 +18,14 @@ import (
 	"log"
 	"os"
 
-	"github.com/urmzd/dispatch/pkg/controlplane"
-	"github.com/urmzd/dispatch/pkg/metrics"
-	"github.com/urmzd/dispatch/pkg/ngac"
-	"github.com/urmzd/dispatch/pkg/node/inproc"
-	"github.com/urmzd/dispatch/pkg/sandbox"
-	"github.com/urmzd/dispatch/pkg/task"
-	"github.com/urmzd/dispatch/pkg/tool"
-	"github.com/urmzd/dispatch/pkg/workspace"
+	"github.com/urmzd/legatus/pkg/controlplane"
+	"github.com/urmzd/legatus/pkg/metrics"
+	"github.com/urmzd/legatus/pkg/ngac"
+	"github.com/urmzd/legatus/pkg/node/inproc"
+	"github.com/urmzd/legatus/pkg/sandbox"
+	"github.com/urmzd/legatus/pkg/task"
+	"github.com/urmzd/legatus/pkg/tool"
+	"github.com/urmzd/legatus/pkg/workspace"
 )
 
 // access is the NGAC definition: who (users, grouped by attributes) may do
@@ -98,7 +98,7 @@ func auditorTool() tool.Tool {
 func main() {
 	ctx := context.Background()
 
-	dir, err := os.MkdirTemp("", "dispatch-ngac-*")
+	dir, err := os.MkdirTemp("", "legatus-ngac-*")
 	if err != nil {
 		log.Fatal(err)
 	}

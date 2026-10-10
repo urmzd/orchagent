@@ -11,8 +11,8 @@
 ## Getting Started
 
 ```sh
-git clone https://github.com/urmzd/dispatch
-cd dispatch
+git clone https://github.com/urmzd/legatus
+cd legatus
 make init
 ```
 

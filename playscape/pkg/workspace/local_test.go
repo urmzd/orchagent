@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urmzd/dispatch/pkg/workspace"
+	"github.com/urmzd/legatus/pkg/workspace"
 )
 
 func TestLocalRoundTrip(t *testing.T) {
