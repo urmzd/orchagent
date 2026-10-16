@@ -60,13 +60,17 @@ func agentTool() tool.Tool {
 				agenttest.TextResponse(fmt.Sprintf("considered %q and dispatched accordingly", input)),
 			},
 		}
-		ag := saige.NewAgent(saige.AgentConfig{
+		ag, err := saige.New(saige.Config{
 			Name:         "worker",
 			SystemPrompt: "You are a legatus worker agent.",
 			Provider:     provider,
 		})
 
-		stream := ag.Invoke(ctx, []types.Message{types.NewUserMessage(string(input))})
+		if err != nil {
+			return nil, fmt.Errorf("create saige agent: %w", err)
+		}
+
+		stream := ag.Invoke(ctx, []types.Message{types.UserMsg(types.Text(string(input)))})
 		answer := agenttest.CollectText(stream.Deltas())
 		if err := stream.Wait(); err != nil {
 			return nil, fmt.Errorf("saige agent: %w", err)
