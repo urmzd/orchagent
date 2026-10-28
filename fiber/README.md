@@ -5,24 +5,24 @@
     <br /><br />
     <a href="#installation">Install</a>
     &middot;
-    <a href="https://github.com/urmzd/fiber/issues">Report Bug</a>
+    <a href="https://github.com/urmzd/humagen/issues">Report Bug</a>
     &middot;
-    <a href="https://pkg.go.dev/github.com/urmzd/fiber">Go Docs</a>
+    <a href="https://pkg.go.dev/github.com/urmzd/humagen/fiber">Go Docs</a>
   </p>
 </p>
 
 <p align="center">
-  <a href="https://github.com/urmzd/fiber/actions/workflows/ci.yml"><img src="https://github.com/urmzd/fiber/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/urmzd/humagen/actions/workflows/ci.yml"><img src="https://github.com/urmzd/humagen/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   &nbsp;
-  <a href="https://pkg.go.dev/github.com/urmzd/fiber"><img src="https://pkg.go.dev/badge/github.com/urmzd/fiber.svg" alt="Go Reference"></a>
+  <a href="https://pkg.go.dev/github.com/urmzd/humagen/fiber"><img src="https://pkg.go.dev/badge/github.com/urmzd/humagen/fiber.svg" alt="Go Reference"></a>
   &nbsp;
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/urmzd/fiber" alt="License"></a>
+  <a href="../LICENSE"><img src="https://img.shields.io/github/license/urmzd/humagen" alt="License"></a>
 </p>
 
-<p align="center">
-  <img src="showcase/durable-replay.png" alt="Fiber's offline demo: a replayed run completes without repeating the model call, with events delivered to Slack and a webhook" width="80%">
-</p>
-<p align="center"><em>Real output from the offline example. The model and destination services are simulated.</em></p>
+fiber lives in the Humagen repository, in `fiber/` of the `github.com/urmzd/humagen`
+module. It was its own module, `github.com/urmzd/fiber`, before the fold; that
+module is no longer developed. Every command below runs from the repository
+root.
 
 fiber is a Go library for agents and a low-latency pub/sub bus. Store an agent
 as a saige `.agent.md` definition, make it a member of a channel, and publish a
@@ -79,12 +79,13 @@ retry never runs a newer prompt.
 ## Installation
 
 ```sh
-go get github.com/urmzd/fiber
+go get github.com/urmzd/humagen
 ```
 
-Requires the Go version in [`go.mod`](go.mod). Real inference needs provider
+and import `github.com/urmzd/humagen/fiber`. Requires the Go version in
+[`go.mod`](../go.mod). Real inference needs provider
 credentials, a local Ollama, or an OpenAI-compatible server. The Postgres and
-Redis backends need those services (`make up` starts both with Docker).
+Redis backends need those services (`make integration` starts both with Docker).
 
 ## Quick Start
 
@@ -92,9 +93,9 @@ Run the complete offline example from a checkout. After Go downloads its
 dependencies, the demo needs no API key or external services:
 
 ```sh
-git clone https://github.com/urmzd/fiber.git
-cd fiber
-go run ./examples/local
+git clone https://github.com/urmzd/humagen.git
+cd humagen
+go run ./fiber/examples/local
 ```
 
 It stores an agent, stores a second version, answers a simulated GitHub event
@@ -352,10 +353,10 @@ nothing once it exits.
 
 Releases publish the Go module, not a prebuilt binary. Install the command at
 the version of fiber you build against, or run it from a checkout with
-`go run ./cmd/fiber`:
+`go run ./fiber/cmd/fiber`:
 
 ```sh
-go install github.com/urmzd/fiber/cmd/fiber@latest
+go install github.com/urmzd/humagen/fiber/cmd/fiber@latest
 fiber run -offline docs-bot.agent.md "how does a release get out the door?"
 ```
 
@@ -536,31 +537,17 @@ guides.
 | `App.ToolsFor` | Lists what an agent's run of an event would be granted, without running it |
 | `App.WebhookHandler()` | An `http.Handler` for the connectors that receive webhooks, for your program to mount |
 
-Full reference: [pkg.go.dev/github.com/urmzd/fiber](https://pkg.go.dev/github.com/urmzd/fiber)
+Full reference: [pkg.go.dev/github.com/urmzd/humagen/fiber](https://pkg.go.dev/github.com/urmzd/humagen/fiber)
 
 ## Development
 
 | Action | Command |
 |--------|---------|
 | Set up | `make init` |
-| Build | `make build` |
-| Test | `go test ./...` (`-race` for the race detector) |
-| Lint | `golangci-lint run` |
-| Quality gate | `make check` |
-| Start Postgres and Redis | `make up` (stop with `make down`) |
+| Test | `go test -race ./fiber/...` |
+| Lint | `golangci-lint run ./fiber/...` |
+| Quality gate | `make check` (the whole repository) |
 | Run the suites on real backends | `make integration` |
-
-### Reproduce the screenshot
-
-Install [teasr](https://github.com/urmzd/teasr), then run from this checkout:
-
-```sh
-go run ./examples/local
-teasr run --config teasr.toml
-```
-
-The first run warms Go's build cache. The capture runs the real demo and writes
-[`showcase/durable-replay.png`](showcase/durable-replay.png).
 
 ## Documentation
 
@@ -573,9 +560,8 @@ The first run warms Go's build cache. The capture runs the real demo and writes
 | [docs/renaming.md](../docs/renaming.md#fiber) | Upgrading persisted data across the rename |
 | [examples/README.md](examples/README.md) | Runnable example index |
 | [AGENTS.md](AGENTS.md) | AI-facing conventions, commands, rules, extension guide |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and commit convention |
-| [SECURITY.md](SECURITY.md) | Security boundaries and reporting |
+| [SECURITY.md](../SECURITY.md) | Security boundaries and reporting |
 
 ## License
 
-Apache 2.0. See [LICENSE](LICENSE).
+Apache 2.0. See [LICENSE](../LICENSE).

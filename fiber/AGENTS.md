@@ -2,8 +2,10 @@
 
 Agent library and low-latency pub/sub bus. Publish a typed event on a channel,
 wake the agents that are members of it, stream the run's events to anyone,
-deliver them anywhere. Go module
-`github.com/urmzd/fiber`. It is a library first, composed in Go: no
+deliver them anywhere. It lives in `fiber/` of the Humagen module and is
+imported as `github.com/urmzd/humagen/fiber`; before the fold it was its own
+module, `github.com/urmzd/fiber`. Humagen's root `AGENTS.md` rules apply here
+too. It is a library first, composed in Go: no
 service, no configuration files, no environment variables. The root package
 `fiber` is the composition root (`fiber.New(ctx, ...Option)`); Humagen is the
 platform built on it, owns all configuration, and imports only `pkg/`. The
@@ -59,18 +61,18 @@ Discover layout with `tree` or ripgrep; do not trust stale listings.
 
 ## Commands
 
+Run from the repository root.
+
 | Action | Command |
 |--------|---------|
 | init | `make init` |
-| build | `make build` (`go build ./...`) |
-| test | `go test ./...` |
-| race test | `go test ./... -race` |
-| lint | `golangci-lint run` |
-| fmt | `gofmt -w .` |
+| build | `go build ./...` |
+| race test | `go test -race ./fiber/...` |
+| lint | `golangci-lint run ./fiber/...` |
+| fmt | `gofmt -w fiber` |
 | quality gate | `make check` |
-| end-to-end demo | `go run ./examples/local`, `go run ./examples/downstream` |
-| validate a definition | `go run ./cmd/fiber run -offline DEFINITION.agent.md MESSAGE`, `-tools` to list its grants |
-| backends | `make up` (Postgres with pgvector, Redis), `make down` |
+| end-to-end demo | `go run ./fiber/examples/local`, `go run ./fiber/examples/downstream` |
+| validate a definition | `go run ./fiber/cmd/fiber run -offline DEFINITION.agent.md MESSAGE`, `-tools` to list its grants |
 | suites on real backends | `make integration` (sets `FIBER_POSTGRES_TEST_URL` and `FIBER_REDIS_ADDR`) |
 
 ## Code Style

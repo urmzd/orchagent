@@ -7,13 +7,13 @@ for Postgres, Redis and a model provider, so `go run` is the only setup.
 
 | Example | Command | What it proves |
 | --- | --- | --- |
-| [`downstream`](downstream) | `go run ./examples/downstream` | A team's own program on fiber with no fork: it composes `fiber.New` with a model provider, an OpenAI-compatible endpoint and a tool, stores `agents/oncall.agent.md`, accepts one `message.posted.v1` in process and prints the answer. |
-| [`local`](local) | `go run ./examples/local` | The whole architecture end to end: an agent as a saige definition, immutable versions, an event raised on one channel answered by two egress adapters, N:M selectivity, an uninvolved third party reading the stream, first-class citations, and a replayed run that does not re-execute a recorded activity. |
+| [`downstream`](downstream) | `go run ./fiber/examples/downstream` | A team's own program on fiber with no fork: it composes `fiber.New` with a model provider, an OpenAI-compatible endpoint and a tool, stores `agents/oncall.agent.md`, accepts one `message.posted.v1` in process and prints the answer. |
+| [`local`](local) | `go run ./fiber/examples/local` | The whole architecture end to end: an agent as a saige definition, immutable versions, an event raised on one channel answered by two egress adapters, N:M selectivity, an uninvolved third party reading the stream, first-class citations, and a replayed run that does not re-execute a recorded activity. |
 
 ## local
 
 ```
-go run ./examples/local
+go run ./fiber/examples/local
 ```
 
 One process, one file of story (`main.go`) and one file of scaffolding
