@@ -10,6 +10,14 @@ import (
 // and bound to the tenant it was issued for.
 const tokenVersion = 1
 
+// PageToken is the token List returns for a page that ends at name. A
+// backend outside this package issues it so tokens mean the same everywhere.
+func PageToken(tenant, name string) string { return encodeToken(tenant, name) }
+
+// PageAfter returns the name a List page token resumes after, refusing a
+// token issued for another tenant with ErrInvalid. An empty token is "".
+func PageAfter(token, tenant string) (string, error) { return decodeToken(token, tenant) }
+
 func encodeToken(tenant, name string) string {
 	buf := binary.AppendUvarint(nil, tokenVersion)
 	buf = appendField(buf, tenant)

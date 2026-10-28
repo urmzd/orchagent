@@ -43,10 +43,16 @@ func WithProviders(providers ...string) Option {
 	return func(s *settings) { s.checks.Providers = slices.Clone(providers) }
 }
 
-// prepare validates rec and fills what the store owns: the name and version
-// from the content, the digest, the normalized policy and its hash, and the
-// time.
+// prepare is Prepare with this store's checks and clock.
 func (s settings) prepare(rec Record) (Record, error) {
+	return Prepare(rec, s.checks, s.clock())
+}
+
+// Prepare validates rec as every Source stores it and fills what the store
+// owns: the name and version from the content, the digest, the normalized
+// policy and its hash, and CreatedAt, set to at. A backend outside this
+// package calls it so its rules cannot drift from these.
+func Prepare(rec Record, checks Checks, at time.Time) (Record, error) {
 	rec.Tenant = strings.TrimSpace(rec.Tenant)
 	rec.CreatedBy = strings.TrimSpace(rec.CreatedBy)
 	switch {
@@ -55,7 +61,7 @@ func (s settings) prepare(rec Record) (Record, error) {
 	case rec.CreatedBy == "":
 		return Record{}, fmt.Errorf("%w: a definition must say who wrote it", ErrInvalid)
 	}
-	a, err := Parse(rec.Content, rec.Policy, s.checks)
+	a, err := Parse(rec.Content, rec.Policy, checks)
 	if err != nil {
 		return Record{}, err
 	}
@@ -69,9 +75,16 @@ func (s settings) prepare(rec Record) (Record, error) {
 	rec.Name, rec.Version, rec.Digest = d.Name, d.Version, d.Digest
 	rec.Policy = a.Policy
 	rec.PolicyHash = a.Policy.Hash()
-	rec.CreatedAt = s.clock().UTC()
+	rec.CreatedAt = at.UTC()
 	return rec, nil
 }
+
+// Same reports whether two records hold the same definition: the same
+// content digest and the same policy hash.
+func Same(a, b Record) bool { return a.same(b) }
+
+// SortVersions orders records lowest version first, as Versions returns them.
+func SortVersions(list []Record) { sortVersions(list) }
 
 // Memory is a Source held in this process. It keeps every rule Postgres
 // keeps and is held to them by the same suite (definitiontest).

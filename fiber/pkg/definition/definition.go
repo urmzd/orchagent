@@ -110,6 +110,10 @@ type Page struct {
 	Token string
 }
 
+// Limit is the page size a List uses: DefaultPageSize for none, clamped to
+// MaxPageSize.
+func (p Page) Limit() int { return p.size() }
+
 func (p Page) size() int {
 	switch {
 	case p.Size <= 0:
