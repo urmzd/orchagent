@@ -220,6 +220,7 @@ func (c *Connector) eventFrom(name, delivery string, h hook) (event.Envelope, bo
 		switch h.Action {
 		case "labeled":
 			text, ok = c.automation(h)
+			mentions = c.automationFor(h)
 		case "opened":
 			mentions, text, ok = c.asked(h.Issue.Title + "\n\n" + h.Issue.Body)
 		}
@@ -240,10 +241,12 @@ func (c *Connector) eventFrom(name, delivery string, h hook) (event.Envelope, bo
 			if text, ok = c.automation(h); !ok {
 				return event.Envelope{}, false
 			}
+			mentions = c.automationFor(h)
 		case "labeled":
 			if text, ok = c.automation(h); !ok {
 				return event.Envelope{}, false
 			}
+			mentions = c.automationFor(h)
 		case "review_requested":
 			// The agent is named by GitHub, not by a human: the review was
 			// requested from its login. This is the one path where no mention
@@ -400,6 +403,14 @@ func (c *Connector) automation(h hook) (string, bool) {
 		return "", false
 	}
 	return c.cfg.Automation(h)
+}
+
+// automationFor is who an automated event is for, when the host names them.
+func (c *Connector) automationFor(h hook) []string {
+	if c.cfg.AutomationFor == nil {
+		return nil
+	}
+	return c.cfg.AutomationFor(h)
 }
 
 // subjectOf normalizes the issue or pull request an event is about.

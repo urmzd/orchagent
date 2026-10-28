@@ -39,6 +39,13 @@ func RequestFrom(ctx context.Context) (Request, bool) {
 	return req, ok
 }
 
+// WithRequest returns ctx carrying req as the request of the turn under it.
+// A turn.Runtime that decorates another uses it to hand on a request it has
+// changed, such as a definition with the host's model policy applied.
+func WithRequest(ctx context.Context, req Request) context.Context {
+	return context.WithValue(ctx, requestKey{}, req)
+}
+
 // report hands the whole outcome of a turn back to the runtime that started
 // it. It does nothing for a turn the runtime did not start.
 func report(ctx context.Context, out Outcome) {

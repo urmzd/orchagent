@@ -122,6 +122,10 @@ type Config struct {
 	// repository validation. It names no agent: the members of the pull
 	// request's channel decide who answers.
 	Automation func(Hook) (text string, ok bool)
+	// AutomationFor names the agents an automated event is for, for a host
+	// that chooses them itself, such as by label. Nil, or an empty answer,
+	// names none.
+	AutomationFor func(Hook) []string
 	// Prepare applies application policy to a verified event before it is
 	// published. An error refuses the delivery.
 	Prepare func(context.Context, *event.Envelope) error

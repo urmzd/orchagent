@@ -646,6 +646,23 @@ func (r *Runtime) Accept(ctx context.Context, trigger event.Envelope, subscriber
 	return r.start(ctx, Input{Trigger: trigger, Subscriber: subscriber, Run: runID}, "")
 }
 
+// AcceptOwn accepts trigger for subscriber as the run RunID(tenant,
+// trigger.ID). It is for a host that raises one event per subscriber, so the
+// event id alone already names the subscriber: a redelivery still joins the
+// run, and a run id the host derived before the event union keeps its value.
+func (r *Runtime) AcceptOwn(ctx context.Context, trigger event.Envelope, subscriber string) (Acceptance, error) {
+	if err := trigger.Validate(); err != nil {
+		return Acceptance{}, fmt.Errorf("runtime: accept: %w: %w", ErrInvalid, err)
+	}
+	if event.IsControl(trigger.Channel) {
+		return Acceptance{}, fmt.Errorf("runtime: accept %s: %w: a control request starts no run", trigger.ID, ErrInvalid)
+	}
+	if subscriber == "" {
+		return Acceptance{}, fmt.Errorf("runtime: accept %s: %w: no subscriber", trigger.ID, ErrInvalid)
+	}
+	return r.start(ctx, Input{Trigger: trigger, Subscriber: subscriber}, "")
+}
+
 // start resolves and pins the definition and history of in, then announces
 // and submits the run, in that order (see Accept). A version pins that exact
 // version, for a child run.
