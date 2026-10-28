@@ -1,0 +1,177 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@v7
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # -race in CI, not just locally: this codebase is a bus, a router and a
+      # durable runtime, so most of what can break is a data race or a lost
+      # wakeup rather than a wrong return value.
+      - run: go test ./... -race
+      # The example is the end-to-end test. It exercises the registry, the bus,
+      # the router, two sinks and a durable replay in one process, and asserts
+      # its own invariants rather than only printing.
+      - name: Run the end-to-end example
+        run: go run ./examples/local
+      - name: Run the downstream example
+        run: go run ./examples/downstream
+
+  integration:
+    name: Postgres and Redis integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: fiber
+          POSTGRES_PASSWORD: fiber
+          POSTGRES_DB: fiber
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fiber -d fiber"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      FIBER_POSTGRES_TEST_URL: postgres://fiber:fiber@localhost:5432/fiber?sslmode=disable
+      FIBER_REDIS_ADDR: localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Run backend conformance and persistence tests
+        shell: bash
+        run: |
+          # Every store family's conformance suite runs on Postgres, the bus
+          # suite on Redis and Postgres, and fiber.New puts every store family
+          # on one Postgres pool. pkg/runtime runs its stop, usage and park tests on
+          # the Postgres ledger, queue and journal and the Redis bus.
+          go test -race -count=1 -json ./pkg/registry ./pkg/durable ./pkg/knowledge ./pkg/thread ./pkg/toolprovider ./pkg/bus ./pkg/runtime ./pkg/internal/pgrename . | tee integration-results.jsonl
+      - name: Reject skipped integration tests
+        run: |
+          # The Postgres queue does not implement the optional DeltaLog face.
+          # Every other test must execute, including all backend setup tests.
+          jq -s -e '[.[] | select(.Action == "skip")
+            | select(.Package != "github.com/urmzd/fiber/pkg/durable"
+              or .Test != "TestQueueConformanceOnFiberSchema/FencedAppend")]
+            | length == 0' integration-results.jsonl
+      - name: Require backend test coverage
+        run: |
+          jq -s -e '. as $events | [
+            ["internal/pgrename", "TestADatabaseFromBeforeTheRenameKeepsItsData"],
+            ["internal/pgrename", "TestAnOldTableRecreatedAfterTheUpgradeFailsTheMigrationNamingBoth"],
+            ["registry", "TestPostgresConformance"],
+            ["knowledge", "TestPostgresConformance"],
+            ["thread", "TestPostgresConformance"],
+            ["toolprovider", "TestPostgresConformance"],
+            ["bus", "TestPostgresConformance"],
+            ["bus", "TestPostgresIsSharedAcrossBusesOnOneDatabase"],
+            ["..", "TestEveryBackendIsMemoryUnlessGivenAndPostgresFillsEveryStore/postgres"],
+            ["..", "TestEachPersonsRunReachesAPersonScopedProviderWithTheirOwnCredential/postgres"],
+            ["registry", "TestPostgresMigrateIsIdempotentAndConcurrent"],
+            ["durable", "TestLedgerConformanceOnFiberSchema"],
+            ["durable", "TestQueueConformanceOnFiberSchema"],
+            ["knowledge", "TestPostgresMigrateIsIdempotentAndConcurrent"],
+            ["toolprovider", "TestPostgresMigrateIsIdempotentAndConcurrent"],
+            ["toolprovider", "TestPostgresSnapshotsSurviveANewStoreByteForByte"],
+            ["toolprovider", "TestPostgresAProviderFromBeforeCredentialScopesIsShared"],
+            ["bus", "TestRedisConformance"],
+            ["runtime", "TestStopTestsRunOnPostgresAndRedis"],
+            ["runtime", "TestARunFromBeforeTheRenameFailsWithAReasonEverySurfaceSees"],
+            ["runtime", "TestAStopReachesARunExecutingOnAnotherWorker"],
+            ["runtime", "TestAStopBeforeTheTurnStartsIsNotLost"],
+            ["runtime", "TestAnotherTenantsFloodCannotEvictAPendingStop"],
+            ["runtime", "TestReplayingAStoppedRunOffersTheJournalTheSameBytesAndRunsNothingTwice"],
+            ["runtime", "TestAStoppedRunIsRecordedAsEndedAndIsNeverRetried"],
+            ["runtime", "TestAStopSurvivesAWorkerRestart"],
+            ["runtime", "TestAStopTheBusEvictedIsStillHonouredFromTheLedger"],
+            ["runtime", "TestAStopRacingCompletionEndsExactlyOneWayEverywhere"],
+            ["runtime", "TestAStopIsRecordedOnlyForALiveRunTheAskerOwnsAndAtMostOnce"],
+            ["runtime", "TestTheRunsTotalIsTheSumOfItsCallEvents"],
+            ["runtime", "TestARetriedAttemptsSpendIsCountedOnceAndAReplayAddsNothing"],
+            ["runtime", "TestAFailedRunsUsageIsReadFromTheLedger"],
+            ["runtime", "TestAStoppedRunRecordsTheUsageItSpent"],
+            ["runtime", "TestChildRunsRollUpThreeLevelsDeepWithoutDoubleCounting"],
+            ["runtime", "TestSubTaskCallsRollUpIntoTheRunThatDelegated"],
+            ["runtime", "TestAnAttemptWhoseResultWasNeverRecordedIsStillCounted"],
+            ["runtime", "TestAChildRunIsRolledUpOnlyWhenTheLedgerVouchesForIt"],
+            ["runtime", "TestEachQuestionKindParksPublishesItsQuestionReleasesItsWorkerAndResumesWithTheAnswer"],
+            ["runtime", "TestTheResumedTurnSeesTheThreadTheRequestAndWhatItSaidBeforeAsking"],
+            ["runtime", "TestARunParkedAcrossARestartResumesOnTheAnswer"],
+            ["runtime", "TestConcurrentAnswersResumeTheRunExactlyOnce"],
+            ["runtime", "TestASecondAnswerReturnsTheFirstOutcome"],
+            ["runtime", "TestAnAnswerThatDoesNotFitTheQuestionIsRefused"],
+            ["runtime", "TestAnUnansweredQuestionTakesItsDefaultWhenItExpires"],
+            ["runtime", "TestAnotherTenantCannotAnswerOrSeeAQuestion"],
+            ["runtime", "TestStoppingAParkedRunEndsItWithoutResumingItsTurn"],
+            ["runtime", "TestUsageBeforeAParkIsCountedOnce"],
+            ["runtime", "TestReplayingAParkedThenResumedRunIsDeterministic"],
+            ["runtime", "TestAChildRunParksAndItsParentShowsItsQuestion"],
+            ["runtime", "TestTheRequesterCannotApproveTheirOwnCallByDefault"],
+            ["runtime", "TestSelfApprovalIsAllowedWhenTheSpecOptsIn"],
+            ["runtime", "TestOnlyTheSpecsApproversAndAnswerersMayAnswer"],
+            ["runtime", "TestDelegatingParentsParkSoTheirChildrenRunAtAnyConcurrency"],
+            ["runtime", "TestStoppingAParentWaitingOnAChildStopsBoth"],
+            ["runtime", "TestRepeatedParksStoreTheTranscriptOnce"],
+            ["runtime", "TestAToolGroupIsExpandedForTheActorOnTheRunsRecordAcrossAPark"],
+            ["durable", "TestRecordsWithPrefixReadsOnlyTheRecordsAsked"]
+          ] | all(. as $required | any($events[];
+            .Action == "pass"
+            and .Package == ("github.com/urmzd/fiber/pkg/" + $required[0] | sub("/pkg/\\.\\.$"; ""))
+            and .Test == $required[1]))' integration-results.jsonl

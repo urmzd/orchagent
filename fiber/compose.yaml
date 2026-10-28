@@ -1,0 +1,44 @@
+# The backends fiber's shared stores and buses run on, for local development
+# and the conformance suites. fiber itself is a library, so there is no fiber
+# service here: a program composing fiber connects to these and passes the
+# pool and client to fiber.WithPostgres and fiber.WithBus.
+#
+#   make up
+#   make integration
+
+name: fiber
+
+services:
+  postgres:
+    # Postgres 17 with pgvector, which the knowledge store needs.
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: fiber
+      POSTGRES_PASSWORD: fiber
+      POSTGRES_DB: fiber
+    ports:
+      - "127.0.0.1:${FIBER_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fiber -d fiber"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${FIBER_REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres:
+  redis:
