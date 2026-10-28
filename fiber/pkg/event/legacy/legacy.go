@@ -182,7 +182,9 @@ func DecodeBusRow(seq uint64, body []byte) (event.Envelope, error) {
 	return fromOld(w.oldEvent, seq, w.Payload)
 }
 
-// DecodeEntry reads one old journal entry. Its payload is inline JSON.
+// DecodeEntry reads one old journal entry. The runtime's journal held the
+// payload as inline JSON; a store that marshaled the old event whole held it
+// as base64, a JSON string. Both are read.
 func DecodeEntry(raw []byte) (event.Envelope, error) {
 	var w struct {
 		oldEvent
@@ -192,7 +194,15 @@ func DecodeEntry(raw []byte) (event.Envelope, error) {
 	if err := json.Unmarshal(raw, &w); err != nil {
 		return event.Envelope{}, fmt.Errorf("legacy: entry: %w", err)
 	}
-	return fromOld(w.oldEvent, w.Seq, w.Payload)
+	payload := []byte(w.Payload)
+	if len(payload) > 0 && payload[0] == '"' {
+		var b []byte
+		if err := json.Unmarshal(payload, &b); err != nil {
+			return event.Envelope{}, fmt.Errorf("legacy: entry %d: payload: %w", w.Seq, err)
+		}
+		payload = b
+	}
+	return fromOld(w.oldEvent, w.Seq, payload)
 }
 
 // RunChannel is the channel an old run event is read onto. Old events were

@@ -339,6 +339,26 @@ func TestDecodeEntry(t *testing.T) {
 	}
 }
 
+// A store that marshaled the old event whole wrote its []byte payload as
+// base64.
+func TestDecodeEntryBase64(t *testing.T) {
+	for _, c := range oldCases() {
+		raw, err := json.Marshal(newOldEvent(t, c.kind, c.in))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := legacy.DecodeEntry(raw)
+		if err != nil {
+			t.Fatalf("%s: %v", c.kind, err)
+		}
+		checkDecoded(t, c, got)
+	}
+	raw := []byte(`{"seq":1,"run_id":"r1","agent":"a","kind":"delta.text","payload":"not base64!"}`)
+	if _, err := legacy.DecodeEntry(raw); err == nil {
+		t.Error("a broken base64 payload decoded")
+	}
+}
+
 // oldTag is the JSON shape of the removed envelope.Tag, as it was stored.
 type oldTag struct {
 	ID      string            `json:"id"`
