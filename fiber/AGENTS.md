@@ -44,8 +44,7 @@ sandboxing and access control.
 | `pkg/turn/sandbox` | `Sandboxed(inner, plane)`: any `turn.Runtime` inside playscape, as a task under the pinned policy (spawn and workspace areas). |
 | `pkg/turn/runtimetest` | The conformance suite every `turn.Runtime` passes. |
 | `pkg/runtime` | The durable anchor turn: accept (pins the definition and the thread history), the `fiber.turn.v2` activities, dual publish, stopping a run mid-turn, compacting it on request, per-run usage, and parking a run on a person. Every turn's context carries the actor on the run's record (`event.ActorFrom`). Runs recorded under the v1 activity names fail terminally. |
-| `pkg/durable` | The Postgres schema for anchor's ledger and queue adapters, and `Open`, which builds both on it. |
-| `pkg/internal/pgrename` | The one migration step every Postgres store runs first: renames objects a database created before fiber's rename still carries, and refuses (naming both) when an old table was created again beside its new one. |
+| `pkg/durable` | The Postgres schema for anchor's ledger and queue adapters, and `Open`, which builds both on it. Every Postgres store's `Migrate` first runs `internal/legacy.FiberTablesSQL`, which renames objects a database created before fiber's rename still carries, and refuses (naming both) when an old table was created again beside its new one. |
 | `pkg/thread` | The per-thread conversation journal a run continues: append-only, pinned at accept, with a reconciliation seam for surfaces. `Memory` and `Postgres`; `threadtest`. |
 | `pkg/blob` | Content-addressed, tenant-scoped file store. `Memory` and filesystem; `blobtest`. |
 | `pkg/attachment` | The file reference an ingress event carries. Leaf. `intake/` stores and fetches files (SSRF-guarded); `resolve/` turns a file into model input by kind. |

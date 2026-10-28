@@ -12,7 +12,7 @@ import (
 
 	"github.com/urmzd/humagen/fiber/pkg/attachment"
 	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/internal/pgrename"
+	"github.com/urmzd/humagen/internal/legacy"
 )
 
 // schema is everything the Postgres store owns: one row per thread, one row
@@ -111,7 +111,7 @@ func (p *Postgres) Migrate(ctx context.Context) error {
 			return err
 		}
 		// A database created before the rename is moved forward first.
-		if _, err := tx.Exec(ctx, pgrename.SQL("threads", "thread_entries")); err != nil {
+		if _, err := tx.Exec(ctx, legacy.FiberTablesSQL("threads", "thread_entries")); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, schema)

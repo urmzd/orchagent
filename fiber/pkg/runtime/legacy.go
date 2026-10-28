@@ -25,7 +25,7 @@ type v1Input struct {
 
 // failRunFromBeforeUnion is the workflow registered under the turn's names
 // from before the event union (fiber.turn) and before the rename
-// (mandatum.turn). It is the only code that runs for such a run, and all it
+// (oldnames.FiberTurnBeforeRename). It is the only code that runs for such a run, and all it
 // does is end it.
 //
 // That run recorded a tag and a revision number, and the current turn reads

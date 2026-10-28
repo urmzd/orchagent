@@ -135,10 +135,10 @@ import (
 	"github.com/urmzd/humagen/fiber/pkg/definition"
 	"github.com/urmzd/humagen/fiber/pkg/event"
 	"github.com/urmzd/humagen/fiber/pkg/event/legacy"
-	"github.com/urmzd/humagen/fiber/pkg/internal/pgrename"
 	"github.com/urmzd/humagen/fiber/pkg/thread"
 	turnrt "github.com/urmzd/humagen/fiber/pkg/turn"
 	"github.com/urmzd/humagen/fiber/pkg/turn/native"
+	oldnames "github.com/urmzd/humagen/internal/legacy"
 
 	"github.com/urmzd/humagen/fiber/pkg/attachment"
 )
@@ -593,7 +593,7 @@ func New(client *anchor.Client, defs Definitions, b Bus, opts ...Option) (*Runti
 	r.resume = anchor.ActivityIn(r.registry, ActivityResume, r.runResume)
 	// A run accepted before the event union, or before the rename, is ended
 	// with a reason (legacy.go).
-	for _, name := range []string{ActivityTurnV1, pgrename.LegacyActivityTurn} {
+	for _, name := range []string{ActivityTurnV1, oldnames.FiberTurnBeforeRename} {
 		anchor.ActivityIn(r.registry, name, r.failRunFromBeforeUnion)
 	}
 	for _, name := range []string{ActivityAgentV1, ActivityResumeV1} {

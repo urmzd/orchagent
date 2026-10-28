@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/urmzd/humagen/fiber/pkg/internal/pgrename"
+	"github.com/urmzd/humagen/internal/legacy"
 )
 
 // schema is everything the Postgres store owns: one row per provider, one row
@@ -83,7 +83,7 @@ func (p *Postgres) Migrate(ctx context.Context) error {
 			return err
 		}
 		// A database created before the rename is moved forward first.
-		if _, err := tx.Exec(ctx, pgrename.SQL("tool_providers", "tool_snapshots")); err != nil {
+		if _, err := tx.Exec(ctx, legacy.FiberTablesSQL("tool_providers", "tool_snapshots")); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, schema)

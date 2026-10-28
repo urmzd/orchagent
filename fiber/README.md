@@ -472,7 +472,7 @@ which wait until they are answered, stopped or expire: a run still pending
 from the old version is failed with a reason when the new one first claims
 it, and is not resumed. Stop every old process before the first new one
 starts. Postgres migrates itself and keeps its rows. See
-[docs/renaming.md](docs/renaming.md).
+[docs/renaming.md](../docs/renaming.md#fiber).
 
 ### Limitations
 
@@ -570,7 +570,7 @@ The first run warms Go's build cache. The capture runs the real demo and writes
 | [docs/architecture/overview.md](docs/architecture/overview.md) | Channels, membership, delivery, durability, stopping, usage, parking, credentials, limitations |
 | [docs/architecture/github.md](docs/architecture/github.md) | GitHub connector setup |
 | [docs/architecture/slack.md](docs/architecture/slack.md) | Slack connector setup |
-| [docs/renaming.md](docs/renaming.md) | Upgrading persisted data across the rename |
+| [docs/renaming.md](../docs/renaming.md#fiber) | Upgrading persisted data across the rename |
 | [examples/README.md](examples/README.md) | Runnable example index |
 | [AGENTS.md](AGENTS.md) | AI-facing conventions, commands, rules, extension guide |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and commit convention |

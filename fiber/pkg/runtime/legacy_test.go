@@ -14,8 +14,8 @@ import (
 	drun "github.com/urmzd/anchor/pkg/run"
 
 	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/internal/pgrename"
 	"github.com/urmzd/humagen/fiber/pkg/runtime"
+	"github.com/urmzd/humagen/internal/legacy"
 )
 
 // untouched is an executor a run must never reach.
@@ -27,13 +27,13 @@ func (u *untouched) Execute(context.Context, runtime.Request, func(context.Conte
 }
 
 // A run accepted before the event union (fiber.turn) or before the rename
-// (mandatum.turn), parked on a question when the deployment was upgraded, is
+// (legacy.FiberTurnBeforeRename), parked on a question when the deployment was upgraded, is
 // not left pending forever, replayed under a definition it never pinned, or
 // failed as an unknown workflow with nothing said. The janitor's poll reaches
 // it, and it ends failed once, terminally, with a reason on the ledger, on its
 // channel and in the log, without running the agent.
 func TestLegacyTurnFailsTerminally(t *testing.T) {
-	for _, name := range []string{runtime.ActivityTurnV1, pgrename.LegacyActivityTurn} {
+	for _, name := range []string{runtime.ActivityTurnV1, legacy.FiberTurnBeforeRename} {
 		t.Run(name, func(t *testing.T) {
 			w := newWorld(t)
 			logged := &warnings{}

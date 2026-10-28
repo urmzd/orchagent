@@ -52,7 +52,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/urmzd/humagen/fiber/pkg/internal/pgrename"
+	"github.com/urmzd/humagen/internal/legacy"
 )
 
 // The tables this package owns. They are exported so the mapping handed to
@@ -168,7 +168,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			return err
 		}
 		// A database created before the rename is moved forward first.
-		if _, err := tx.Exec(ctx, pgrename.SQL("runs", "run_records", "run_queue")); err != nil {
+		if _, err := tx.Exec(ctx, legacy.FiberTablesSQL("runs", "run_records", "run_queue")); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, schema)

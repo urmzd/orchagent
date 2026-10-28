@@ -484,7 +484,7 @@ This is the one place the names from before the union appear.
 - **Activity names.** The durable turn registers `fiber.turn.v2`,
   `fiber.turn.agent.v2` and `fiber.turn.resume.v2`. A run recorded under the
   v1 names (`fiber.turn`, `fiber.turn.agent`, `fiber.turn.resume`) or before
-  the rename (`mandatum.turn`) fails terminally on replay, with the reason
+  the rename (see [docs/renaming.md](../../../docs/renaming.md#fiber)) fails terminally on replay, with the reason
   "started before the event union; send the message again", instead of
   running a body it was not recorded with.
 - **Bus tables.** The channel bus writes new tables. The old `fiber_bus_*`
