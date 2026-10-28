@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/connectors/github"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/github"
 )
 
 func TestFileReadKeepsTheImmutableRefAndEscapesPathComponents(t *testing.T) {

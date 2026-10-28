@@ -13,10 +13,10 @@ import (
 	"github.com/urmzd/playscape/pkg/tool"
 	"github.com/urmzd/playscape/pkg/workspace"
 
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/turn"
-	"github.com/urmzd/fiber/pkg/turn/runtimetest"
-	"github.com/urmzd/fiber/pkg/turn/sandbox"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/turn"
+	"github.com/urmzd/humagen/fiber/pkg/turn/runtimetest"
+	"github.com/urmzd/humagen/fiber/pkg/turn/sandbox"
 )
 
 func plane(t *testing.T) sandbox.Plane {

@@ -15,14 +15,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/connectors/internal/rendertest"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/rendertest"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/connector"
-	"github.com/urmzd/fiber/pkg/connectors/github"
-	"github.com/urmzd/fiber/pkg/connectors/mention"
-	"github.com/urmzd/fiber/pkg/signature"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/connector"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/github"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/mention"
+	"github.com/urmzd/humagen/fiber/pkg/signature"
 )
 
 const secret = "It's a Secret to Everybody"
@@ -93,7 +93,7 @@ const issueComment = `{
     "state": "open",
     "user": {"login": "urmzd", "type": "User"},
     "labels": [{"name": "bug"}, {"name": "connectors"}],
-    "html_url": "https://github.com/urmzd/fiber/issues/42",
+    "html_url": "https://github.com/urmzd/humagen/fiber/issues/42",
     "created_at": "2026-07-20T10:00:00Z",
     "updated_at": "2026-07-20T11:00:00Z"
   },
@@ -101,7 +101,7 @@ const issueComment = `{
     "id": 2201234567,
     "body": "can @docs-bot summarize what changed here, and @docs-bot check the retry path too?",
     "user": {"login": "urmzd", "type": "User"},
-    "html_url": "https://github.com/urmzd/fiber/issues/42#issuecomment-2201234567",
+    "html_url": "https://github.com/urmzd/humagen/fiber/issues/42#issuecomment-2201234567",
     "created_at": "2026-07-20T12:30:00Z"
   },
   "repository": {
@@ -149,7 +149,7 @@ func TestIssueCommentPublishesAnEventOnTheIssue(t *testing.T) {
 	}
 	wantRef := event.GitHubRef{
 		Owner: "urmzd", Repo: "fiber", Number: 42, Title: "Retries double-post to Slack", Sender: "urmzd",
-		State: "open", Author: "urmzd", URL: "https://github.com/urmzd/fiber/issues/42",
+		State: "open", Author: "urmzd", URL: "https://github.com/urmzd/humagen/fiber/issues/42",
 		Labels: []string{"bug", "connectors"}, InstallationID: 55555,
 	}
 	if got := ref(t, e); !reflect.DeepEqual(got, wantRef) {
@@ -193,7 +193,7 @@ const reviewRequested = `{
     "draft": false,
     "user": {"login": "urmzd", "type": "User"},
     "labels": [{"name": "connectors"}],
-    "html_url": "https://github.com/urmzd/fiber/pull/77",
+    "html_url": "https://github.com/urmzd/humagen/fiber/pull/77",
     "base": {"ref": "main"},
     "head": {"ref": "coalesce-edits", "sha": "deadbeef"},
     "created_at": "2026-07-21T09:00:00Z",
@@ -439,7 +439,7 @@ func TestDeliveringTheSameEventsTwiceKeepsOneEditedComment(t *testing.T) {
 		ev(1, event.TypeAccepted, ""),
 		textEvent(2, "The retry path posts twice "),
 		textEvent(3, "because the handle was lost."),
-		ev(4, event.TypeCitation, `{"source":{"document_title":"sink.go","source_uri":"https://github.com/urmzd/fiber/blob/main/sink.go"}}`),
+		ev(4, event.TypeCitation, `{"source":{"document_title":"sink.go","source_uri":"https://github.com/urmzd/humagen/fiber/blob/main/sink.go"}}`),
 		ev(5, event.TypeCompleted, ""),
 	}
 	for range 2 {
@@ -464,7 +464,7 @@ func TestDeliveringTheSameEventsTwiceKeepsOneEditedComment(t *testing.T) {
 	if !strings.Contains(comment.Body, "**docs-bot** _(done)_") {
 		t.Errorf("body is not GitHub markdown:\n%s", comment.Body)
 	}
-	if !strings.Contains(comment.Body, "[1] [sink.go](https://github.com/urmzd/fiber/blob/main/sink.go)") {
+	if !strings.Contains(comment.Body, "[1] [sink.go](https://github.com/urmzd/humagen/fiber/blob/main/sink.go)") {
 		t.Errorf("citation is not a markdown footnote:\n%s", comment.Body)
 	}
 	if comment.Edits == 0 {

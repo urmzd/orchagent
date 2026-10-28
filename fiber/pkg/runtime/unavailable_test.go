@@ -15,9 +15,9 @@ import (
 	"github.com/urmzd/saige/agent/agenttest"
 	saigetypes "github.com/urmzd/saige/agent/types"
 
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/runtime"
-	"github.com/urmzd/fiber/pkg/turn/native"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/runtime"
+	"github.com/urmzd/humagen/fiber/pkg/turn/native"
 )
 
 // A revision granting a tool this deployment does not have used to fail every

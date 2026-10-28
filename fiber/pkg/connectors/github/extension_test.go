@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/connectors/github"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/github"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 var commitSHA = strings.Repeat("a", 40)

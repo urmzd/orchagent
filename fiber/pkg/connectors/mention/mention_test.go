@@ -3,7 +3,7 @@ package mention_test
 import (
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/connectors/mention"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/mention"
 )
 
 func TestFindReturnsTheFirstTokenTheSetAccepts(t *testing.T) {

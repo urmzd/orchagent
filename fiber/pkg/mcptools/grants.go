@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/urmzd/fiber/pkg/definition"
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/toolprovider"
-	saigetypes "github.com/urmzd/fiber/pkg/turn/native/saigetypes"
+	"github.com/urmzd/humagen/fiber/pkg/definition"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/toolprovider"
+	saigetypes "github.com/urmzd/humagen/fiber/pkg/turn/native/saigetypes"
 )
 
 // ErrClosed reports an expansion after Grants.Close.

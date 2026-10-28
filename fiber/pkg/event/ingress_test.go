@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/attachment"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/attachment"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 func ingressSamples() []event.Body {

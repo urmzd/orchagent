@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/attachment"
+	"github.com/urmzd/humagen/fiber/pkg/attachment"
 )
 
 // Ingress types: what a surface publishes when something happens on it.

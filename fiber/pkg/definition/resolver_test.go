@@ -7,8 +7,8 @@ import (
 
 	"github.com/urmzd/anchor/pkg/run"
 
-	"github.com/urmzd/fiber/pkg/definition"
-	"github.com/urmzd/fiber/pkg/definition/definitiontest"
+	"github.com/urmzd/humagen/fiber/pkg/definition"
+	"github.com/urmzd/humagen/fiber/pkg/definition/definitiontest"
 )
 
 // tampered is a Source whose Get returns other content for one version: the

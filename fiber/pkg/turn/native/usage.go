@@ -6,7 +6,7 @@ import (
 
 	saigetypes "github.com/urmzd/saige/agent/types"
 
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // DefaultAccounting is the prefix a turn keys its calls under when the caller

@@ -76,10 +76,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/connector"
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/event/legacy"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/connector"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/event/legacy"
 )
 
 // Name is the address scheme this connector owns.

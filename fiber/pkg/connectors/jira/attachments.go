@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/urmzd/fiber/pkg/attachment"
-	"github.com/urmzd/fiber/pkg/attachment/intake"
+	"github.com/urmzd/humagen/fiber/pkg/attachment"
+	"github.com/urmzd/humagen/fiber/pkg/attachment/intake"
 )
 
 // MediaHost is where Jira Cloud serves attachment content from: the content

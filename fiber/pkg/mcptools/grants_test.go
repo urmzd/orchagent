@@ -9,8 +9,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/urmzd/fiber/pkg/mcptools"
-	"github.com/urmzd/fiber/pkg/toolprovider"
+	"github.com/urmzd/humagen/fiber/pkg/mcptools"
+	"github.com/urmzd/humagen/fiber/pkg/toolprovider"
 )
 
 // dialFake dials f over a fresh in-process transport and counts the dials.

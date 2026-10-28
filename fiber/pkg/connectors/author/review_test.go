@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/connectors/author"
-	"github.com/urmzd/fiber/pkg/definition"
-	"github.com/urmzd/fiber/pkg/turn"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/author"
+	"github.com/urmzd/humagen/fiber/pkg/definition"
+	"github.com/urmzd/humagen/fiber/pkg/turn"
 )
 
 // compiled is an old-shape spec as the turn.Spec a definition compiles to.

@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/attachment"
-	"github.com/urmzd/fiber/pkg/attachment/intake"
-	"github.com/urmzd/fiber/pkg/attachment/resolve"
-	"github.com/urmzd/fiber/pkg/blob"
-	"github.com/urmzd/fiber/pkg/turn/native"
+	"github.com/urmzd/humagen/fiber/pkg/attachment"
+	"github.com/urmzd/humagen/fiber/pkg/attachment/intake"
+	"github.com/urmzd/humagen/fiber/pkg/attachment/resolve"
+	"github.com/urmzd/humagen/fiber/pkg/blob"
+	"github.com/urmzd/humagen/fiber/pkg/turn/native"
 )
 
 const filesTenant = "acme"

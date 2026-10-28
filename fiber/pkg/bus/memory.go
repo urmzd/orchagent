@@ -8,7 +8,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // Memory is a complete single-process bus: it is what the zero-infrastructure

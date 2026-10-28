@@ -8,10 +8,10 @@ import (
 
 	"github.com/urmzd/saige/agent/agenttest"
 
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/turn"
-	"github.com/urmzd/fiber/pkg/turn/native"
-	"github.com/urmzd/fiber/pkg/turn/runtimetest"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/turn"
+	"github.com/urmzd/humagen/fiber/pkg/turn/native"
+	"github.com/urmzd/humagen/fiber/pkg/turn/runtimetest"
 )
 
 func pinned() turn.Pinned {

@@ -52,7 +52,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/urmzd/fiber/pkg/internal/pgrename"
+	"github.com/urmzd/humagen/fiber/pkg/internal/pgrename"
 )
 
 // The tables this package owns. They are exported so the mapping handed to

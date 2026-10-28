@@ -13,9 +13,9 @@ import (
 
 	drun "github.com/urmzd/anchor/pkg/run"
 
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/internal/pgrename"
-	"github.com/urmzd/fiber/pkg/runtime"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/internal/pgrename"
+	"github.com/urmzd/humagen/fiber/pkg/runtime"
 )
 
 // untouched is an executor a run must never reach.

@@ -77,7 +77,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // Errors returned by every backend. Callers match with errors.Is.

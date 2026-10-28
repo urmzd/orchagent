@@ -17,13 +17,13 @@ import (
 	drun "github.com/urmzd/anchor/pkg/run"
 	"github.com/urmzd/anchor/pkg/worker"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/attachment"
-	"github.com/urmzd/fiber/pkg/definition"
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/runtime"
-	"github.com/urmzd/fiber/pkg/thread"
-	"github.com/urmzd/fiber/pkg/turn/native"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/attachment"
+	"github.com/urmzd/humagen/fiber/pkg/definition"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/runtime"
+	"github.com/urmzd/humagen/fiber/pkg/thread"
+	"github.com/urmzd/humagen/fiber/pkg/turn/native"
 )
 
 // ── fixtures ────────────────────────────────────────────────────────

@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/bus"
-	"github.com/urmzd/fiber/pkg/connector"
-	"github.com/urmzd/fiber/pkg/connectors/webhook"
-	"github.com/urmzd/fiber/pkg/egress"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/bus"
+	"github.com/urmzd/humagen/fiber/pkg/connector"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/webhook"
+	"github.com/urmzd/humagen/fiber/pkg/egress"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // An endpoint with no type filter receives what it always did: no POST per

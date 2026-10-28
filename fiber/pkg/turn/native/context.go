@@ -10,8 +10,8 @@ import (
 	saige "github.com/urmzd/saige/agent"
 	saigetypes "github.com/urmzd/saige/agent/types"
 
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/turn"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/turn"
 )
 
 // This file is the context policy of a turn: how the request is laid out so a

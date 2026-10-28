@@ -1,6 +1,6 @@
 package runtime_test
 
-import "github.com/urmzd/fiber/pkg/event"
+import "github.com/urmzd/humagen/fiber/pkg/event"
 
 // lifecycle reads any run lifecycle body: each type's fields are a subset.
 type lifecycle struct {

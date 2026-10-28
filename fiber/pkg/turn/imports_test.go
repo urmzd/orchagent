@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	module = "github.com/urmzd/fiber"
+	module = "github.com/urmzd/humagen/fiber"
 	saige  = "github.com/urmzd/saige"
 )
 

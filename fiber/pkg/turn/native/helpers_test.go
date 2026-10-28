@@ -3,7 +3,7 @@ package native_test
 import (
 	"encoding/json"
 
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // raw is a body as the JSON it is published as.

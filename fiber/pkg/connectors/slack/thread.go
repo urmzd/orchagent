@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/attachment"
-	"github.com/urmzd/fiber/pkg/attachment/intake"
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/thread"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/attachment"
+	"github.com/urmzd/humagen/fiber/pkg/attachment/intake"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/thread"
 )
 
 // Reply is one message in a thread, as conversations.replies returns it.

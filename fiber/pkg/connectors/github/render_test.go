@@ -4,10 +4,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/connectors/github"
-	"github.com/urmzd/fiber/pkg/connectors/internal/rendertest"
-	"github.com/urmzd/fiber/pkg/connectors/mention"
-	fevent "github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/github"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/rendertest"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/mention"
+	fevent "github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 const issueOpened = `{

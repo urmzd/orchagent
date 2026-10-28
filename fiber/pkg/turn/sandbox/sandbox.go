@@ -32,8 +32,8 @@ import (
 	"github.com/urmzd/playscape/pkg/tool"
 	"github.com/urmzd/playscape/pkg/workspace"
 
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/turn"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/turn"
 )
 
 // Defaults.

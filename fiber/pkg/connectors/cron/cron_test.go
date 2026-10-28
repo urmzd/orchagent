@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/connectors/internal/rendertest"
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/membership"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/rendertest"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/membership"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/connector"
-	"github.com/urmzd/fiber/pkg/connectors/cron"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/connector"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/cron"
 )
 
 // ── Expression parsing ──────────────────────────────────────────────

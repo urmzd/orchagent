@@ -16,7 +16,7 @@ import (
 	"github.com/urmzd/playscape/pkg/tool"
 	"github.com/urmzd/playscape/pkg/workspace"
 
-	"github.com/urmzd/fiber/pkg/turn/native"
+	"github.com/urmzd/humagen/fiber/pkg/turn/native"
 )
 
 // parentRuntime is the runtime a parent turn's node hands it: its scoped

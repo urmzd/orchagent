@@ -3,8 +3,8 @@ package cron_test
 import (
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/connectors/internal/rendertest"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/rendertest"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // A tick renders through the event catalog as its request text, schedule

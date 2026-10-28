@@ -8,7 +8,7 @@ import (
 
 	"github.com/urmzd/anchor/pkg/run"
 
-	"github.com/urmzd/fiber/pkg/durable"
+	"github.com/urmzd/humagen/fiber/pkg/durable"
 )
 
 // A prefix read returns the records whose key starts with a prefix and

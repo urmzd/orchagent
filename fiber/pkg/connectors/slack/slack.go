@@ -64,16 +64,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/attachment/intake"
-	"github.com/urmzd/fiber/pkg/connector"
-	"github.com/urmzd/fiber/pkg/connectors"
-	"github.com/urmzd/fiber/pkg/connectors/internal/files"
-	"github.com/urmzd/fiber/pkg/connectors/internal/inbound"
-	"github.com/urmzd/fiber/pkg/connectors/internal/render"
-	"github.com/urmzd/fiber/pkg/connectors/internal/sink"
-	"github.com/urmzd/fiber/pkg/connectors/mention"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/attachment/intake"
+	"github.com/urmzd/humagen/fiber/pkg/connector"
+	"github.com/urmzd/humagen/fiber/pkg/connectors"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/files"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/inbound"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/render"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/sink"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/mention"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // Name is the address scheme this connector owns.

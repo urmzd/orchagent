@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/urmzd/fiber/pkg/attachment"
-	"github.com/urmzd/fiber/pkg/attachment/intake"
+	"github.com/urmzd/humagen/fiber/pkg/attachment"
+	"github.com/urmzd/humagen/fiber/pkg/attachment/intake"
 )
 
 // FileHost is the only host Slack serves file downloads from

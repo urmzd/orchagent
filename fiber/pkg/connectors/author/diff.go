@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/urmzd/fiber/pkg/definition"
+	"github.com/urmzd/humagen/fiber/pkg/definition"
 )
 
 // diffContext is how many unchanged lines are kept around a change.

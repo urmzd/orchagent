@@ -18,15 +18,15 @@ import (
 	"github.com/urmzd/playscape/pkg/tool"
 	"github.com/urmzd/playscape/pkg/workspace"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/connector"
-	"github.com/urmzd/fiber/pkg/definition"
-	"github.com/urmzd/fiber/pkg/event"
-	turnrt "github.com/urmzd/fiber/pkg/turn"
-	"github.com/urmzd/fiber/pkg/turn/native"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/connector"
+	"github.com/urmzd/humagen/fiber/pkg/definition"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	turnrt "github.com/urmzd/humagen/fiber/pkg/turn"
+	"github.com/urmzd/humagen/fiber/pkg/turn/native"
 
-	"github.com/urmzd/fiber/pkg/attachment"
-	saigetypes "github.com/urmzd/fiber/pkg/turn/native/saigetypes"
+	"github.com/urmzd/humagen/fiber/pkg/attachment"
+	saigetypes "github.com/urmzd/humagen/fiber/pkg/turn/native/saigetypes"
 )
 
 // Sandbox defaults.

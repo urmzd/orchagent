@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/knowledge"
+	"github.com/urmzd/humagen/fiber/pkg/knowledge"
 )
 
 const tenantA, tenantB = "acme", "globex"

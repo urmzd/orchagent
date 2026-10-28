@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/connectors/internal/render"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/render"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // A run waiting on a person reads as waiting, in words: the question, what

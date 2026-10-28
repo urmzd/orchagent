@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/connectors/mention"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/mention"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // ErrSchedule reports a schedule that cannot be run. Callers match with

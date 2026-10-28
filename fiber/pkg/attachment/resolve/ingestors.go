@@ -15,10 +15,10 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	"github.com/urmzd/fiber/pkg/attachment"
-	"github.com/urmzd/fiber/pkg/blob"
-	"github.com/urmzd/fiber/pkg/turn/native/ragtypes"
-	types "github.com/urmzd/fiber/pkg/turn/native/saigetypes"
+	"github.com/urmzd/humagen/fiber/pkg/attachment"
+	"github.com/urmzd/humagen/fiber/pkg/blob"
+	"github.com/urmzd/humagen/fiber/pkg/turn/native/ragtypes"
+	types "github.com/urmzd/humagen/fiber/pkg/turn/native/saigetypes"
 )
 
 // Media is a recording or document handed to a derivation backend.

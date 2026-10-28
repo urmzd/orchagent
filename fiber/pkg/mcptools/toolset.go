@@ -9,8 +9,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/urmzd/fiber/pkg/toolprovider"
-	saigetypes "github.com/urmzd/fiber/pkg/turn/native/saigetypes"
+	"github.com/urmzd/humagen/fiber/pkg/toolprovider"
+	saigetypes "github.com/urmzd/humagen/fiber/pkg/turn/native/saigetypes"
 )
 
 // Toolset is the callable view of one provider for one grant: the accepted

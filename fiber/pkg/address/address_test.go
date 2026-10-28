@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/address"
 )
 
 func TestParseRoundTrip(t *testing.T) {

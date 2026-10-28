@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/definition"
+	"github.com/urmzd/humagen/fiber/pkg/definition"
 )
 
 func TestPolicyZeroGrantsNothing(t *testing.T) {

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/thread"
-	"github.com/urmzd/fiber/pkg/thread/threadtest"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/thread"
+	"github.com/urmzd/humagen/fiber/pkg/thread/threadtest"
 )
 
 // The Store contract, against every backend this package has: Memory always,

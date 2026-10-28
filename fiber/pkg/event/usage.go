@@ -1,6 +1,6 @@
 package event
 
-import "github.com/urmzd/fiber/pkg/address"
+import "github.com/urmzd/humagen/fiber/pkg/address"
 
 // TargetAddress parses the address the action was taken on. An action with
 // no target returns the zero address.

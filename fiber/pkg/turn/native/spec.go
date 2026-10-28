@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/urmzd/fiber/pkg/turn"
+	"github.com/urmzd/humagen/fiber/pkg/turn"
 )
 
 // ErrInvalid reports a revision this package cannot build an agent from.

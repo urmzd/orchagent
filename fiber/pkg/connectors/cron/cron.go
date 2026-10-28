@@ -53,9 +53,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/connector"
-	"github.com/urmzd/fiber/pkg/connectors/internal/inbound"
-	"github.com/urmzd/fiber/pkg/membership"
+	"github.com/urmzd/humagen/fiber/pkg/connector"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/inbound"
+	"github.com/urmzd/humagen/fiber/pkg/membership"
 )
 
 // Name is the address scheme this connector owns.

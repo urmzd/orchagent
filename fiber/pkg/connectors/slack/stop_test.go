@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/connectors/slack"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/slack"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // sessionStopped is the delivery Slack documents for a stop on a thread

@@ -10,7 +10,7 @@ import (
 	"github.com/urmzd/saige/agent/agenttest"
 	saigetypes "github.com/urmzd/saige/agent/types"
 
-	"github.com/urmzd/fiber/pkg/turn/native"
+	"github.com/urmzd/humagen/fiber/pkg/turn/native"
 )
 
 // ResolveTools is what a host shows before it runs an agent, so it must say

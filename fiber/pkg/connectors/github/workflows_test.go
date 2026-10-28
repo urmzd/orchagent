@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/connectors/github"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/github"
 )
 
 func TestWorkflowRerunUsesExactRunEndpointAndObservesNewerAttempts(t *testing.T) {

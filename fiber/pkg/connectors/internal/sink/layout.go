@@ -3,7 +3,7 @@ package sink
 import (
 	"strings"
 
-	"github.com/urmzd/fiber/pkg/connectors/internal/render"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/render"
 )
 
 // Markup is a surface's alphabet: the handful of things every one of these

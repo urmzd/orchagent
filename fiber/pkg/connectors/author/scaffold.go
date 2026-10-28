@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/urmzd/fiber/pkg/definition"
+	"github.com/urmzd/humagen/fiber/pkg/definition"
 )
 
 // Role is one agent in a scaffolded system: what it is called and what it is

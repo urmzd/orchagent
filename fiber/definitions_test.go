@@ -3,7 +3,7 @@ package fiber
 import (
 	"context"
 
-	"github.com/urmzd/fiber/pkg/definition"
+	"github.com/urmzd/humagen/fiber/pkg/definition"
 )
 
 // createAgent stores spec as version 1.0.0 of a definition, as setup.

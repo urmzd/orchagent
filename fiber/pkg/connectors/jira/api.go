@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/urmzd/fiber/pkg/connectors/internal/httpjson"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/httpjson"
 )
 
 // Site is one Jira instance: where it lives, and the credential for it.

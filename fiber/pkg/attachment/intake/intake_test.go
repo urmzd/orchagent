@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/attachment"
-	"github.com/urmzd/fiber/pkg/attachment/intake"
-	"github.com/urmzd/fiber/pkg/blob"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/attachment"
+	"github.com/urmzd/humagen/fiber/pkg/attachment/intake"
+	"github.com/urmzd/humagen/fiber/pkg/blob"
 )
 
 const png = "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR-not-a-real-image"

@@ -11,9 +11,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/membership"
-	"github.com/urmzd/fiber/pkg/membership/membershiptest"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/membership"
+	"github.com/urmzd/humagen/fiber/pkg/membership/membershiptest"
 )
 
 const postgresEnv = "FIBER_POSTGRES_TEST_URL"

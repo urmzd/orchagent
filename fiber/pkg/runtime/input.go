@@ -3,8 +3,8 @@ package runtime
 import (
 	"strings"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // runID is the run this input belongs to.

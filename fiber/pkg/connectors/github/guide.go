@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/connectors/mention"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/mention"
 )
 
 // GuideAPI maintains a PR-scoped guide separately from run-scoped answers.

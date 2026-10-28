@@ -54,9 +54,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/connectors/internal/render"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/render"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // Defaults for the engine.

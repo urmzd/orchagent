@@ -6,7 +6,7 @@ import (
 	"github.com/urmzd/saige/rag/extractor"
 	"github.com/urmzd/saige/rag/types"
 
-	"github.com/urmzd/fiber/pkg/turn/native/saigetypes"
+	"github.com/urmzd/humagen/fiber/pkg/turn/native/saigetypes"
 )
 
 // Retrieved context.

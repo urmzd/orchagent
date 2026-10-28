@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/bus"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/bus"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 const (

@@ -9,9 +9,9 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/urmzd/fiber/pkg/mcptools"
-	"github.com/urmzd/fiber/pkg/toolprovider"
-	saigetypes "github.com/urmzd/fiber/pkg/turn/native/saigetypes"
+	"github.com/urmzd/humagen/fiber/pkg/mcptools"
+	"github.com/urmzd/humagen/fiber/pkg/toolprovider"
+	saigetypes "github.com/urmzd/humagen/fiber/pkg/turn/native/saigetypes"
 )
 
 func noop(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {

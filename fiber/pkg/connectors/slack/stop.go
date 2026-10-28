@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/connectors/internal/inbound"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/inbound"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // StopEvent is the Events API type Slack sends when a person presses stop on an

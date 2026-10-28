@@ -3,7 +3,7 @@ package toolprovider_test
 import (
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/toolprovider"
+	"github.com/urmzd/humagen/fiber/pkg/toolprovider"
 )
 
 // A tool is held back when anything a model would be told about it changes:

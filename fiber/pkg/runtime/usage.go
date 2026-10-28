@@ -13,7 +13,7 @@ import (
 	"github.com/urmzd/anchor"
 	"github.com/urmzd/anchor/pkg/run"
 
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // # Usage

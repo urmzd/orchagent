@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // ErrDropped reports an old kind that has no type. Callers match with

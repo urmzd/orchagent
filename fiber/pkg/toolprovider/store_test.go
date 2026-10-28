@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/toolprovider"
-	"github.com/urmzd/fiber/pkg/toolprovider/toolprovidertest"
+	"github.com/urmzd/humagen/fiber/pkg/toolprovider"
+	"github.com/urmzd/humagen/fiber/pkg/toolprovider/toolprovidertest"
 )
 
 // The Store contract, against every backend this package has: Memory always,

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/urmzd/fiber/pkg/connector"
+	"github.com/urmzd/humagen/fiber/pkg/connector"
 )
 
 // KnowledgeToolName is the action a configured Knowledge contributes. It is

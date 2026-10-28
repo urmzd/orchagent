@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/bus"
-	"github.com/urmzd/fiber/pkg/dispatch"
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/membership"
-	"github.com/urmzd/fiber/pkg/runtime"
+	"github.com/urmzd/humagen/fiber/pkg/bus"
+	"github.com/urmzd/humagen/fiber/pkg/dispatch"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/membership"
+	"github.com/urmzd/humagen/fiber/pkg/runtime"
 )
 
 const channel = "slack://T1/C1"

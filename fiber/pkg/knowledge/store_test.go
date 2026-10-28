@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/knowledge"
-	"github.com/urmzd/fiber/pkg/knowledge/knowledgetest"
+	"github.com/urmzd/humagen/fiber/pkg/knowledge"
+	"github.com/urmzd/humagen/fiber/pkg/knowledge/knowledgetest"
 )
 
 // The Store contract, against every backend this package has: Memory always,

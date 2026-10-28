@@ -9,8 +9,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/urmzd/fiber/pkg/knowledge"
-	"github.com/urmzd/fiber/pkg/turn/native"
+	"github.com/urmzd/humagen/fiber/pkg/knowledge"
+	"github.com/urmzd/humagen/fiber/pkg/turn/native"
 )
 
 // retrieverFor binds the store to one run's tenant and to the sources its

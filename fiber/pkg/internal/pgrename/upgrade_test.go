@@ -13,11 +13,11 @@ import (
 	"github.com/urmzd/anchor/adapters/postgres/pgledger"
 	"github.com/urmzd/anchor/pkg/run"
 
-	"github.com/urmzd/fiber/pkg/durable"
-	"github.com/urmzd/fiber/pkg/internal/pgrename"
-	"github.com/urmzd/fiber/pkg/knowledge"
-	"github.com/urmzd/fiber/pkg/thread"
-	"github.com/urmzd/fiber/pkg/toolprovider"
+	"github.com/urmzd/humagen/fiber/pkg/durable"
+	"github.com/urmzd/humagen/fiber/pkg/internal/pgrename"
+	"github.com/urmzd/humagen/fiber/pkg/knowledge"
+	"github.com/urmzd/humagen/fiber/pkg/thread"
+	"github.com/urmzd/humagen/fiber/pkg/toolprovider"
 )
 
 const postgresEnv = "FIBER_POSTGRES_TEST_URL"

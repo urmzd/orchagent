@@ -5,7 +5,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/urmzd/fiber/pkg/knowledge"
+	"github.com/urmzd/humagen/fiber/pkg/knowledge"
 )
 
 // The property every citation rests on: whatever the input, a chunk's text is

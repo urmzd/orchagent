@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/attachment/intake"
-	"github.com/urmzd/fiber/pkg/blob"
-	"github.com/urmzd/fiber/pkg/connectors"
-	"github.com/urmzd/fiber/pkg/connectors/jira"
+	"github.com/urmzd/humagen/fiber/pkg/attachment/intake"
+	"github.com/urmzd/humagen/fiber/pkg/blob"
+	"github.com/urmzd/humagen/fiber/pkg/connectors"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/jira"
 )
 
 // issueCreatedWithFiles is a jira:issue_created delivery whose issue carries

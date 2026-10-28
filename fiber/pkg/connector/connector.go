@@ -31,8 +31,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // Errors returned by connectors and by the registry.

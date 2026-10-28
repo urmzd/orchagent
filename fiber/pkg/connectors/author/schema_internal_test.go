@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/definition"
+	"github.com/urmzd/humagen/fiber/pkg/definition"
 )
 
 // The schema a model drafts against offers exactly the fallback conditions a

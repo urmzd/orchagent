@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // DefaultTenant is the tenant a run's events carry when its trigger names

@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // Addresses travel as URIs and come back as addresses.

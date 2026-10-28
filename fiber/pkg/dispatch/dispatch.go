@@ -30,10 +30,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/bus"
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/membership"
-	"github.com/urmzd/fiber/pkg/runtime"
+	"github.com/urmzd/humagen/fiber/pkg/bus"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/membership"
+	"github.com/urmzd/humagen/fiber/pkg/runtime"
 )
 
 // ErrInvalid reports a dispatcher or tenant that cannot be served.

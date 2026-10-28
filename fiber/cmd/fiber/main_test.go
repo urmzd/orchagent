@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/turn/native"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/turn/native"
 )
 
 // docsBot is a definition as a deployment would write it: a real provider

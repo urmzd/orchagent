@@ -26,13 +26,13 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/urmzd/fiber"
-	"github.com/urmzd/fiber/pkg/bus"
-	"github.com/urmzd/fiber/pkg/definition"
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/turn/native"
-	"github.com/urmzd/fiber/pkg/turn/native/agenttest"
-	saigetypes "github.com/urmzd/fiber/pkg/turn/native/saigetypes"
+	"github.com/urmzd/humagen/fiber"
+	"github.com/urmzd/humagen/fiber/pkg/bus"
+	"github.com/urmzd/humagen/fiber/pkg/definition"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/turn/native"
+	"github.com/urmzd/humagen/fiber/pkg/turn/native/agenttest"
+	saigetypes "github.com/urmzd/humagen/fiber/pkg/turn/native/saigetypes"
 )
 
 // oncall is the agent, as a saige definition file.

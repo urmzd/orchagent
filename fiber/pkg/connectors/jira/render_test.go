@@ -4,8 +4,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/connectors/internal/rendertest"
-	fevent "github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/rendertest"
+	fevent "github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // Each Jira trigger renders through the event catalog as its tag renders

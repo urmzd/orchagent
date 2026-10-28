@@ -11,14 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/connectors/internal/rendertest"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/rendertest"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/connector"
-	"github.com/urmzd/fiber/pkg/connectors/internal/inbound"
-	"github.com/urmzd/fiber/pkg/connectors/jira"
-	"github.com/urmzd/fiber/pkg/connectors/mention"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/connector"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/inbound"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/jira"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/mention"
 )
 
 const (
@@ -496,7 +496,7 @@ func TestDeliveringTheSameEventsTwiceKeepsOneEditedComment(t *testing.T) {
 		ev(1, event.TypeAccepted, ""),
 		textEvent(2, "The retry path posts twice "),
 		textEvent(3, "because the handle was lost."),
-		ev(4, event.TypeCitation, `{"source":{"document_title":"sink.go","source_uri":"https://github.com/urmzd/fiber/blob/main/sink.go"}}`),
+		ev(4, event.TypeCitation, `{"source":{"document_title":"sink.go","source_uri":"https://github.com/urmzd/humagen/fiber/blob/main/sink.go"}}`),
 		ev(5, event.TypeCompleted, ""),
 	}
 	for range 2 {

@@ -132,15 +132,15 @@ import (
 	"github.com/urmzd/anchor"
 	"github.com/urmzd/anchor/pkg/run"
 
-	"github.com/urmzd/fiber/pkg/definition"
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/event/legacy"
-	"github.com/urmzd/fiber/pkg/internal/pgrename"
-	"github.com/urmzd/fiber/pkg/thread"
-	turnrt "github.com/urmzd/fiber/pkg/turn"
-	"github.com/urmzd/fiber/pkg/turn/native"
+	"github.com/urmzd/humagen/fiber/pkg/definition"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/event/legacy"
+	"github.com/urmzd/humagen/fiber/pkg/internal/pgrename"
+	"github.com/urmzd/humagen/fiber/pkg/thread"
+	turnrt "github.com/urmzd/humagen/fiber/pkg/turn"
+	"github.com/urmzd/humagen/fiber/pkg/turn/native"
 
-	"github.com/urmzd/fiber/pkg/attachment"
+	"github.com/urmzd/humagen/fiber/pkg/attachment"
 )
 
 // Activity names. They are the correlation contract with the ledger: records

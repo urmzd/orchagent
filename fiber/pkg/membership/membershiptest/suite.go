@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/membership"
+	"github.com/urmzd/humagen/fiber/pkg/membership"
 )
 
 // Run runs the contract against stores made by newStore, one per subtest.

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/mcptools"
+	"github.com/urmzd/humagen/fiber/pkg/mcptools"
 )
 
 type lockedWriter struct {

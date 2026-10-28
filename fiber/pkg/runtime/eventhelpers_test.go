@@ -3,7 +3,7 @@ package runtime_test
 import (
 	"encoding/json"
 
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // decode reads an event's body into T through its JSON, so a test can read a

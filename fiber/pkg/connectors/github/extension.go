@@ -1,9 +1,9 @@
 package github
 
 import (
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/connectors/internal/render"
-	"github.com/urmzd/fiber/pkg/connectors/internal/sink"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/render"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/sink"
 )
 
 // Hook is the decoded webhook union. Automation callbacks receive it only

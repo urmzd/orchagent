@@ -1,6 +1,6 @@
 package github
 
-import "github.com/urmzd/fiber/pkg/attachment/intake"
+import "github.com/urmzd/humagen/fiber/pkg/attachment/intake"
 
 // ServeFilesFrom points the connector's file fetches at a local server: each
 // GitHub file URL is rewritten by to, and fetched with f. The host policy the

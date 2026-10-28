@@ -3,8 +3,8 @@ package render_test
 import (
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/connectors/internal/render"
-	"github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/render"
+	"github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // A parked run shows what it asked while it waits, and how it was answered

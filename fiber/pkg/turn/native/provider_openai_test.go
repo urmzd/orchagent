@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/turn/native"
+	"github.com/urmzd/humagen/fiber/pkg/turn/native"
 )
 
 // compatServer is a minimal OpenAI-compatible server: it records each chat

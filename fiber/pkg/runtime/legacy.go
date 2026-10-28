@@ -8,8 +8,8 @@ import (
 
 	"github.com/urmzd/anchor"
 
-	"github.com/urmzd/fiber/pkg/event"
-	"github.com/urmzd/fiber/pkg/event/legacy"
+	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/event/legacy"
 )
 
 // errBeforeUnion is why a run recorded before the event union ends failed.

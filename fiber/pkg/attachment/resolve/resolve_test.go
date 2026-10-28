@@ -14,13 +14,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/fiber/pkg/address"
-	"github.com/urmzd/fiber/pkg/attachment"
-	"github.com/urmzd/fiber/pkg/attachment/intake"
-	"github.com/urmzd/fiber/pkg/attachment/resolve"
-	"github.com/urmzd/fiber/pkg/attachment/resolve/resolvetest"
-	"github.com/urmzd/fiber/pkg/blob"
-	types "github.com/urmzd/fiber/pkg/turn/native/saigetypes"
+	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/humagen/fiber/pkg/attachment"
+	"github.com/urmzd/humagen/fiber/pkg/attachment/intake"
+	"github.com/urmzd/humagen/fiber/pkg/attachment/resolve"
+	"github.com/urmzd/humagen/fiber/pkg/attachment/resolve/resolvetest"
+	"github.com/urmzd/humagen/fiber/pkg/blob"
+	types "github.com/urmzd/humagen/fiber/pkg/turn/native/saigetypes"
 )
 
 var ctx = context.Background()

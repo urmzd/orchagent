@@ -4,9 +4,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/urmzd/fiber/pkg/connectors/internal/rendertest"
-	"github.com/urmzd/fiber/pkg/connectors/slack"
-	fevent "github.com/urmzd/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/rendertest"
+	"github.com/urmzd/humagen/fiber/pkg/connectors/slack"
+	fevent "github.com/urmzd/humagen/fiber/pkg/event"
 )
 
 // A mention and a slash command render through the event catalog as their
