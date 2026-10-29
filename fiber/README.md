@@ -84,7 +84,7 @@ go get github.com/urmzd/humagen
 
 and import `github.com/urmzd/humagen/fiber`. Requires the Go version in
 [`go.mod`](../go.mod). Real inference needs provider
-credentials, a local Ollama, or an OpenAI-compatible server. The Postgres and
+credentials or an OpenAI-compatible server, such as a local Ollama. The Postgres and
 Redis backends need those services (`make integration` starts both with Docker).
 
 ## Quick Start
@@ -213,7 +213,7 @@ limit, a refused credential):
 ```yaml
 model:
   use: anthropic/claude-haiku-5-5
-  fallback: [openai/gpt-5, ollama/llama4]
+  fallback: [openai/gpt-5]
 ```
 
 Each fallback names a provider the deployment knows and a model, none repeats
@@ -375,7 +375,7 @@ granted tool this composition cannot resolve, go to standard error.
 | Flag | Does |
 |------|------|
 | `-offline` | Runs on the offline provider: no model is called and no key is needed. The definition's fallbacks are dropped with its provider. |
-| `-provider NAME`, `-model NAME` | Replace the definition's provider and model. A real provider reads its vendor's variables when the agent is built (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY` and `OPENAI_BASE_URL`, `OLLAMA_HOST`). |
+| `-provider NAME`, `-model NAME` | Replace the definition's provider and model. A real provider reads its vendor's variables when the agent is built (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY` and `OPENAI_BASE_URL`). |
 | `-policy FILE` | Reads the agent's Policy sidecar from JSON. Without it the policy is the zero value, which grants nothing. A field that does not exist is an error rather than ignored. |
 | `-tools` | Lists the tools the agent would be granted, marks those whose calls wait for approval, and names each grant left out and why, then exits without running anything. It needs no key and no MESSAGE. |
 | `-json` | Prints one JSON object per event, per line: the envelope as the bus carries it. With `-tools`, the listing as one object. |
@@ -517,8 +517,7 @@ in your own program and turn them into these options; fiber reads neither.
 | `WithPersonCredentials` | Each person's own credential for person-scoped MCP providers | none, so those providers offer no tools |
 
 Model providers read their own credentials when an agent is built:
-`ANTHROPIC_API_KEY`, `OPENAI_API_KEY` and `OPENAI_BASE_URL`, `OLLAMA_HOST`,
-and the variable an `OpenAICompatible.KeyEnv` names. An MCP provider's
+`ANTHROPIC_API_KEY`, `OPENAI_API_KEY` and `OPENAI_BASE_URL`, and the variable an `OpenAICompatible.KeyEnv` names. An MCP provider's
 `env:NAME` credential reference resolves the same way, as does a reference a
 `WithPersonCredentials` resolver returns for a person. Set up connectors with
 the [GitHub](docs/architecture/github.md) and [Slack](docs/architecture/slack.md)

@@ -17,14 +17,13 @@ import (
 // Providers every fiber knows. A deployment adds its own (Checks.Providers).
 const (
 	ProviderAnthropic = "anthropic"
-	ProviderOllama    = "ollama"
 	ProviderOpenAI    = "openai"
 	ProviderOffline   = "offline"
 )
 
 // KnownProviders lists the built-in providers, sorted.
 func KnownProviders() []string {
-	return []string{ProviderAnthropic, ProviderOffline, ProviderOllama, ProviderOpenAI}
+	return []string{ProviderAnthropic, ProviderOffline, ProviderOpenAI}
 }
 
 // MaxFallbacks bounds the models a definition falls back to.

@@ -14,7 +14,7 @@
 // It listens on nothing, reads no configuration file and keeps nothing once
 // it exits. It reads no environment variable of its own; the built-in model
 // providers read their vendors' (ANTHROPIC_API_KEY, OPENAI_API_KEY and
-// OPENAI_BASE_URL, OLLAMA_HOST) when the agent is built, as they do in any
+// OPENAI_BASE_URL) when the agent is built, as they do in any
 // program composing fiber. -offline runs the definition on the offline provider,
 // which calls no model, so a definition can be checked with no key at all.
 //

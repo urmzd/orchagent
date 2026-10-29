@@ -11,7 +11,6 @@ import (
 	"github.com/urmzd/saige/agent/agenttest"
 	"github.com/urmzd/saige/agent/provider/anthropic"
 	"github.com/urmzd/saige/agent/provider/fallback"
-	"github.com/urmzd/saige/agent/provider/ollama"
 	"github.com/urmzd/saige/agent/provider/openai"
 	"github.com/urmzd/saige/agent/provider/retry"
 )
@@ -23,10 +22,8 @@ import (
 const (
 	// ProviderAnthropic reads ANTHROPIC_API_KEY (see EnvAnthropicKey).
 	ProviderAnthropic = "anthropic"
-	// ProviderOllama talks to a local daemon (see EnvOllamaHost).
-	ProviderOllama = "ollama"
 	// ProviderOpenAI speaks the OpenAI Chat Completions API: OpenAI itself,
-	// or any server that implements the same API (vLLM, LM Studio, llama.cpp,
+	// or any server that implements the same API (Ollama, vLLM, LM Studio, llama.cpp,
 	// OpenRouter, Groq, Together, a gateway) when EnvOpenAIBaseURL points at
 	// it. It is one OpenAICompatible endpoint; register more with
 	// WithOpenAICompatible.
@@ -43,7 +40,6 @@ const (
 // secret fetch) and so a test can set one per case.
 const (
 	EnvAnthropicKey = "ANTHROPIC_API_KEY"
-	EnvOllamaHost   = "OLLAMA_HOST"
 	// EnvOpenAIKey authenticates the openai provider. It is required for
 	// the OpenAI API and optional for a compatible server, many of which
 	// run locally with no key.
@@ -52,9 +48,6 @@ const (
 	// server, for example http://localhost:8000/v1. Unset is OpenAI.
 	EnvOpenAIBaseURL = "OPENAI_BASE_URL"
 )
-
-// DefaultOllamaHost is used when EnvOllamaHost is unset.
-const DefaultOllamaHost = "http://localhost:11434"
 
 // DefaultOpenAIBaseURL is the OpenAI API, used when no base URL is given.
 const DefaultOpenAIBaseURL = "https://api.openai.com/v1"
@@ -74,7 +67,6 @@ type ProviderFunc func(spec Spec) (saigetypes.Provider, error)
 func defaultProviders() map[string]ProviderFunc {
 	return map[string]ProviderFunc{
 		ProviderAnthropic: nil, // resolved per Runner: it needs the cache lifetime
-		ProviderOllama:    ollamaProvider,
 		ProviderOpenAI:    openaiFromEnv,
 		ProviderOffline:   nil, // resolved per Runner: it needs the script
 	}
@@ -124,23 +116,6 @@ func newAnthropic(key, model, cacheTTL string, opts ...anthropic.Option) (*anthr
 	}
 	return anthropic.New(cfg, append(opts[:len(opts):len(opts)],
 		anthropic.WithPromptCachePolicy(anthropic.DefaultPromptCachePolicy(cacheTTL)))...)
-}
-
-func ollamaProvider(spec Spec) (saigetypes.Provider, error) {
-	if spec.Model == "" {
-		return nil, fmt.Errorf("%w: agent %q asks for the %s provider with no model", ErrInvalid, spec.Name, ProviderOllama)
-	}
-	host := os.Getenv(EnvOllamaHost)
-	if host == "" {
-		host = DefaultOllamaHost
-	}
-	// The embedding model is empty: an agent turn generates, it does not
-	// embed. Retrieval brings its own embedder (see Retriever).
-	a, err := ollama.New(ollama.Config{Host: host, Model: saigetypes.ModelID(spec.Model)})
-	if err != nil {
-		return nil, fmt.Errorf("%w: agent %q: %v", ErrInvalid, spec.Name, err)
-	}
-	return withRetry(a)
 }
 
 // OpenAICompatible is a model endpoint that speaks the OpenAI Chat
@@ -418,5 +393,5 @@ func offlineProvider(script [][]saigetypes.Delta) ProviderFunc {
 func defaultOfflineAnswer(spec Spec) string {
 	return fmt.Sprintf("%s is running with the offline provider, so no model was called. "+
 		"Set the agent's provider to %q or %q for real inference.",
-		spec.Name, ProviderAnthropic, ProviderOllama)
+		spec.Name, ProviderAnthropic, ProviderOpenAI)
 }
