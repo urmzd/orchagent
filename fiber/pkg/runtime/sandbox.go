@@ -22,6 +22,7 @@ import (
 	"github.com/urmzd/humagen/fiber/pkg/connector"
 	"github.com/urmzd/humagen/fiber/pkg/definition"
 	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/isolation"
 	turnrt "github.com/urmzd/humagen/fiber/pkg/turn"
 	"github.com/urmzd/humagen/fiber/pkg/turn/native"
 
@@ -126,6 +127,9 @@ type Sandbox struct {
 	// durable run, in place of the in-turn sub-task.
 	delegator Delegator
 	callTool  string
+	// instances gives each turn its claim on an isolated instance; nil
+	// gives none, and tools that need one refuse.
+	instances RunInstances
 
 	agentOpts []native.Option
 	knowledge func(tenant string, sources []string) native.Retriever
@@ -262,6 +266,19 @@ type Delegator func(ctx context.Context, parent Request, target, text string, re
 // delegation is a sub-task, which is what it always was.
 func WithDelegator(d Delegator) SandboxOption {
 	return func(s *Sandbox) { s.delegator = d }
+}
+
+// RunInstances returns the claim on an isolated instance one turn of req
+// makes (isolation.Run). It is called once per turn, for a durable run and
+// for a delegated sub-task alike, so a called run never shares its caller's
+// instance. ctx is the turn's and carries its actor. The turn's tools find
+// the claim on their context (isolation.RunFrom), and the sandbox releases it
+// when the turn ends, however it ends.
+type RunInstances func(ctx context.Context, req Request) *isolation.Run
+
+// WithRunInstances sets how a turn claims the instance its tools execute in.
+func WithRunInstances(f RunInstances) SandboxOption {
+	return func(s *Sandbox) { s.instances = f }
 }
 
 // WithCallTool replaces per-agent tag tools with one host catalog tool for
@@ -708,7 +725,11 @@ func (s *Sandbox) call(ctx context.Context, rt tool.Runtime, input []byte) ([]by
 	// Every call this turn makes is keyed under one prefix, which a sub-task
 	// it delegates to extends.
 	req.Accounting = accountingOf(req)
-	tools, granted, err := s.turnTools(ctx, rt, req, send)
+	// The claim travels on a context of its own: goroutines above read
+	// ctx, and it is not reassigned under them.
+	tctx, release := s.claim(ctx, req)
+	defer release()
+	tools, granted, err := s.turnTools(tctx, rt, req, send)
 	if err != nil {
 		return nil, err
 	}
@@ -738,7 +759,7 @@ func (s *Sandbox) call(ctx context.Context, rt tool.Runtime, input []byte) ([]by
 		return nil, err
 	}
 
-	res, err := runner.Run(ctx, native.Turn{
+	res, err := runner.Run(tctx, native.Turn{
 		Text: req.Text, Meta: req.Meta, History: req.History, Instructions: req.Instructions,
 		Attachments: req.Attachments, Tenant: req.Tenant,
 		Stop: stop, Compact: compact, Accounting: req.Accounting,
@@ -785,6 +806,10 @@ func (s *Sandbox) ToolsFor(ctx context.Context, req Request) (native.Granted, er
 		return native.Granted{}, err
 	}
 	req.Accounting = accountingOf(req)
+	// A group expansion may start a tool server, which needs the instance
+	// a turn would have; it is released before this returns.
+	ctx, release := s.claim(ctx, req)
+	defer release()
 	// Nothing runs, so there is no node runtime to hand the delegation tools
 	// and nothing they report has anywhere to go.
 	tools, granted, err := s.turnTools(ctx, nil, req, func(event.Body) error { return nil })
@@ -794,6 +819,25 @@ func (s *Sandbox) ToolsFor(ctx context.Context, req Request) (native.Granted, er
 	rev.Spec.Tools = granted
 	opts := append(append([]native.Option{native.WithLogger(s.logger)}, s.agentOpts...), native.WithTools(tools))
 	return native.ResolveTools(rev, opts...)
+}
+
+// claim puts the turn's claim on an instance on ctx, and returns how to
+// release it. The release outlives the turn's cancellation, so a cancelled
+// or failed turn destroys its instance too; a release that fails is logged,
+// and never changes the turn's outcome.
+func (s *Sandbox) claim(ctx context.Context, req Request) (context.Context, func()) {
+	if s.instances == nil {
+		return ctx, func() {}
+	}
+	run := s.instances(ctx, req)
+	if run == nil {
+		return ctx, func() {}
+	}
+	return isolation.WithRun(ctx, run), func() {
+		if err := run.Release(context.WithoutCancel(ctx)); err != nil {
+			s.logger.Error("fiber/runtime: a run's instance was not released cleanly", "run", req.RunID, "agent", req.Agent(), "error", err)
+		}
+	}
 }
 
 // turnTools assembles the tools one turn may call: the deployment's catalog for

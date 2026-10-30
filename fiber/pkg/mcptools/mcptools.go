@@ -40,6 +40,20 @@
 // A stdio server inherits only PATH and HOME from this process, not its
 // whole environment, so it cannot read credentials meant for something else.
 //
+// # Where a stdio server runs
+//
+// A stdio server dialled for a turn whose run is isolated (an
+// isolation.Run on the context) runs in that run's instance, in its
+// connectors compartment: the credential reaches it through the command's
+// environment there, and code the agent runs in the workload compartment
+// cannot read it. The session is the run's, not cached across runs, and is
+// closed when the run releases its instance. Outside a run (an admin
+// reviewing a provider, a seed accepting its tools), WithLeaser starts an
+// instance of the session's own, destroyed when the session closes. With
+// neither, the server is a host process, as in an unisolated deployment.
+// Its environment there is only what this package gives it: no PATH or HOME
+// of the host's, but the image's own.
+//
 // # Whose credential
 //
 // A shared provider (toolprovider.ScopeShared, the default) is reached with
@@ -94,9 +108,11 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/urmzd/humagen/fiber/pkg/isolation"
 	"github.com/urmzd/humagen/fiber/pkg/toolprovider"
 )
 
@@ -133,6 +149,7 @@ var (
 type Option func(*config)
 
 type config struct {
+	leaser     isolation.Leaser
 	resolver   Resolver
 	logger     *slog.Logger
 	httpClient *http.Client
@@ -156,6 +173,16 @@ func WithHTTPClient(h *http.Client) Option { return func(c *config) { c.httpClie
 // WithEnv adds KEY=VALUE pairs to a stdio server's environment, on top of
 // PATH, HOME and the credential.
 func WithEnv(kv ...string) Option { return func(c *config) { c.env = append(c.env, kv...) } }
+
+// WithLeaser starts a stdio server dialled outside an isolated run in an
+// instance of its own from l, in the connectors compartment, destroyed when
+// the session closes. Without it such a server is a host process. A server
+// dialled for an isolated run always runs in that run's instance.
+func WithLeaser(l isolation.Leaser) Option { return func(c *config) { c.leaser = l } }
+
+// ServerTimeout bounds how long a stdio server runs in an instance. The
+// instance is destroyed when its run ends, which usually comes first.
+const ServerTimeout = 12 * time.Hour
 
 // WithTransport replaces the transport the provider record describes. It is
 // for tests and for embedding a server in process; no credential is applied.
@@ -181,6 +208,11 @@ type Session struct {
 	// person is the credential a person-scoped session was opened with, as
 	// it was given: Grants checks it is the one it asked for.
 	person PersonCredential
+	// owned is an instance the session started its server in, destroyed
+	// when it closes; nil when it runs in a run's instance or on the host.
+	owned isolation.Instance
+	// where says where a stdio server runs: "host", "run" or "instance".
+	where string
 }
 
 // Connect resolves p's credential and opens an MCP session to it.
@@ -211,17 +243,35 @@ func Connect(ctx context.Context, p toolprovider.Provider, opts ...Option) (*Ses
 	s := &Session{provider: p, red: red, logger: logger, person: person}
 	transport := c.transport
 	if transport == nil {
-		transport = buildTransport(p, secret, c)
+		if transport, err = s.buildTransport(ctx, p, secret, c); err != nil {
+			return nil, red.err(fmt.Errorf("mcptools: connect %q: %w", p.Name, err))
+		}
 	}
 	client := mcp.NewClient(&mcp.Implementation{Name: "fiber", Version: "v0"}, &mcp.ClientOptions{Logger: logger})
 	cs, err := client.Connect(ctx, transport, nil)
 	if err != nil {
+		_ = s.closeOwned()
 		return nil, red.err(fmt.Errorf("mcptools: connect %q: %w", p.Name, err))
 	}
 	s.cs = cs
-	logger.Debug("mcptools: connected", "transport", string(p.Transport), "credential", secret)
+	logger.Debug("mcptools: connected", "transport", string(p.Transport), "where", s.where, "credential", secret)
 	return s, nil
 }
+
+// closeOwned destroys the instance the session started its server in.
+func (s *Session) closeOwned() error {
+	if s.owned == nil {
+		return nil
+	}
+	err := s.owned.Close(context.Background())
+	s.owned = nil
+	return err
+}
+
+// Where says where the session's stdio server runs: "run" for an isolated
+// run's instance, "instance" for one of its own, "host" for this host. It
+// is empty for an HTTP provider.
+func (s *Session) Where() string { return s.where }
 
 // credential is the secret a session to p is opened with, and for a
 // person-scoped provider the person's credential it came from.
@@ -262,15 +312,9 @@ func (c config) credential(ctx context.Context, p toolprovider.Provider) (Secret
 	return s, PersonCredential{}, nil
 }
 
-func buildTransport(p toolprovider.Provider, secret Secret, c config) mcp.Transport {
+func (s *Session) buildTransport(ctx context.Context, p toolprovider.Provider, secret Secret, c config) (mcp.Transport, error) {
 	if p.Transport == toolprovider.TransportStdio {
-		cmd := exec.Command(p.Endpoint, p.Args...)
-		cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + os.Getenv("HOME")}
-		cmd.Env = append(cmd.Env, c.env...)
-		if !secret.Empty() {
-			cmd.Env = append(cmd.Env, p.CredentialEnv+"="+secret.Reveal())
-		}
-		return &mcp.CommandTransport{Command: cmd}
+		return s.stdioTransport(ctx, p, secret, c)
 	}
 	base := http.DefaultClient
 	if c.httpClient != nil {
@@ -286,7 +330,53 @@ func buildTransport(p toolprovider.Provider, secret Secret, c config) mcp.Transp
 		client.Transport = bearer{next: next, secret: secret, origin: origin, ok: ok}
 		client.CheckRedirect = noDowngrade(client.CheckRedirect)
 	}
-	return &mcp.StreamableClientTransport{Endpoint: p.Endpoint, HTTPClient: &client}
+	return &mcp.StreamableClientTransport{Endpoint: p.Endpoint, HTTPClient: &client}, nil
+}
+
+// stdioTransport starts a stdio server where it belongs (see "Where a stdio
+// server runs").
+func (s *Session) stdioTransport(ctx context.Context, p toolprovider.Provider, secret Secret, c config) (mcp.Transport, error) {
+	var inst isolation.Instance
+	switch run, ok := isolation.RunFrom(ctx); {
+	case ok && run.Isolated():
+		i, err := run.Instance(ctx)
+		if err != nil {
+			return nil, err
+		}
+		inst, s.where = i, "run"
+	case c.leaser != nil:
+		i, err := c.leaser.Lease(ctx, isolation.Request{Tenant: p.Tenant, Run: "provider:" + p.Name, Connectors: true})
+		if err != nil {
+			return nil, fmt.Errorf("lease an instance: %w", err)
+		}
+		inst, s.owned, s.where = i, i, "instance"
+	default:
+		cmd := exec.Command(p.Endpoint, p.Args...)
+		cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + os.Getenv("HOME")}
+		cmd.Env = append(cmd.Env, c.env...)
+		if !secret.Empty() {
+			cmd.Env = append(cmd.Env, p.CredentialEnv+"="+secret.Reveal())
+		}
+		s.where = "host"
+		return &mcp.CommandTransport{Command: cmd}, nil
+	}
+	env := map[string]string{}
+	for _, kv := range c.env {
+		if k, v, ok := strings.Cut(kv, "="); ok {
+			env[k] = v
+		}
+	}
+	if !secret.Empty() {
+		env[p.CredentialEnv] = secret.Reveal()
+	}
+	proc, err := isolation.Start(ctx, inst, isolation.Command{
+		Argv: append([]string{p.Endpoint}, p.Args...), Env: env, Timeout: ServerTimeout, In: isolation.Connectors,
+	})
+	if err != nil {
+		_ = s.closeOwned()
+		return nil, err
+	}
+	return &mcp.IOTransport{Reader: proc, Writer: proc}, nil
 }
 
 // bearer adds the credential to requests bound for the provider's own origin
@@ -354,8 +444,11 @@ func noDowngrade(next func(*http.Request, []*http.Request) error) func(*http.Req
 // Provider returns the record this session was opened from.
 func (s *Session) Provider() toolprovider.Provider { return s.provider }
 
-// Close ends the session and, for stdio, the server process.
-func (s *Session) Close() error { return s.red.err(s.cs.Close()) }
+// Close ends the session and, for stdio, the server process, with the
+// instance it started the server in.
+func (s *Session) Close() error {
+	return s.red.err(errors.Join(s.cs.Close(), s.closeOwned()))
+}
 
 // Offered lists the tools the server offers now, as toolprovider tools with
 // canonical schemas and hashes and no class.

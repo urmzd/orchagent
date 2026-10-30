@@ -28,12 +28,13 @@ func ValidateJSON(schema ParameterSchema, value any) error { return types.Valida
 
 // Providers and the deltas they stream.
 type (
-	Delta     = types.Delta
-	PartDelta = types.PartDelta
-	PartEnd   = types.PartEnd
-	PartKind  = types.PartKind
-	PartStart = types.PartStart
-	Provider  = types.Provider
+	Delta      = types.Delta
+	ErrorDelta = types.ErrorDelta
+	PartDelta  = types.PartDelta
+	PartEnd    = types.PartEnd
+	PartKind   = types.PartKind
+	PartStart  = types.PartStart
+	Provider   = types.Provider
 )
 
 // KindText is the text part kind.

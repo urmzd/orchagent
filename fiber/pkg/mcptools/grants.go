@@ -8,6 +8,7 @@ import (
 
 	"github.com/urmzd/humagen/fiber/pkg/definition"
 	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/isolation"
 	"github.com/urmzd/humagen/fiber/pkg/toolprovider"
 	saigetypes "github.com/urmzd/humagen/fiber/pkg/turn/native/saigetypes"
 )
@@ -68,6 +69,14 @@ func Dialer(opts ...Option) Dial {
 // credential is never used, and no person's session is ever handed to
 // another. At most WithPersonSessions person sessions are kept open; past
 // that the one expanded longest ago is closed.
+//
+// # In an isolated run
+//
+// A stdio provider expanded for a turn whose run is isolated
+// (isolation.RunFrom) gets a session of that run's, its server started in
+// the run's instance. It is shared by that run's expansions only, never
+// cached for another run, and closed when the run releases its instance.
+// HTTP providers keep their cached sessions: they start nothing.
 type Grants struct {
 	store   toolprovider.Store
 	dial    Dial
@@ -76,8 +85,17 @@ type Grants struct {
 
 	mu       sync.Mutex
 	sessions map[sessionKey]*held
-	tick     uint64
-	closed   bool
+	// runs holds the sessions of isolated runs, each until its run
+	// releases its instance.
+	runs   map[runKey]*held
+	tick   uint64
+	closed bool
+}
+
+// runKey is a session's key within one run.
+type runKey struct {
+	run *isolation.Run
+	key sessionKey
 }
 
 type sessionKey struct {
@@ -128,7 +146,7 @@ func NewGrants(store toolprovider.Store, dial Dial, opts ...GrantsOption) *Grant
 	if dial == nil {
 		dial = Dialer()
 	}
-	g := &Grants{store: store, dial: dial, limit: DefaultPersonSessions, sessions: map[sessionKey]*held{}}
+	g := &Grants{store: store, dial: dial, limit: DefaultPersonSessions, sessions: map[sessionKey]*held{}, runs: map[runKey]*held{}}
 	for _, o := range opts {
 		o(g)
 	}
@@ -210,7 +228,11 @@ func (g *Grants) toolset(ctx context.Context, p toolprovider.Provider, who *pers
 	if err == nil || fresh || ctx.Err() != nil {
 		return ts, err
 	}
-	g.evict(keyFor(p, who), s)
+	if run, ok := runOf(ctx, p); ok {
+		g.evictRun(runKey{run: run, key: keyFor(p, who)}, s)
+	} else {
+		g.evict(keyFor(p, who), s)
+	}
 	s, _, err = g.session(ctx, p, who)
 	if err != nil {
 		return nil, err
@@ -239,6 +261,9 @@ func (h *held) current(p toolprovider.Provider, who *person) bool {
 // with their current credential), dialling one if there is none. fresh
 // reports a session dialled by this call.
 func (g *Grants) session(ctx context.Context, p toolprovider.Provider, who *person) (*Session, bool, error) {
+	if run, ok := runOf(ctx, p); ok {
+		return g.runSession(ctx, run, p, who)
+	}
 	k := keyFor(p, who)
 	g.mu.Lock()
 	if g.closed {
@@ -256,23 +281,11 @@ func (g *Grants) session(ctx context.Context, p toolprovider.Provider, who *pers
 	// The session outlives the turn that opened it, so it is not bound to
 	// that turn's cancellation. A person's session is dialled with their
 	// credential and with nothing else.
-	dctx := context.WithoutCancel(ctx)
-	h := &held{}
-	if who != nil {
-		dctx = withPersonCredential(dctx, who.cred)
-		h.cred = who.cred
-	}
-	s, err := g.dial(dctx, p)
+	h, err := g.dialFor(context.WithoutCancel(ctx), p, who)
 	if err != nil {
 		return nil, false, err
 	}
-	if who != nil && !s.person.same(who.cred) {
-		// A Dial that opened the session with something other than what it
-		// was handed. Whatever it holds is not this person's.
-		_ = s.Close()
-		return nil, false, fmt.Errorf("%w: provider %q: the session was not opened with the credential of the person it is for", ErrCredential, p.Name)
-	}
-	h.s = s
+	s := h.s
 
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -299,6 +312,96 @@ func (g *Grants) session(ctx context.Context, p toolprovider.Provider, who *pers
 		g.trim(k)
 	}
 	return s, true, nil
+}
+
+// runOf reports the isolated run a session to p must belong to: a stdio
+// provider, for a turn whose run is isolated.
+func runOf(ctx context.Context, p toolprovider.Provider) (*isolation.Run, bool) {
+	if p.Transport != toolprovider.TransportStdio {
+		return nil, false
+	}
+	run, ok := isolation.RunFrom(ctx)
+	if !ok || !run.Isolated() {
+		return nil, false
+	}
+	return run, true
+}
+
+// dialFor dials p for who, with their credential and nothing else, and
+// checks the session was opened with it.
+func (g *Grants) dialFor(ctx context.Context, p toolprovider.Provider, who *person) (*held, error) {
+	h := &held{}
+	if who != nil {
+		ctx = withPersonCredential(ctx, who.cred)
+		h.cred = who.cred
+	}
+	s, err := g.dial(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	if who != nil && !s.person.same(who.cred) {
+		// A Dial that opened the session with something other than what it
+		// was handed. Whatever it holds is not this person's.
+		_ = s.Close()
+		return nil, fmt.Errorf("%w: provider %q: the session was not opened with the credential of the person it is for", ErrCredential, p.Name)
+	}
+	h.s = s
+	return h, nil
+}
+
+// runSession returns run's session to p for who, dialling it in the run's
+// instance on first use. It is closed when the run releases its instance.
+func (g *Grants) runSession(ctx context.Context, run *isolation.Run, p toolprovider.Provider, who *person) (*Session, bool, error) {
+	k := runKey{run: run, key: keyFor(p, who)}
+	g.mu.Lock()
+	if g.closed {
+		g.mu.Unlock()
+		return nil, false, ErrClosed
+	}
+	if cur := g.runs[k]; cur.current(p, who) {
+		g.mu.Unlock()
+		return cur.s, false, nil
+	}
+	g.mu.Unlock()
+
+	// The server lives as long as the run's instance, not the expansion.
+	h, err := g.dialFor(context.WithoutCancel(ctx), p, who)
+	if err != nil {
+		return nil, false, err
+	}
+	g.mu.Lock()
+	if g.closed {
+		g.mu.Unlock()
+		_ = h.s.Close()
+		return nil, false, ErrClosed
+	}
+	if won := g.runs[k]; won.current(p, who) {
+		g.mu.Unlock()
+		_ = h.s.Close()
+		return won.s, false, nil
+	}
+	if old := g.runs[k]; old != nil {
+		_ = old.s.Close()
+	}
+	g.runs[k] = h
+	g.mu.Unlock()
+	// Registered after it is held, so the release finds it; a run already
+	// released runs this at once and closes it.
+	_ = run.OnRelease(ctx, func(context.Context) error {
+		g.evictRun(k, h.s)
+		return nil
+	})
+	return h.s, true, nil
+}
+
+// evictRun forgets and closes one run's session.
+func (g *Grants) evictRun(k runKey, s *Session) {
+	g.mu.Lock()
+	if h := g.runs[k]; h != nil && h.s == s {
+		delete(g.runs, k)
+	}
+	g.mu.Unlock()
+	_ = s.Close()
 }
 
 // sweep closes every session of p's provider opened from an older version of
@@ -360,6 +463,10 @@ func (g *Grants) Close() error {
 	for k, h := range g.sessions {
 		err = errors.Join(err, h.s.Close())
 		delete(g.sessions, k)
+	}
+	for k, h := range g.runs {
+		err = errors.Join(err, h.s.Close())
+		delete(g.runs, k)
 	}
 	return err
 }
