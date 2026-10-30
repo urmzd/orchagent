@@ -773,6 +773,15 @@ func (r *Runner) Run(ctx context.Context, t Turn, emit func(context.Context, eve
 		return res, fmt.Errorf("native: agent %q version %s: %w", r.rev.Spec.Name, r.rev.Version, err)
 	}
 
+	// watched is closed when the watcher goroutine below returns. requests
+	// learns it before the loop starts, so catching up with a watcher that
+	// has stopped never blocks.
+	watched := make(chan struct{})
+	var caughtUp chan struct{}
+	if requests != nil {
+		requests.watch(watched)
+		caughtUp = requests.sync
+	}
 	stream := agent.Invoke(ctx, input)
 	accounts := newAccountant(t.Accounting, r.rev.Spec.Name, r.rev.Spec.Model, r.provider, r.models...)
 
@@ -783,7 +792,6 @@ func (r *Runner) Run(ctx context.Context, t Turn, emit func(context.Context, eve
 	// turn has returned" true rather than likely.
 	stopping := newStopper(stream)
 	finished := make(chan struct{})
-	watched := make(chan struct{})
 	go func() {
 		defer close(watched)
 		compact := t.Compact
@@ -802,6 +810,9 @@ func (r *Runner) Run(ctx context.Context, t Turn, emit func(context.Context, eve
 					r.logger.Debug("fiber/turn/native: a request to compact was ignored; this deployment does not take them",
 						"agent", r.rev.Spec.Name)
 				}
+			case <-caughtUp:
+				// The loop is about to measure, and every request taken
+				// above is already recorded.
 			case <-finished:
 				return
 			}

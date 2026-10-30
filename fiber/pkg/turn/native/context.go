@@ -283,9 +283,19 @@ const TriggerRequested = string(saigetypes.CompactionTriggerRequested)
 //
 // Requests that arrive while one is pending fold into it: two presses of a
 // button before the next model call are one compaction.
+//
+// A request is received on the watcher goroutine and recorded a moment
+// later, so a request that has arrived may not be pending yet. CountTokens
+// catches up with the watcher before it reads the flag (see catchUp), so
+// every request received before the loop measures is one it sees.
 type compactRequests struct {
 	base   saigetypes.Tokenizer
 	budget int
+
+	// sync is received by the watcher goroutine between requests, and gone
+	// is closed when it stops watching. Both are nil until watch is called.
+	sync chan struct{}
+	gone <-chan struct{}
 
 	mu      sync.Mutex
 	pending bool
@@ -303,7 +313,23 @@ type compactAttempt struct {
 }
 
 func newCompactRequests(base saigetypes.Tokenizer, budget int) *compactRequests {
-	return &compactRequests{base: base, budget: budget}
+	return &compactRequests{base: base, budget: budget, sync: make(chan struct{})}
+}
+
+// watch names the channel closed when the watcher goroutine stops receiving
+// requests. It is called before the agent loop starts.
+func (q *compactRequests) watch(gone <-chan struct{}) { q.gone = gone }
+
+// catchUp waits until the watcher goroutine has recorded every request it has
+// received. The watcher receives from sync only between requests, so once
+// the send completes, a request it took before is pending. A watcher that has
+// stopped has nothing left to record.
+func (q *compactRequests) catchUp(ctx context.Context) {
+	select {
+	case q.sync <- struct{}{}:
+	case <-q.gone:
+	case <-ctx.Done():
+	}
 }
 
 // request records a host's request.
@@ -318,6 +344,7 @@ func (q *compactRequests) request(r CompactRequest) {
 // CountTokens implements saigetypes.Tokenizer.
 func (q *compactRequests) CountTokens(ctx context.Context, messages []saigetypes.Message) (int, error) {
 	n, err := q.base.CountTokens(ctx, messages)
+	q.catchUp(ctx)
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if q.pending {
