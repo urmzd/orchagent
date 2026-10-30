@@ -122,11 +122,11 @@ func WithAuthor(provider, model string) Option {
 // ledger and queue, knowledge, thread journals, memberships and MCP tool
 // providers. New
 // migrates each. A store passed by its own option wins over this one. The
-// bus is chosen separately (WithBus with bus.NewPostgres or bus.NewRedis).
+// bus is chosen separately (WithBus with bus.NewPostgres).
 func WithPostgres(pool *pgxpool.Pool) Option { return func(o *options) { o.Postgres = pool } }
 
-// WithBus sets the broker: bus.NewMemory (the default), bus.NewRedis or
-// bus.NewPostgres, or any implementation that passes bustest.
+// WithBus sets the broker: bus.NewMemory (the default), bus.NewPostgres, or
+// any implementation that passes bustest.
 func WithBus(b bus.Bus) Option { return func(o *options) { o.Bus = b } }
 
 // WithDefinitions sets the agent store. The store decides which providers it

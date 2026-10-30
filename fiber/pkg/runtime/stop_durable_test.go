@@ -690,15 +690,14 @@ func TestCancellingAWaitingTurnCancelsItsTask(t *testing.T) {
 	}
 }
 
-// The integration job sets $FIBER_POSTGRES_TEST_URL and $FIBER_REDIS_ADDR
-// and requires this test to pass, which is how it knows every stop test above,
-// and the usage tests in usage_test.go,
-// ran on Postgres (ledger, queue, journal) and Redis (bus) rather than on the
-// in-memory fallbacks. Without both it skips, so plain `go test ./...` stays
-// hermetic.
-func TestStopTestsRunOnPostgresAndRedis(t *testing.T) {
-	if os.Getenv(threadsEnv) == "" || os.Getenv(stopBusEnv) == "" {
-		t.Skipf("set %s and %s to run the stop tests on Postgres and Redis", threadsEnv, stopBusEnv)
+// The integration job sets $FIBER_POSTGRES_TEST_URL and requires this test to
+// pass, which is how it knows every stop test above, and the usage tests in
+// usage_test.go, ran on Postgres (ledger, queue, journal) rather than on the
+// in-memory fallbacks. Without it the test skips, so plain `go test ./...`
+// stays hermetic.
+func TestStopTestsRunOnPostgres(t *testing.T) {
+	if os.Getenv(threadsEnv) == "" {
+		t.Skipf("set %s to run the stop tests on Postgres", threadsEnv)
 	}
 	w := newWorld(t)
 	if _, ok := w.ledger.(*pgledger.Ledger); !ok {
@@ -706,9 +705,6 @@ func TestStopTestsRunOnPostgresAndRedis(t *testing.T) {
 	}
 	if _, ok := w.queue.(*pgqueue.Queue); !ok {
 		t.Fatalf("the queue is %T, want Postgres", w.queue)
-	}
-	if _, ok := w.bus.Bus.(*bus.Redis); !ok {
-		t.Fatalf("the bus is %T, want Redis", w.bus.Bus)
 	}
 	if _, ok := w.threads.Store.(*thread.Postgres); !ok {
 		t.Fatalf("the journal is %T, want Postgres", w.threads.Store)

@@ -52,28 +52,26 @@
 //
 // A slow consumer never slows a publisher and never slows another consumer.
 // Memory terminates a subscriber whose buffer fills (its Recv drains what it
-// holds and then fails with ErrSlowConsumer); Redis and Postgres hold the
-// events already and simply stop reading. Recovery is always to resubscribe
+// holds and then fails with ErrSlowConsumer); Postgres holds the events
+// already and simply stops reading. Recovery is always to resubscribe
 // from the last sequence processed.
 //
 // # Retention
 //
 // Each run keeps a ring of its most recent events, and so does each channel
-// for the events that are not run events (WithRetention). Postgres and Redis
-// forget everything WithIndexTTL after it was published.
+// for the events that are not run events (WithRetention). Postgres forgets
+// everything WithIndexTTL after it was published.
 //
 // # Backends
 //
-// Memory serves one process. Redis (Streams) and Postgres (two tables and
-// LISTEN/NOTIFY) are shared by every process on them. bustest holds all three
-// to one contract.
+// Memory serves one process. Postgres (two tables and LISTEN/NOTIFY) is
+// shared by every process on it. bustest holds both to one contract.
 package bus
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	goruntime "runtime"
 	"slices"
 	"time"
 
@@ -176,14 +174,11 @@ const (
 	DefaultBacklog = 256
 	// DefaultMaxRuns bounds how many rings Memory retains at once.
 	DefaultMaxRuns = 4096
-	// DefaultKeyPrefix namespaces every Redis key the bus owns. The v2
-	// suffix keeps the channel bus apart from keys the agent-keyed bus wrote.
-	DefaultKeyPrefix = "fiber:v2"
-	// DefaultPollInterval bounds how long a Redis subscriber blocks in one
-	// XREAD, and so how quickly it notices a new stream or a closed one.
+	// DefaultPollInterval is the Postgres reader's fallback poll while no
+	// LISTEN connection is up.
 	DefaultPollInterval = 250 * time.Millisecond
-	// DefaultIndexTTL is how long an event stays retained on Redis and
-	// Postgres after it was published.
+	// DefaultIndexTTL is how long an event stays retained on Postgres after
+	// it was published.
 	DefaultIndexTTL = 24 * time.Hour
 	// DefaultMaxHops is the most hops an event may carry.
 	DefaultMaxHops = 8
@@ -195,7 +190,6 @@ type options struct {
 	backlog   int
 	maxRuns   int
 	maxHops   int
-	prefix    string
 	poll      time.Duration
 	indexTTL  time.Duration
 	now       func() time.Time
@@ -207,7 +201,6 @@ func defaults() options {
 		backlog:   DefaultBacklog,
 		maxRuns:   DefaultMaxRuns,
 		maxHops:   DefaultMaxHops,
-		prefix:    DefaultKeyPrefix,
 		poll:      DefaultPollInterval,
 		indexTTL:  DefaultIndexTTL,
 		now:       time.Now,
@@ -247,7 +240,7 @@ func WithBacklog(n int) Option {
 }
 
 // WithMaxRuns bounds how many rings Memory retains, evicting the one whose
-// last event is oldest (default 4096). Redis and Postgres ignore it.
+// last event is oldest (default 4096). Postgres ignores it.
 func WithMaxRuns(n int) Option {
 	return func(o *options) {
 		if n > 0 {
@@ -265,18 +258,8 @@ func WithMaxHops(n int) Option {
 	}
 }
 
-// WithKeyPrefix namespaces the Redis keys the bus owns (default "fiber:v2").
-func WithKeyPrefix(p string) Option {
-	return func(o *options) {
-		if p != "" {
-			o.prefix = p
-		}
-	}
-}
-
-// WithPollInterval sets how long a Redis subscriber blocks in one XREAD
-// (default 250ms). On Postgres it is the reader's fallback poll while no
-// LISTEN connection is up. Memory ignores it.
+// WithPollInterval sets the Postgres reader's fallback poll while no LISTEN
+// connection is up (default 250ms). Memory ignores it.
 func WithPollInterval(d time.Duration) Option {
 	return func(o *options) {
 		if d > 0 {
@@ -285,7 +268,7 @@ func WithPollInterval(d time.Duration) Option {
 	}
 }
 
-// WithIndexTTL sets how long Redis and Postgres keep an event and what they
+// WithIndexTTL sets how long Postgres keeps an event and what they
 // know about its run or channel after it was published (default 24h).
 // Memory ignores it.
 func WithIndexTTL(d time.Duration) Option {
@@ -294,13 +277,6 @@ func WithIndexTTL(d time.Duration) Option {
 			o.indexTTL = d
 		}
 	}
-}
-
-// RedisPoolSize is the connection pool a Redis client needs for a process
-// that executes concurrentRuns runs at once, each holding streamsPerRun
-// subscriptions for its whole turn.
-func RedisPoolSize(concurrentRuns, streamsPerRun int) int {
-	return 10*goruntime.GOMAXPROCS(0) + max(concurrentRuns, 1)*max(streamsPerRun, 1)
 }
 
 // normalize validates e and stamps its time. Every backend runs it before

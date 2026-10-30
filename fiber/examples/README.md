@@ -3,7 +3,7 @@
 Runnable programs that demonstrate fiber rather than describe it. Every
 example in this directory runs with no API key, no network and no
 infrastructure: the in-memory implementations of the same interfaces stand in
-for Postgres, Redis and a model provider, so `go run` is the only setup.
+for Postgres and a model provider, so `go run` is the only setup.
 
 | Example | Command | What it proves |
 | --- | --- | --- |
@@ -64,7 +64,7 @@ paths.
 | Concern | The example runs | A deployment runs |
 | --- | --- | --- |
 | Control plane | `definition.Memory` (`fiber.WithDefinitions`), agents read from `agents/*.agent.md` | `definition.Postgres` (`fiber.WithPostgres`) |
-| Bus | `pkg/bus.Memory` (`fiber.WithBus`) | `bus.NewRedis` or `bus.NewPostgres` (`fiber.WithBus`) |
+| Bus | `pkg/bus.Memory` (`fiber.WithBus`) | `bus.NewPostgres` (`fiber.WithBus`) |
 | Ledger and queue | anchor `ledger.Memory`, `queue.Memory` | anchor's Postgres ledger and queue (`fiber.WithPostgres`) |
 | Model | saige `agenttest.ScriptedProvider`, via the definition's `offline/scripted` model | `anthropic`, `openai` (or any OpenAI-compatible server) or `ollama`, by changing `model.use` in the definition |
 | Execution | an in-process `turn.Runtime` (`fiber.WithTurnRuntime`) | `runtime.NewSandbox`, a playscape node under NGAC, which `fiber.New` builds by default |

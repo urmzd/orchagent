@@ -14,8 +14,8 @@ for validating a definition locally, not a way to serve one.
 
 **Status: v0 alpha, pre-1.0, not recommended for production.** Interfaces are
 still moving and may change between minor versions. The in-memory composition
-is complete and tested. Every Postgres store, the Postgres bus and the Redis
-bus pass their conformance suites in CI's integration job (`make integration`
+is complete and tested. Every Postgres store and the Postgres bus pass their
+conformance suites in CI's integration job (`make integration`
 locally). Keep the surface small and document limitations honestly.
 
 The design turns on one idea: where an event arrives and where its answer lands
@@ -35,7 +35,7 @@ sandboxing and access control.
 | `pkg/event/legacy` | Reads JSON written before the union (bus rows, journal entries, old run inputs, old kind selectors) and maps each old kind to its type. Raw JSON only; imports none of the removed packages. |
 | `pkg/address` | Channel URIs: `github://urmzd/fiber/issues/42`, `slack://T01/C02?thread=...`. Leaf. |
 | `pkg/signature` | HMAC verification for inbound webhooks (Slack v0, GitHub sha256). Leaf. Security boundary. |
-| `pkg/bus` | The channel bus: `Bus` carries `event.Envelope`; `Subscription{Tenant, Channels, Types, Run, From}` is default deny. Hop limit (`DefaultMaxHops`), run sequences, retention. `Memory`, Redis Streams and Postgres (`fiber_events`, `fiber_event_runs`); `bustest` conformance suite. |
+| `pkg/bus` | The channel bus: `Bus` carries `event.Envelope`; `Subscription{Tenant, Channels, Types, Run, From}` is default deny. Hop limit (`DefaultMaxHops`), run sequences, retention. `Memory` and Postgres (`fiber_events`, `fiber_event_runs`); `bustest` conformance suite. |
 | `pkg/connector` | `Trigger` (`Ingest(ctx, publish)`) / `Sink` / `Actor` faces, derived by `RolesOf`, `Subscriber` for a sink that names its channels and types, plus the registry of sinks. |
 | `pkg/definition` | Agents as saige `.agent.md` definitions plus a fiber `Policy` sidecar. The insert-only `Source` (`Memory` and `Postgres`, `definitiontest`), the `Resolver` that pins a version tree (`Pin`: name, version, saige digest, sub-agent versions, policy hash) and `Verify`s it on replay (fail closed), fiber's validation, MCP grants, and the converter for stored agents from before the union (see the upgrade section of `docs/architecture/events.md`). |
 | `pkg/membership` | Which agents are members of which channel prefixes, per tenant, with a `Rule` (type prefixes, addressed only by default). Default deny. `Memory` and `Postgres`, `membershiptest`. |
@@ -73,7 +73,7 @@ Run from the repository root.
 | quality gate | `make check` |
 | end-to-end demo | `go run ./fiber/examples/local`, `go run ./fiber/examples/downstream` |
 | validate a definition | `go run ./fiber/cmd/fiber run -offline DEFINITION.agent.md MESSAGE`, `-tools` to list its grants |
-| suites on real backends | `make integration` (sets `FIBER_POSTGRES_TEST_URL` and `FIBER_REDIS_ADDR`) |
+| suites on real backends | `make integration` (sets `FIBER_POSTGRES_TEST_URL`) |
 
 ## Code Style
 

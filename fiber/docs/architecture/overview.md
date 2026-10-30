@@ -365,7 +365,7 @@ never decides whether a run stops. A host that builds a runtime without
 - The in-memory bus keeps the `bus.WithMaxRuns` rings written most recently
   (4096), run rings and channel rings alike. A pending request is lost once
   that many other rings have been written after it, the run's own among them.
-- Redis and Postgres forget an event `bus.WithIndexTTL` after it was published
+- Postgres forgets an event `bus.WithIndexTTL` after it was published
   (24 hours by default), control requests included.
 
 The control state the bus holds is bounded by the runs that were asked: a stop
@@ -380,9 +380,7 @@ instead of waiting for the deployment's budget (`Compaction.MaxInputTokens`). Th
 deployment has to take requests (`native.Compaction.OnRequest` on its agents
 and `runtime.WithCompactRequests` on the runtime, both set by
 `fiber.WithCompaction` with `OnRequest`). A turn of a runtime that takes them holds a
-second control subscription, beside the stop one, for as long as it runs;
-`bus.RedisPoolSize(runs, fiber.ControlStreams(true))` sizes a Redis pool
-for both.
+second control subscription, beside the stop one, for as long as it runs.
 
 ```
 App.Compact / runtime.Compact
@@ -808,7 +806,7 @@ leaves
   pkg/event/legacy   reads JSON written before the union, maps old kinds to types
 
 seams
-  pkg/bus            channel bus: Memory, Redis Streams and Postgres, bustest
+  pkg/bus            channel bus: Memory and Postgres, bustest
   pkg/connector      Trigger / Sink / Subscriber / Actor faces, registry of sinks
   pkg/definition     saige definitions, Policy, insert-only Source, Resolver and pins
   pkg/membership     which agents are members of which channels, and what wakes them
@@ -875,7 +873,7 @@ Verified against the code, and honest.
 - **The Postgres bus serializes publishes.** fiber's own `bus.Postgres`
   takes one advisory lock per schema per publish, so the append id is commit
   order and readers never skip a late commit. Throughput is one short
-  transaction per event; Redis is the better bus for a chatty deployment.
+  transaction per event.
   The run queue fiber builds on Postgres has no `DeltaLog`, so anchor's
   per-run delta journal is not written; the bus carries every event.
 - **playscape's queue is at-most-once** in beta. Durability comes from anchor.
@@ -903,11 +901,9 @@ Verified against the code, and honest.
   ledger and stops before calling the model, with no text. The thread then
   holds only the marker, while the surface already showed what the first
   attempt streamed.
-- **A turn holds one bus subscription while it runs.** On Redis each one holds
-  a pooled connection for most of its poll cycle. `bus.RedisPoolSize` sizes the pool at
-  go-redis's default plus one connection per run a process executes at once;
-  a host building its own client should do the same. One shared subscription
-  per process would remove this cost; it needs a way to subscribe to a prefix
+- **A turn holds one bus subscription while it runs**, so a process holds as
+  many as the runs it executes at once. One shared subscription per process
+  would remove this cost; it needs a way to subscribe to a prefix
   starting from now, which the bus does not have.
 - **Stopping reaches a turn through the in-process sandbox.** The stop signal
   and the abort of an abandoned task cross from the waiting goroutine to the

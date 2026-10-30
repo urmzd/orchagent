@@ -82,9 +82,6 @@ import (
 //     default) written to most recently, counting run streams and control
 //     streams alike. A pending request is lost once that many other streams
 //     have been written to since it was published, the run's own among them.
-//   - Redis: a run-scoped subscription reads the stream key directly, so the
-//     discovery index and its TTL do not apply. The key has no expiry; it
-//     lasts until Redis evicts or loses it.
 //
 // Without WithStopLedger a lost request means the run finishes as though
 // nobody had asked. With it, the bound only decides whether the request is

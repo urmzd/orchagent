@@ -69,7 +69,7 @@ retry never runs a newer prompt.
 - **Agents are documents.** Store a saige definition and it runs: no redeploy, no code, no restart. A run accepted under version 1.0.0 executes as 1.0.0 forever, even after 2.0.0 is stored.
 - **Subscribe by channel and type.** Every adapter subscribed to a run's channel receives it, and each picks text, citations, run states, or all of them by type prefix.
 - **Connectors act, not just talk.** Connectors contribute native verbs (transition a Jira ticket, request a review) as sandboxed agent tools, each emitting an auditable `run.action.taken.v1` event.
-- **Backends are values.** `fiber.WithPostgres(pool)` puts every store on one pool; `fiber.WithBus` takes the in-memory, Redis Streams or Postgres bus. Memory is a complete implementation, not a stub.
+- **Backends are values.** `fiber.WithPostgres(pool)` puts every store on one pool; `fiber.WithBus` takes the in-memory or Postgres bus. Memory is a complete implementation, not a stub.
 - **Citations are first-class events**, carrying the exact quoted source and resolvable provenance.
 - **Every run reports what it spent.** Each model call is a `run.usage.v1` event (tokens, cache share, model, context window, and cost in int64 micro-units for priced models), and the run's total is on its terminal event and `App.Status`.
 - **A run can wait for a person.** A tool listed in a definition's `approval.ask`, or the built-in `ask_person` tool, parks the run on a question. The run frees its worker, survives restarts, and resumes with the first answer (`App.Answer`) or takes its default when the question expires.
@@ -84,8 +84,8 @@ go get github.com/urmzd/humagen
 
 and import `github.com/urmzd/humagen/fiber`. Requires the Go version in
 [`go.mod`](../go.mod). Real inference needs provider
-credentials or an OpenAI-compatible server, such as a local Ollama. The Postgres and
-Redis backends need those services (`make integration` starts both with Docker).
+credentials or an OpenAI-compatible server, such as a local Ollama. The Postgres
+backends need Postgres (`make integration` starts it with Docker).
 
 ## Quick Start
 
@@ -173,8 +173,7 @@ for {
 ```
 
 For production, pass your backends: `fiber.WithPostgres(pool)` for every
-store and `fiber.WithBus(bus.NewPostgres(pool))` or
-`fiber.WithBus(bus.NewRedis(client))` for the bus.
+store and `fiber.WithBus(bus.NewPostgres(pool))` for the bus.
 [`examples/downstream`](examples/downstream/main.go) is a complete program.
 
 ## Examples
@@ -452,8 +451,8 @@ the agent converter are in
 commands, the HTTP and Connect API and its protobuf contract,
 `registry.ServerStore`, the providers file and every `FIBER_*` variable are
 gone. Compose `fiber.New` with options instead: `FIBER_POSTGRES_URL` is
-`WithPostgres(pool)`, `FIBER_REDIS_URL` is `WithBus(bus.NewRedis(client))`
-(size the client with `bus.RedisPoolSize`), a providers file's entries are
+`WithPostgres(pool)`, `FIBER_REDIS_URL` has no equivalent, since the
+Redis bus was removed (use `WithBus(bus.NewPostgres(pool))`), a providers file's entries are
 `WithOpenAICompatible` and `WithToolProvider`, and the connector variables are
 `WithSlack`, `WithGitHub`, `WithJira` and `WithWebhooks`. `GetRun` is
 `App.Status`, the stop and compact routes are `App.Stop` and `App.Compact`,
@@ -467,7 +466,7 @@ are `ErrConfig` without a tenant. The binary also kept files on disk under
 its workspace; the library keeps them in memory unless you pass
 `WithBlobs(blob.NewFS(dir))`.
 
-**Persisted names moved to `fiber`.** Postgres objects, Redis keys, durable
+**Persisted names moved to `fiber`.** Postgres objects, durable
 activity and record names no longer use the old name. Drain runs before upgrading, including runs parked on a question,
 which wait until they are answered, stopped or expire: a run still pending
 from the old version is failed with a reason when the new one first claims
@@ -478,8 +477,8 @@ starts. Postgres migrates itself and keeps its rows. See
 ### Limitations
 
 - The bus is chosen independently of the stores: `WithPostgres` does not move the bus, `WithBus` does.
-- The Postgres bus serializes publishes on one advisory lock per schema, so its throughput is one short transaction per event; Redis is the better bus for a chatty deployment.
-- The Postgres bus stores every event it carries, body included, as a row in the `fiber_events` table of the database it is given. A row stays until its run's retention trim drops it or a sweep finds it older than `bus.WithIndexTTL` (24 hours by default; the sweep runs from publishes, so with none nothing is removed). Those rows reach that database's WAL, replicas and backups like any other, and tool events carry their call's arguments. Where arguments can hold secrets, scrub them with `native.WithToolArguments`, shorten the TTL, or use the Redis bus.
+- The Postgres bus serializes publishes on one advisory lock per schema, so its throughput is one short transaction per event.
+- The Postgres bus stores every event it carries, body included, as a row in the `fiber_events` table of the database it is given. A row stays until its run's retention trim drops it or a sweep finds it older than `bus.WithIndexTTL` (24 hours by default; the sweep runs from publishes, so with none nothing is removed). Those rows reach that database's WAL, replicas and backups like any other, and tool events carry their call's arguments. Where arguments can hold secrets, scrub them with `native.WithToolArguments` or shorten the TTL.
 - Every store is in memory unless `WithPostgres` or its own option is given. On Postgres they survive a restart, but the run queue fiber builds has no `DeltaLog`, so the per-run delta journal is not written; the bus still carries every event.
 - Files (`blob`) are in memory unless `WithBlobs(blob.NewFS(dir))` puts them on disk; there is no Postgres blob store.
 - fiber authenticates nothing. An embedding program that accepts events or stop and answer requests from callers sets the tenant and actor from the caller's credential.
@@ -505,7 +504,7 @@ in your own program and turn them into these options; fiber reads neither.
 | Option | Chooses | Default |
 |--------|---------|---------|
 | `WithPostgres(pool)` | Definitions, memberships, run ledger and queue, knowledge, threads, tool providers on one pool | memory |
-| `WithBus(b)` | `bus.NewMemory`, `bus.NewRedis(client)`, `bus.NewPostgres(pool)` | memory |
+| `WithBus(b)` | `bus.NewMemory`, `bus.NewPostgres(pool)` | memory |
 | `WithDefinitions`, `WithMemberships`, `WithDurable(ledger, queue)`, `WithThreads`, `WithKnowledge`, `WithBlobs`, `WithToolProviders` | One store, built by the caller | memory, or the `WithPostgres` one |
 | `WithEmbedder(e)` | The embedder of the knowledge store New builds | offline hashing |
 | `WithTurnRuntime(rt)` | The `turn.Runtime` a turn runs on | saige (`pkg/turn/native`) in the playscape sandbox |

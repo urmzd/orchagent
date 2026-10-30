@@ -407,10 +407,10 @@ func (h *held) Execute(ctx context.Context, req runtime.Request, _ func(context.
 	}
 }
 
-// What a running turn holds on the bus for its whole length, which is what
-// a Redis pool has to reserve per run: a subscription for stop requests, and
-// one for requests to compact only when the runtime takes them. A runtime that
-// does not take them holds no second subscription and refuses Compact.
+// What a running turn holds on the bus for its whole length: a subscription
+// for stop requests, and one for requests to compact only when the runtime
+// takes them. A runtime that does not take them holds no second subscription
+// and refuses Compact.
 func TestARunningTurnListensForCompactionOnlyWhenTheRuntimeTakesRequests(t *testing.T) {
 	const runs = 3
 	for _, tc := range []struct {

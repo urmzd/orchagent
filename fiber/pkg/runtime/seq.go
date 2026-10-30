@@ -17,10 +17,9 @@ const DefaultStride = 1 << 20
 // once when the ledger takes the run, before any attempt exists.
 const SeqAccepted = 1
 
-// maxSeq is the largest sequence number every bus backend can carry. The Redis
-// backend passes sequences through Lua numbers, so 2^53 is the real ceiling and
-// bands are refused past it rather than silently wrapping into a number the
-// broker cannot represent.
+// maxSeq is the largest sequence number a run may reach: 2^53, the largest
+// integer a JSON number carries exactly. Bands are refused past it rather than
+// silently wrapping into a number a reader cannot represent.
 const maxSeq = 1 << 53
 
 // ErrSeqExhausted reports an attempt that published more events than its band

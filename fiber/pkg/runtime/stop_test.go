@@ -15,7 +15,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/redis/go-redis/v9"
 	"github.com/urmzd/anchor"
 	"github.com/urmzd/anchor/pkg/ledger"
 	dqueue "github.com/urmzd/anchor/pkg/queue"
@@ -39,33 +38,11 @@ import (
 
 // ── fixtures ────────────────────────────────────────────────────────
 
-// stopBusEnv names a Redis these tests run their bus on. Without it the bus is
-// in memory, which is a complete implementation of the same contract; with it,
-// the stop path is exercised over the broker a multi-process deployment uses.
-const stopBusEnv = "FIBER_REDIS_ADDR"
-
-var stopBuses atomic.Uint64
-
-// newBroker returns an empty bus: Redis under a key prefix of its own when
-// $FIBER_REDIS_ADDR is set, Memory otherwise.
+// newBroker returns an empty in-memory bus, a complete implementation of the
+// bus contract.
 func newBroker(t *testing.T, opts ...bus.Option) bus.Bus {
 	t.Helper()
-	addr := os.Getenv(stopBusEnv)
-	if addr == "" {
-		return bus.NewMemory(opts...)
-	}
-	client := redis.NewClient(&redis.Options{Addr: addr})
-	prefix := fmt.Sprintf("fibertest-stop-%d-%d", time.Now().UnixNano(), stopBuses.Add(1))
-	t.Cleanup(func() {
-		ctx := context.Background()
-		iter := client.Scan(ctx, 0, prefix+":*", 256).Iterator()
-		for iter.Next(ctx) {
-			_ = client.Del(ctx, iter.Val()).Err()
-		}
-		_ = client.Close()
-	})
-	opts = append([]bus.Option{bus.WithKeyPrefix(prefix), bus.WithPollInterval(20 * time.Millisecond)}, opts...)
-	return bus.NewRedis(client, opts...)
+	return bus.NewMemory(opts...)
 }
 
 // tap is a real broker with a record of everything published to it. The stop

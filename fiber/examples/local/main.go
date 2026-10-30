@@ -2,12 +2,12 @@
 //
 //	go run ./examples/local
 //
-// No API key. No network. No Postgres, no Redis, no Docker. Everything a
+// No API key. No network. No Postgres, no Docker. Everything a
 // deployment would run against real infrastructure runs here against the
 // in-memory implementations of the same interfaces:
 //
 //	control plane   pkg/definition.Memory      (a real one would be Postgres)
-//	bus             pkg/bus.Memory             (a real bus would be Redis Streams)
+//	bus             pkg/bus.Memory             (a real bus would be Postgres)
 //	ledger + queue  anchor's ledger.Memory   (a real ledger would be Postgres)
 //	                and queue.Memory
 //	model           saige's agenttest.ScriptedProvider, reached through the
@@ -490,7 +490,7 @@ func run() error {
 	fmt.Printf("  surfaces delivered  slack %d, webhook %d\n", slackCount, hook.delivered(meshRun))
 	fmt.Printf("  model calls         %d\n", after)
 	fmt.Println()
-	fmt.Println("  pass WithPostgres(pool) and WithBus(bus.NewRedis(client)) instead of")
+	fmt.Println("  pass WithPostgres(pool) and WithBus(bus.NewPostgres(pool)) instead of")
 	fmt.Println("  the in-memory definitions, bus and turn runtime, swap the two fakes for")
 	fmt.Println("  WithSlack and WithWebhooks, and this file does not otherwise change.")
 	fmt.Println()

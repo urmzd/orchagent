@@ -62,9 +62,8 @@ var ErrCompactUnavailable = errors.New("runtime: compaction on request is not av
 // turn obeys, or obeys requests no turn hears.
 //
 // Listening costs one bus subscription per running turn, beside the one for
-// stop requests; on Redis that is a pooled connection held for the turn. A
-// runtime without the option holds none and Compact refuses with
-// ErrCompactUnavailable.
+// stop requests. A runtime without the option holds none and Compact refuses
+// with ErrCompactUnavailable.
 func WithCompactRequests() Option {
 	return func(r *Runtime) { r.compactRequests = true }
 }

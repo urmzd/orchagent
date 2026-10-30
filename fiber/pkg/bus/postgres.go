@@ -495,3 +495,41 @@ func (h *pgHub) session(ctx context.Context) {
 		h.wake(n.Payload)
 	}
 }
+
+// readBatch bounds how many rows one read asks for.
+const readBatch = 128
+
+// recv is the Recv of a stream fed by a reader goroutine.
+func recv(ctx context.Context, ch <-chan event.Envelope, closed, done <-chan struct{}, err func() error) (event.Envelope, error) {
+	for {
+		if e := ctx.Err(); e != nil {
+			return event.Envelope{}, e
+		}
+		select {
+		case <-closed:
+			return event.Envelope{}, ErrClosed
+		default:
+		}
+		select {
+		case e := <-ch:
+			return e, nil
+		default:
+		}
+		select {
+		case <-done:
+			if err() == nil {
+				return event.Envelope{}, ErrClosed
+			}
+			return event.Envelope{}, err()
+		default:
+		}
+		select {
+		case e := <-ch:
+			return e, nil
+		case <-done:
+		case <-closed:
+		case <-ctx.Done():
+			return event.Envelope{}, ctx.Err()
+		}
+	}
+}

@@ -253,9 +253,7 @@ func (a *App) Close() error {
 
 // ControlStreams is how many control subscriptions a running turn holds for
 // its whole turn: one for stop requests, and one more for requests to
-// compact when compactOnRequest. On Redis each is a pooled connection, so a
-// program sizing a Redis client for an App wants
-// bus.RedisPoolSize(concurrency, ControlStreams(compactOnRequest)).
+// compact when compactOnRequest.
 func ControlStreams(compactOnRequest bool) int {
 	if compactOnRequest {
 		return 2
