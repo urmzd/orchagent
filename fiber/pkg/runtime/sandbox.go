@@ -721,6 +721,9 @@ func (s *Sandbox) call(ctx context.Context, rt tool.Runtime, input []byte) ([]by
 	// replace it; it is where a granted tool the turn had to drop is
 	// reported to the operator.
 	opts := append(append([]native.Option{native.WithLogger(s.logger)}, s.agentOpts...), native.WithTools(tools))
+	if req.Compaction != nil {
+		opts = append(opts, native.WithCompaction(*req.Compaction))
+	}
 	if s.knowledge != nil {
 		names := make([]string, 0, len(rev.Spec.Sources))
 		for _, src := range rev.Spec.Sources {

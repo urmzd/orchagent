@@ -330,6 +330,10 @@ type Request struct {
 	// than work it waits for (WithChildRuns). Only a durable run that can
 	// park has it.
 	ChildRuns bool `json:"child_runs,omitempty"`
+	// Compaction, when set, is this turn's history budget in place of the
+	// deployment's (native.WithCompaction): a host's per-run choice. Like
+	// Definition it is a resolved value, the same on every attempt.
+	Compaction *native.Compaction `json:"compaction,omitempty"`
 }
 
 // Agent returns the agent name.
