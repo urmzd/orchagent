@@ -3,6 +3,7 @@ package isolate_test
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -56,7 +57,9 @@ func dockerLeaser(t *testing.T) (*poolleaser.Leaser, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	d, err := docker.New(docker.Config{Runtime: docker.RuntimeRunc, WorkRoot: dir})
+	// runc, the runtime Docker has on a developer's machine and in CI,
+	// which playscape accepts only as a development runtime.
+	d, err := docker.New(docker.Config{Runtime: docker.RuntimeRunc, InsecureDevelopmentRuntime: true, Log: io.Discard, WorkRoot: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
