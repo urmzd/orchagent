@@ -66,6 +66,7 @@ func (r *Runtime) runOne(ctx context.Context, in Input, req Request, emit func(c
 		Accounting:   req.Accounting,
 		Park:         req.Park,
 		QuestionTTL:  req.QuestionTTL,
+		Compaction:   native.CompactionTo(req.Compaction),
 	}
 	if req.Resume != nil {
 		p, err := native.ParkedTo(*req.Resume)

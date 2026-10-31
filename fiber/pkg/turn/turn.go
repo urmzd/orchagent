@@ -148,6 +148,23 @@ type Input struct {
 	QuestionTTL time.Duration `json:"question_ttl,omitempty"`
 	// Resume continues a turn that parked, with Resume.Answers filled in.
 	Resume *Parked `json:"resume,omitempty"`
+	// Compaction, when set, is this turn's history budget in place of the
+	// runtime's own: a host's per-run choice, such as a run's
+	// compaction_tokens. It is resolved before the turn, the same on every
+	// attempt. A runtime that cannot compact ignores it.
+	Compaction *Compaction `json:"compaction,omitempty"`
+}
+
+// Compaction is the budget that decides when a turn's history is summarized.
+// Its fields mean what native.Compaction's do.
+type Compaction struct {
+	// MaxInputTokens is the input size, in tokens, above which the history
+	// is compacted. Zero or less compacts only when asked, if OnRequest.
+	MaxInputTokens int `json:"max_input_tokens,omitempty"`
+	// KeepTurns is how many recent tool-calling turns survive verbatim.
+	KeepTurns int `json:"keep_turns,omitempty"`
+	// OnRequest lets a host ask the running turn to compact.
+	OnRequest bool `json:"on_request,omitempty"`
 }
 
 // Role says who a history message is from.

@@ -37,6 +37,10 @@ func (rt *Runtime) Turn(ctx context.Context, def turn.Pinned, in turn.Input, emi
 		return turn.Result{}, err
 	}
 	opts := rt.Options
+	if c := CompactionOf(in.Compaction); c != nil {
+		// Last, so the host's budget for this turn wins over the runtime's.
+		opts = append(append([]Option(nil), opts...), WithCompaction(*c))
+	}
 	if rt.Knowledge != nil {
 		names := make([]string, 0, len(def.Spec.Sources))
 		for _, src := range def.Spec.Sources {
@@ -77,6 +81,23 @@ func (rt *Runtime) Turn(ctx context.Context, def turn.Pinned, in turn.Input, emi
 		return out, err
 	}
 	return out, cerr
+}
+
+// CompactionTo is a budget as a turn.Compaction, for a turn.Input. Nil stays
+// nil: the runtime's own budget applies.
+func CompactionTo(c *Compaction) *turn.Compaction {
+	if c == nil {
+		return nil
+	}
+	return &turn.Compaction{MaxInputTokens: c.MaxInputTokens, KeepTurns: c.KeepTurns, OnRequest: c.OnRequest}
+}
+
+// CompactionOf reads back a turn.Compaction. Nil stays nil.
+func CompactionOf(c *turn.Compaction) *Compaction {
+	if c == nil {
+		return nil
+	}
+	return &Compaction{MaxInputTokens: c.MaxInputTokens, KeepTurns: c.KeepTurns, OnRequest: c.OnRequest}
 }
 
 // Render is the request text of a trigger: its catalog rendering.
