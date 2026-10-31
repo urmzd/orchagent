@@ -13,11 +13,22 @@
 // "run.context") reaches an adapter only when it names it. A control channel
 // is never delivered to a surface.
 //
-// Egress owns no durable state. The bus owns sequencing and retention, the
-// connector owns how a surface is written, and anchor's ledger owns what
-// happened. On (re)subscribing, events older than the maximum age are
-// skipped, so a restart does not render a day of retained runs again, and a
-// sequence a run already reached is never delivered twice by one Engine.
+// # One deliverer per tenant
+//
+// Egress reads a tenant's events through the bus consumer group Group, so
+// however many replicas run an Engine, one of them delivers a tenant's events
+// at a time and the others wait to take over. The group's cursor is
+// committed only once every sink an event went to has accepted it (or given
+// up on it for good), so a replica that takes over starts after the last
+// event fully delivered and redelivers at most what was in flight. Sinks
+// are idempotent, as delivery is at-least-once.
+//
+// Egress owns no other durable state. The bus owns sequencing, retention and
+// the group's cursor, the connector owns how a surface is written, and
+// anchor's ledger owns what happened. Events older than the maximum age are
+// skipped, so a group seen for the first time, which starts at the oldest
+// event retained, does not render a day of retained runs; and a sequence a
+// run already reached is never delivered twice by one term of an Engine.
 //
 // # Lanes, and why they exist
 //
@@ -98,6 +109,9 @@ const (
 // RunTypes is what a sink with no subscriptions of its own receives: every
 // run type that is not opt-in.
 var RunTypes = []string{"run"}
+
+// Group is the bus consumer group egress reads each tenant's events through.
+const Group = "egress"
 
 // Resolver is where egress finds its adapters. *connector.Registry is one.
 type Resolver interface {
@@ -211,7 +225,6 @@ type Engine struct {
 	mu      sync.Mutex
 	running map[string]bool
 	lanes   map[laneKey]*lane
-	cursors *cursors
 }
 
 // New returns an Engine over b that delivers to the sinks r resolves.
@@ -234,7 +247,6 @@ func New(b bus.Bus, r Resolver, opts ...Option) *Engine {
 		idle:        DefaultIdle,
 		running:     map[string]bool{},
 		lanes:       map[laneKey]*lane{},
-		cursors:     newCursors(DefaultMaxRuns),
 	}
 	for _, o := range opts {
 		o(e)
@@ -270,8 +282,10 @@ func Bindings(r Resolver) []Binding {
 }
 
 // Run delivers tenant's run events until ctx is done, and then waits for its
-// lanes to stop. A cancelled ctx is not a failure. Another Run for the same
-// tenant at once is ErrRunning.
+// lanes to stop. It reads through the consumer group Group, so while another
+// Engine (in this process or another one on the same bus) holds the tenant's
+// lease, Run waits to take over. A cancelled ctx is not a failure. Another
+// Run for the same tenant on this Engine at once is ErrRunning.
 func (e *Engine) Run(ctx context.Context, tenant string) error {
 	if tenant == "" {
 		return fmt.Errorf("%w: no tenant", ErrInvalid)
@@ -297,33 +311,131 @@ func (e *Engine) Run(ctx context.Context, tenant string) error {
 			return fmt.Errorf("egress: sink %s: %w", b.Sink.Name(), err)
 		}
 	}
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	failed := make(chan error, 1)
-	var wg, lanes sync.WaitGroup
-	for i, b := range bindings {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := e.listen(ctx, &lanes, tenant, i, b); err != nil {
-				select {
-				case failed <- err:
-				default:
-				}
-				cancel()
+	sub := union(tenant, bindings)
+	for {
+		if ctx.Err() != nil {
+			return nil
+		}
+		stream, err := e.bus.Consume(ctx, Group, sub)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
 			}
-		}()
+			return fmt.Errorf("egress: consume %s: %w", tenant, err)
+		}
+		err = e.term(ctx, tenant, bindings, stream)
+		_ = stream.Close()
+		switch {
+		case ctx.Err() != nil:
+			return nil
+		case errors.Is(err, bus.ErrClosed):
+			e.log.Warn("egress: bus stream ended, delivery has stopped", "tenant", tenant, "error", err)
+			return nil
+		case errors.Is(err, bus.ErrSlowConsumer):
+			e.log.Warn("egress: fell behind the bus, resuming from the committed cursor", "tenant", tenant, "error", err)
+		case errors.Is(err, bus.ErrLeaseLost):
+			e.log.Info("egress: another replica took over delivery, waiting to take it back", "tenant", tenant)
+		default:
+			return fmt.Errorf("egress: recv for %s: %w", tenant, err)
+		}
 	}
-	var err error
-	select {
-	case <-ctx.Done():
-	case err = <-failed:
+}
+
+// union is the one subscription that carries every binding's events: a
+// binding's own subscription is re-checked per event (selected).
+func union(tenant string, bindings []Binding) bus.Subscription {
+	sub := bus.Subscription{Tenant: tenant}
+	for _, b := range bindings {
+		for _, c := range b.Channels {
+			if !slices.Contains(sub.Channels, c) {
+				sub.Channels = append(sub.Channels, c)
+			}
+		}
+		for _, t := range b.Types {
+			if !slices.Contains(sub.Types, t) {
+				sub.Types = append(sub.Types, t)
+			}
+		}
 	}
-	cancel()
-	wg.Wait()
-	lanes.Wait()
-	return err
+	return sub
+}
+
+// term is one hold of a tenant's lease: from taking it to losing it, or to
+// the end of Run. Its lanes, its sequence cursors and its commits end with
+// it, so a later term starts from the bus's cursor and nothing else.
+type term struct {
+	stream  bus.GroupStream
+	cursors *cursors
+	acks    *acks
+}
+
+// term delivers until stream ends, then stops its lanes and commits what
+// they finished.
+func (e *Engine) term(ctx context.Context, tenant string, bindings []Binding, stream bus.GroupStream) error {
+	ctx, cancel := context.WithCancel(ctx)
+	t := &term{stream: stream, cursors: newCursors(DefaultMaxRuns), acks: newAcks()}
+	var lanes sync.WaitGroup
+	committing := make(chan struct{})
+	go func() {
+		defer close(committing)
+		e.commits(ctx, tenant, t)
+	}()
+	defer func() {
+		cancel()
+		lanes.Wait()
+		<-committing
+		// What the lanes finished on the way out is committed too, so a
+		// replica that takes over does not deliver it again.
+		final, stop := context.WithTimeout(context.WithoutCancel(ctx), commitTimeout)
+		defer stop()
+		e.commit(final, tenant, t)
+	}()
+	for {
+		d, err := stream.Recv(ctx)
+		if err != nil {
+			return err
+		}
+		t.acks.open(d.Pos)
+		if d.Event.Tenant == tenant {
+			for i, b := range bindings {
+				e.dispatch(ctx, &lanes, t, i, b, d)
+			}
+		}
+		t.acks.finish(d.Pos)
+	}
+}
+
+// commitTimeout bounds the commit a term makes on its way out.
+const commitTimeout = 5 * time.Second
+
+// commits commits the term's cursor whenever its lanes finish the oldest
+// events in flight, coalescing a burst into one write.
+func (e *Engine) commits(ctx context.Context, tenant string, t *term) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.acks.advanced:
+			e.commit(ctx, tenant, t)
+		}
+	}
+}
+
+// commit commits every event the term has finished.
+func (e *Engine) commit(ctx context.Context, tenant string, t *term) {
+	pos, ok := t.acks.uncommitted()
+	if !ok {
+		return
+	}
+	err := t.stream.Commit(ctx, pos)
+	switch {
+	case err == nil:
+		t.acks.committed(pos)
+	case errors.Is(err, bus.ErrLeaseLost):
+		e.log.Info("egress: delivered after another replica took over; it may deliver again", "tenant", tenant, "position", pos)
+	case ctx.Err() == nil:
+		e.log.Warn("egress: cursor not committed; a replica that takes over delivers again", "tenant", tenant, "position", pos, "error", err)
+	}
 }
 
 func validBinding(b Binding) error {
@@ -338,51 +450,10 @@ func validBinding(b Binding) error {
 	return nil
 }
 
-// listen subscribes one binding and resubscribes after it falls behind.
-func (e *Engine) listen(ctx context.Context, lanes *sync.WaitGroup, tenant string, id int, b Binding) error {
-	sub := bus.Subscription{Tenant: tenant, Channels: slices.Clone(b.Channels), Types: slices.Clone(b.Types)}
-	for {
-		if ctx.Err() != nil {
-			return nil
-		}
-		stream, err := e.bus.Subscribe(ctx, sub)
-		if err != nil {
-			if ctx.Err() != nil {
-				return nil
-			}
-			return fmt.Errorf("egress: subscribe %s: %w", b.Sink.Name(), err)
-		}
-		err = e.consume(ctx, lanes, tenant, id, b, stream)
-		_ = stream.Close()
-		switch {
-		case ctx.Err() != nil:
-			return nil
-		case errors.Is(err, bus.ErrClosed):
-			e.log.Warn("egress: bus stream ended, delivery has stopped", "sink", b.Sink.Name(), "error", err)
-			return nil
-		case errors.Is(err, bus.ErrSlowConsumer):
-			e.log.Warn("egress: fell behind the bus, resubscribing", "sink", b.Sink.Name(), "error", err)
-		default:
-			return fmt.Errorf("egress: recv for %s: %w", b.Sink.Name(), err)
-		}
-	}
-}
-
-func (e *Engine) consume(ctx context.Context, lanes *sync.WaitGroup, tenant string, id int, b Binding, stream bus.Stream) error {
-	for {
-		ev, err := stream.Recv(ctx)
-		if err != nil {
-			return err
-		}
-		if ev.Tenant != tenant {
-			continue
-		}
-		e.dispatch(ctx, lanes, id, b, ev)
-	}
-}
-
-// dispatch offers one event to its lane.
-func (e *Engine) dispatch(ctx context.Context, lanes *sync.WaitGroup, id int, b Binding, ev event.Envelope) {
+// dispatch offers one event to its binding's lane, and holds the event's
+// position open until the lane has delivered it.
+func (e *Engine) dispatch(ctx context.Context, lanes *sync.WaitGroup, t *term, id int, b Binding, d bus.Delivery) {
+	ev := d.Event
 	if event.IsControl(ev.Channel) || !selected(b, ev) {
 		return
 	}
@@ -392,12 +463,12 @@ func (e *Engine) dispatch(ctx context.Context, lanes *sync.WaitGroup, id int, b 
 	}
 	target := b.Target
 	if target.IsZero() {
-		t, err := address.Parse(ev.Channel)
-		if err != nil || t.Connector != b.Sink.Name() {
+		addr, err := address.Parse(ev.Channel)
+		if err != nil || addr.Connector != b.Sink.Name() {
 			// Only a sink's own scheme is rendered on the event's channel.
 			return
 		}
-		target = t
+		target = addr
 	}
 	order := ev.Run
 	if order == "" {
@@ -407,7 +478,7 @@ func (e *Engine) dispatch(ctx context.Context, lanes *sync.WaitGroup, id int, b 
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ev.Run != "" && ev.Seq != 0 && !e.cursors.advance(key.cursor(), ev.Seq) {
+	if ev.Run != "" && ev.Seq != 0 && !t.cursors.advance(key.cursor(), ev.Seq) {
 		return // a redelivery or a replay: already dispatched
 	}
 	ln := e.lanes[key]
@@ -417,7 +488,8 @@ func (e *Engine) dispatch(ctx context.Context, lanes *sync.WaitGroup, id int, b 
 			key:    key,
 			sink:   b.Sink,
 			target: target,
-			queue:  make(chan event.Envelope, e.backlog),
+			acks:   t.acks,
+			queue:  make(chan item, e.backlog),
 		}
 		e.lanes[key] = ln
 		lanes.Add(1)
@@ -426,7 +498,8 @@ func (e *Engine) dispatch(ctx context.Context, lanes *sync.WaitGroup, id int, b 
 			ln.serve(ctx)
 		}()
 	}
-	ln.offer(ev)
+	t.acks.hold(d.Pos)
+	ln.offer(item{ev: ev, pos: d.Pos})
 }
 
 // selected re-checks the subscription, so a backend that delivers more than
@@ -478,6 +551,74 @@ func (e *Engine) backoffFor(attempt int) time.Duration {
 		wait *= 2
 	}
 	return wait
+}
+
+// acks tracks which of a term's events are still being delivered, so the
+// cursor is committed only past events every lane has finished. Positions
+// are opened in the order the group delivers them, which is increasing.
+type acks struct {
+	mu       sync.Mutex
+	order    []uint64
+	pending  map[uint64]int
+	done     uint64 // every event at or before it is finished
+	commit   uint64 // the last position committed
+	advanced chan struct{}
+}
+
+func newAcks() *acks {
+	return &acks{pending: map[uint64]int{}, advanced: make(chan struct{}, 1)}
+}
+
+// open starts tracking pos, held once by the reader until it has offered
+// the event to every lane.
+func (a *acks) open(pos uint64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.order = append(a.order, pos)
+	a.pending[pos] = 1
+}
+
+// hold adds one lane delivering pos.
+func (a *acks) hold(pos uint64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.pending[pos]++
+}
+
+// finish releases one hold on pos and moves done past every finished event
+// at the front.
+func (a *acks) finish(pos uint64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.pending[pos]--
+	moved := false
+	for len(a.order) > 0 && a.pending[a.order[0]] <= 0 {
+		delete(a.pending, a.order[0])
+		a.done = a.order[0]
+		a.order = a.order[1:]
+		moved = true
+	}
+	if moved {
+		select {
+		case a.advanced <- struct{}{}:
+		default:
+		}
+	}
+}
+
+// uncommitted returns the position to commit, if it moved since the last
+// commit.
+func (a *acks) uncommitted() (uint64, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.done, a.done > a.commit
+}
+
+// committed records a commit.
+func (a *acks) committed(pos uint64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.commit = max(a.commit, pos)
 }
 
 // cursors is the highest sequence dispatched per lane cursor, bounded by

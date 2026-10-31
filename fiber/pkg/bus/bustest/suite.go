@@ -2,7 +2,9 @@
 // exercises the whole contract: channel and type prefixes, default deny,
 // control and tenant isolation, opt-in types, sequence dedupe and id dedupe,
 // the hop limit, resume, the catch-up/live seam under concurrent publish,
-// slow-consumer isolation, resource release and retention.
+// slow-consumer isolation, resource release and retention, and consumer
+// groups: one delivery per group, takeover when a member dies, and resume
+// from the committed cursor.
 //
 // Two properties are deliberately not asserted, because the bus does not
 // promise them: ordering between different runs or channels, and which events
@@ -46,6 +48,9 @@ type Config struct {
 	Retention int
 	// Backlog is the per-subscriber buffer depth.
 	Backlog int
+	// Lease is how long a consumer group member holds a tenant's lease
+	// without renewing it (bus.WithLease). Zero leaves the default.
+	Lease time.Duration
 }
 
 // Factory returns a fresh, empty bus configured per cfg. No bus may see
@@ -479,6 +484,246 @@ func Run(t *testing.T, newBus Factory) {
 			t.Errorf("Subscribe with an empty channel prefix = %v, want bus.ErrInvalid", err)
 		}
 	})
+
+	t.Run("Groups", func(t *testing.T) { Groups(t, newBus) })
+}
+
+// Groups holds a backend to the consumer group contract. Run calls it; a
+// backend's own tests may call it alone.
+func Groups(t *testing.T, newBus Factory) {
+	t.Run("EachEventIsDeliveredOncePerGroup", func(t *testing.T) {
+		b := newBus(t, Config{Retention: 64, Backlog: 64, Lease: time.Second})
+		ctx, cancel := context.WithCancel(context.WithoutCancel(t.Context()))
+		defer cancel()
+
+		got := make(chan member, 64)
+		for _, name := range []string{"a1", "a2"} {
+			go collect(ctx, consume(t, b, ctx, "egress", on(Channel)), name, got)
+		}
+		other := make(chan member, 64)
+		go collect(ctx, consume(t, b, ctx, "observer", on(Channel)), "o", other)
+
+		publish(t, b, text(Channel, "run_1", 1), text(Channel, "run_2", 1), text(Channel, "run_1", 2),
+			text(Channel, "run_2", 2), text(Channel, "run_1", 3), text(Channel, "run_2", 3))
+		want := []string{"run_1#1", "run_1#2", "run_1#3", "run_2#1", "run_2#2", "run_2#3"}
+
+		deliveries := gather(t, got, len(want))
+		idle(t, got)
+		members := map[string]bool{}
+		var labels []string
+		for _, d := range deliveries {
+			members[d.name] = true
+			labels = append(labels, d.Event.ID)
+		}
+		slices.Sort(labels)
+		if !slices.Equal(labels, want) {
+			t.Errorf("group delivered %v, want each of %v once", labels, want)
+		}
+		if len(members) != 1 {
+			t.Errorf("events went to members %v, want to the one holding the lease", members)
+		}
+		for i := 1; i < len(deliveries); i++ {
+			if deliveries[i].Pos <= deliveries[i-1].Pos {
+				t.Errorf("positions %d then %d, want increasing", deliveries[i-1].Pos, deliveries[i].Pos)
+			}
+		}
+
+		labels = nil
+		for _, d := range gather(t, other, len(want)) {
+			labels = append(labels, d.Event.ID)
+		}
+		slices.Sort(labels)
+		if !slices.Equal(labels, want) {
+			t.Errorf("a second group got %v, want every event again", labels)
+		}
+	})
+
+	t.Run("AMemberThatDiesIsTakenOverFromItsCursor", func(t *testing.T) {
+		b := newBus(t, Config{Retention: 64, Backlog: 64, Lease: 500 * time.Millisecond})
+		publish(t, b, text(Channel, "run_1", 1), text(Channel, "run_1", 2), text(Channel, "run_1", 3),
+			text(Channel, "run_1", 4), text(Channel, "run_1", 5))
+
+		dying, die := context.WithCancel(context.WithoutCancel(t.Context()))
+		a, err := b.Consume(dying, "egress", on(Channel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		first := recvGroup(t, a, 3)
+		if err := a.Commit(t.Context(), first[1].Pos); err != nil {
+			t.Fatalf("Commit: %v", err)
+		}
+
+		// b2 waits on the lease a holds; a dies without releasing it.
+		ctx, cancel := context.WithCancel(context.WithoutCancel(t.Context()))
+		defer cancel()
+		got := make(chan member, 16)
+		go collect(ctx, consume(t, b, ctx, "egress", on(Channel)), "b", got)
+		idle(t, got)
+		die()
+
+		var seqs []uint64
+		for _, d := range gather(t, got, 3) {
+			seqs = append(seqs, d.Event.Seq)
+		}
+		wantContiguous(t, seqs, 3, 5)
+		publish(t, b, text(Channel, "run_1", 6))
+		if d := gather(t, got, 1); d[0].Event.Seq != 6 {
+			t.Errorf("after takeover got %s, want run_1#6", d[0].Event.ID)
+		}
+		if err := a.Commit(t.Context(), first[2].Pos); !errors.Is(err, bus.ErrLeaseLost) {
+			t.Errorf("Commit by the member that died = %v, want bus.ErrLeaseLost", err)
+		}
+		_ = a.Close()
+	})
+
+	t.Run("ANewMemberResumesAfterTheCommittedCursor", func(t *testing.T) {
+		b := newBus(t, Config{Retention: 64, Backlog: 64, Lease: time.Second})
+		publish(t, b, text(Channel, "run_1", 1), text(Channel, "run_1", 2), text(Channel, "run_1", 3))
+
+		a, err := b.Consume(context.WithoutCancel(t.Context()), "observer", on(Channel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		read := recvGroup(t, a, 2)
+		if err := a.Commit(t.Context(), read[1].Pos); err != nil {
+			t.Fatalf("Commit: %v", err)
+		}
+		// A commit never moves the cursor back.
+		if err := a.Commit(t.Context(), read[0].Pos); err != nil {
+			t.Fatalf("Commit of an earlier position: %v", err)
+		}
+		if err := a.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		publish(t, b, text(Channel, "run_1", 4))
+
+		// Close released the lease, so the next member does not wait it out.
+		c := consume(t, b, context.WithoutCancel(t.Context()), "observer", on(Channel))
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 400*time.Millisecond)
+		defer cancel()
+		var seqs []uint64
+		for range 2 {
+			d, err := c.Recv(ctx)
+			if err != nil {
+				t.Fatalf("Recv after a released lease: %v", err)
+			}
+			seqs = append(seqs, d.Event.Seq)
+		}
+		wantContiguous(t, seqs, 3, 4)
+	})
+
+	t.Run("TenantsHaveLeasesOfTheirOwn", func(t *testing.T) {
+		b := newBus(t, Config{Retention: 64, Backlog: 64, Lease: time.Second})
+		acme := consume(t, b, context.WithoutCancel(t.Context()), "egress", on(Channel))
+		globexSub := on(Channel)
+		globexSub.Tenant = "globex"
+		globex := consume(t, b, context.WithoutCancel(t.Context()), "egress", globexSub)
+		other := text(Channel, "run_9", 1)
+		other.Tenant = "globex"
+		publish(t, b, text(Channel, "run_1", 1), other)
+		if d := recvGroup(t, acme, 1); d[0].Event.Tenant != Tenant {
+			t.Errorf("acme's member got %s's event", d[0].Event.Tenant)
+		}
+		if d := recvGroup(t, globex, 1); d[0].Event.Tenant != "globex" {
+			t.Errorf("globex's member got %s's event", d[0].Event.Tenant)
+		}
+	})
+
+	t.Run("AGroupNeedsANameAndATenant", func(t *testing.T) {
+		b := newBus(t, Config{Retention: 64, Backlog: 64})
+		if _, err := b.Consume(t.Context(), "", on(Channel)); !errors.Is(err, bus.ErrInvalid) {
+			t.Errorf("Consume with no group = %v, want bus.ErrInvalid", err)
+		}
+		noTenant := on(Channel)
+		noTenant.Tenant = ""
+		if _, err := b.Consume(t.Context(), "egress", noTenant); !errors.Is(err, bus.ErrInvalid) {
+			t.Errorf("Consume with no tenant = %v, want bus.ErrInvalid", err)
+		}
+	})
+
+	t.Run("ClosedGroupStreamReportsClosed", func(t *testing.T) {
+		b := newBus(t, Config{Retention: 64, Backlog: 64})
+		s, err := b.Consume(context.WithoutCancel(t.Context()), "egress", on(Channel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = s.Close()
+		_ = s.Close()
+		if _, err := s.Recv(t.Context()); !errors.Is(err, bus.ErrClosed) {
+			t.Errorf("Recv after Close = %v, want bus.ErrClosed", err)
+		}
+	})
+}
+
+// member is one delivery and the member that received it.
+type member struct {
+	bus.Delivery
+	name string
+}
+
+// consume joins group or fails the test, and closes the stream afterwards.
+func consume(t *testing.T, b bus.Bus, ctx context.Context, group string, sub bus.Subscription) bus.GroupStream {
+	t.Helper()
+	s, err := b.Consume(ctx, group, sub)
+	if err != nil {
+		t.Fatalf("Consume(%s): %v", group, err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	return s
+}
+
+// collect sends everything s delivers to out until s ends.
+func collect(ctx context.Context, s bus.GroupStream, name string, out chan<- member) {
+	for {
+		d, err := s.Recv(ctx)
+		if err != nil {
+			return
+		}
+		out <- member{Delivery: d, name: name}
+	}
+}
+
+// gather receives exactly n deliveries or fails the test.
+func gather(t *testing.T, in <-chan member, n int) []member {
+	t.Helper()
+	timeout := time.NewTimer(waitLong)
+	defer timeout.Stop()
+	got := make([]member, 0, n)
+	for len(got) < n {
+		select {
+		case d := <-in:
+			got = append(got, d)
+		case <-timeout.C:
+			t.Fatalf("received %d of %d deliveries", len(got), n)
+		}
+	}
+	return got
+}
+
+// idle asserts nothing more is delivered for a while.
+func idle(t *testing.T, in <-chan member) {
+	t.Helper()
+	select {
+	case d := <-in:
+		t.Fatalf("%s received %s, want nothing", d.name, d.Event.ID)
+	case <-time.After(waitIdle):
+	}
+}
+
+// recvGroup receives exactly n deliveries from s or fails the test.
+func recvGroup(t *testing.T, s bus.GroupStream, n int) []bus.Delivery {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), waitLong)
+	defer cancel()
+	got := make([]bus.Delivery, 0, n)
+	for range n {
+		d, err := s.Recv(ctx)
+		if err != nil {
+			t.Fatalf("Recv %d of %d: %v", len(got)+1, n, err)
+		}
+		got = append(got, d)
+	}
+	return got
 }
 
 // EmptySubscriptionMatchesNothing holds a backend to default deny: a

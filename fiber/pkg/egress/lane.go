@@ -18,18 +18,27 @@ type lane struct {
 	key    laneKey
 	sink   connector.Sink
 	target address.Address
-	queue  chan event.Envelope
+	acks   *acks
+	queue  chan item
 }
 
-// offer queues e. It never blocks: a lane that is this far behind is a sink
+// item is one event in a lane, with its position in the tenant's order.
+type item struct {
+	ev  event.Envelope
+	pos uint64
+}
+
+// offer queues it. It never blocks: a lane that is this far behind is a sink
 // that is not keeping up, and blocking here would stall every other run on
-// the binding. Called with the engine lock held.
-func (l *lane) offer(e event.Envelope) {
+// the binding. A dropped delivery is finished: it is logged, and waiting on
+// it would hold the cursor forever. Called with the engine lock held.
+func (l *lane) offer(it item) {
 	select {
-	case l.queue <- e:
+	case l.queue <- it:
 	default:
 		l.e.log.Error("egress: delivery dropped, sink is not keeping up",
-			l.attrs(e, "queue", cap(l.queue))...)
+			l.attrs(it.ev, "queue", cap(l.queue))...)
+		l.acks.finish(it.pos)
 	}
 }
 
@@ -44,9 +53,14 @@ func (l *lane) serve(ctx context.Context) {
 		case <-ctx.Done():
 			l.abandon()
 			return
-		case e := <-l.queue:
-			l.deliver(ctx, e)
-			if terminal(e.Type) && l.leave() {
+		case it := <-l.queue:
+			if !l.deliver(ctx, it.ev) {
+				// Abandoned at shutdown: left uncommitted, for whoever
+				// delivers next.
+				continue
+			}
+			l.acks.finish(it.pos)
+			if terminal(it.ev.Type) && l.leave() {
 				return
 			}
 			idle.Reset(l.e.idle)
@@ -87,8 +101,9 @@ func (l *lane) abandon() {
 }
 
 // deliver offers e to the sink until it succeeds, fails permanently, or the
-// attempts run out.
-func (l *lane) deliver(ctx context.Context, e event.Envelope) {
+// attempts run out, and reports whether it is finished with e. It is not
+// when ctx ended first.
+func (l *lane) deliver(ctx context.Context, e event.Envelope) bool {
 	for attempt := 1; ; attempt++ {
 		err := l.attempt(ctx, e)
 		switch {
@@ -96,16 +111,16 @@ func (l *lane) deliver(ctx context.Context, e event.Envelope) {
 			if attempt > 1 {
 				l.e.log.Info("egress: delivery succeeded after retrying", l.attrs(e, "attempts", attempt)...)
 			}
-			return
+			return true
 		case ctx.Err() != nil:
 			l.e.log.Warn("egress: delivery abandoned at shutdown", l.attrs(e, "attempts", attempt, "error", err)...)
-			return
+			return false
 		case permanent(err):
 			l.retire(e, err, attempt, "permanent")
-			return
+			return true
 		case attempt >= l.e.attempts:
 			l.retire(e, err, attempt, "attempts exhausted")
-			return
+			return true
 		}
 		wait := l.e.backoffFor(attempt)
 		l.e.log.Warn("egress: delivery failed, retrying",

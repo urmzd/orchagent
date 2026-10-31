@@ -232,7 +232,11 @@ func New(ctx context.Context, opts ...Option) (*App, error) {
 	if a.rt, err = runtime.New(anchor.New(a.ledger, a.queue), a.defs, a.broker, append([]runtime.Option{runtime.WithRuntime(a.exec)}, rtOpts...)...); err != nil {
 		return fail(fmt.Errorf("fiber: runtime: %w", err))
 	}
-	if a.disp, err = dispatch.New(a.broker, a.members, a.rt, dispatch.WithLogger(a.log)); err != nil {
+	runs, err := newDispatchRuns(ctx, pool)
+	if err != nil {
+		return fail(err)
+	}
+	if a.disp, err = dispatch.New(a.broker, a.members, a.rt, dispatch.WithLogger(a.log), dispatch.WithRuns(runs)); err != nil {
 		return fail(fmt.Errorf("fiber: dispatch: %w", err))
 	}
 	return a, nil
@@ -330,6 +334,20 @@ func newMemberships(ctx context.Context, pool *pgxpool.Pool, o options) (members
 	store := membership.NewPostgres(pool)
 	if err := store.Migrate(ctx); err != nil {
 		return nil, migrateErr("memberships", err)
+	}
+	return store, nil
+}
+
+// newDispatchRuns picks where dispatch remembers the runs started per
+// channel: on the pool, so a session stop reaches a run whichever process
+// started it, or in memory.
+func newDispatchRuns(ctx context.Context, pool *pgxpool.Pool) (dispatch.Runs, error) {
+	if pool == nil {
+		return dispatch.NewMemoryRuns(), nil
+	}
+	store := dispatch.NewPostgresRuns(pool)
+	if err := store.Migrate(ctx); err != nil {
+		return nil, migrateErr("dispatch runs", err)
 	}
 	return store, nil
 }

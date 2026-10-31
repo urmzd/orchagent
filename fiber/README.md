@@ -477,13 +477,13 @@ starts. Postgres migrates itself and keeps its rows. See
 ### Limitations
 
 - The bus is chosen independently of the stores: `WithPostgres` does not move the bus, `WithBus` does.
-- The Postgres bus serializes publishes on one advisory lock per schema, so its throughput is one short transaction per event.
+- The Postgres bus serializes publishes on one advisory lock per tenant, so each tenant's throughput is one short transaction per event; different tenants do not wait on each other.
 - The Postgres bus stores every event it carries, body included, as a row in the `fiber_events` table of the database it is given. A row stays until its run's retention trim drops it or a sweep finds it older than `bus.WithIndexTTL` (24 hours by default; the sweep runs from publishes, so with none nothing is removed). Those rows reach that database's WAL, replicas and backups like any other, and tool events carry their call's arguments. Where arguments can hold secrets, scrub them with `native.WithToolArguments` or shorten the TTL.
 - Every store is in memory unless `WithPostgres` or its own option is given. On Postgres they survive a restart, but the run queue fiber builds has no `DeltaLog`, so the per-run delta journal is not written; the bus still carries every event.
 - Files (`blob`) are in memory unless `WithBlobs(blob.NewFS(dir))` puts them on disk; there is no Postgres blob store.
 - fiber authenticates nothing. An embedding program that accepts events or stop and answer requests from callers sets the tenant and actor from the caller's credential.
 - Citations are derived from RAG context blocks. Citations a model or tool reports itself are not translated into events yet.
-- The bus is at-least-once with no consumer groups.
+- The bus is at-least-once. Egress and dispatch read through consumer groups (`Bus.Consume`), so with more than one process on a shared bus each tenant's events are handled by one at a time, and after a crash the events since the last committed cursor are handled again.
 - fiber refuses the saige definition fields it cannot honor (dials, skills, memory, guardrails, compaction, harness tools, MCP allow lists) rather than ignoring them.
 - A Policy's `subscriptions` are recorded and hashed but do not join channels yet. Memberships (`App.Memberships().Join`, or a cron schedule, which joins its own agent) decide who an event wakes.
 - `App.Status` reports a stopped run as `stopped`. A stop is recorded in the run ledger before it is announced on the bus, so once it is acknowledged the run ends stopped unless its turn had already returned its answer. A sink that subscribes only to `run.completed` is not told about a stop.

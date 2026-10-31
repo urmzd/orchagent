@@ -13,7 +13,7 @@ import (
 )
 
 func newMemory(_ *testing.T, cfg bustest.Config) bus.Bus {
-	return bus.NewMemory(bus.WithRetention(cfg.Retention), bus.WithBacklog(cfg.Backlog))
+	return bus.NewMemory(bus.WithRetention(cfg.Retention), bus.WithBacklog(cfg.Backlog), bus.WithLease(cfg.Lease))
 }
 
 func TestMemoryConformance(t *testing.T) { bustest.Run(t, newMemory) }

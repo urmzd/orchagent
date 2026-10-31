@@ -62,10 +62,30 @@
 // for the events that are not run events (WithRetention). Postgres forgets
 // everything WithIndexTTL after it was published.
 //
+// # Consumer groups
+//
+// A plain subscription is read by every process that opens it: an event
+// stream to a browser, a control reader. A consumer that acts on an event
+// once for the whole deployment (delivery to a surface, folding run events
+// into the platform, waking agents) reads through a consumer group instead
+// (Consume). A group keeps one cursor per tenant and one lease per tenant:
+// exactly one member at a time holds a tenant's lease and reads from its
+// committed cursor, and the others wait. A member renews its lease while it
+// lives; when it stops (Close releases at once, a crash lets the lease
+// expire) another member takes over and reads from the last cursor
+// committed, so the events after it may be delivered again. Delivery stays
+// at-least-once, and group consumers stay idempotent by (run, seq) and by
+// event id.
+//
+// Each tenant's events have a position (Delivery.Pos) that only grows, and
+// Commit takes one. A group seen for the first time starts at the oldest
+// event retained, exactly as a plain subscription does.
+//
 // # Backends
 //
-// Memory serves one process. Postgres (two tables and LISTEN/NOTIFY) is
-// shared by every process on it. bustest holds both to one contract.
+// Memory serves one process. Postgres (fiber_events and its index tables,
+// with LISTEN/NOTIFY) is shared by every process on it. bustest holds both
+// to one contract, consumer groups included.
 package bus
 
 import (
@@ -88,6 +108,10 @@ var (
 	// ErrSlowConsumer reports a subscriber terminated for not keeping up.
 	// Recovery is to resubscribe from the last sequence processed.
 	ErrSlowConsumer = errors.New("bus: slow consumer")
+	// ErrLeaseLost reports a consumer group member whose lease on a tenant
+	// another member took over. Its stream has ended; recovery is to
+	// Consume again, which waits for the lease.
+	ErrLeaseLost = errors.New("bus: consumer group lease lost")
 )
 
 // Bus is the broker. Implementations must pass the conformance suite in
@@ -103,6 +127,45 @@ type Bus interface {
 	// retained first, then the live tail, with no gap and no duplicate at the
 	// seam. Cancelling ctx closes the stream, exactly as Close does.
 	Subscribe(ctx context.Context, sub Subscription) (Stream, error)
+
+	// Consume joins the consumer group named group for sub's tenant and
+	// returns its stream. The stream delivers the events sub accepts after
+	// the group's committed cursor, only while this member holds the
+	// group's lease on the tenant; until then Recv waits. Cancelling ctx
+	// ends the stream without releasing the lease, as a crash would, so it
+	// expires (WithLease); Close releases it at once.
+	Consume(ctx context.Context, group string, sub Subscription) (GroupStream, error)
+}
+
+// Delivery is one event read through a consumer group, with its position in
+// its tenant's order.
+type Delivery struct {
+	Event event.Envelope
+	// Pos is the event's position among its tenant's events. Positions
+	// only grow, and a group stream delivers them in increasing order.
+	Pos uint64
+}
+
+// GroupStream is one member's view of a consumer group on one tenant. Like
+// Stream it serves a single goroutine, except that Commit and Close are safe
+// from anywhere.
+type GroupStream interface {
+	// Recv waits until this member holds the lease, then returns the next
+	// event after the committed cursor. It returns ErrLeaseLost once
+	// another member took the lease over, ErrClosed after Close or after
+	// the context Consume was given ended, and ErrSlowConsumer when this
+	// member fell too far behind. Each of them ends the stream.
+	Recv(ctx context.Context) (Delivery, error)
+
+	// Commit records that every event up to and including pos was handled,
+	// so a member that takes over starts after it. The cursor never moves
+	// back. It returns ErrLeaseLost when this member no longer holds the
+	// lease.
+	Commit(ctx context.Context, pos uint64) error
+
+	// Close ends the stream and releases the lease, so another member takes
+	// over at once. It is idempotent.
+	Close() error
 }
 
 // Stream is one consumer's view of the bus. It serves a single goroutine:
@@ -182,6 +245,10 @@ const (
 	DefaultIndexTTL = 24 * time.Hour
 	// DefaultMaxHops is the most hops an event may carry.
 	DefaultMaxHops = 8
+	// DefaultLease is how long a consumer group member holds a tenant's
+	// lease without renewing it. A member renews three times per lease, so
+	// it bounds how long a tenant waits after its member crashed.
+	DefaultLease = 15 * time.Second
 )
 
 // options configures a backend.
@@ -192,6 +259,7 @@ type options struct {
 	maxHops   int
 	poll      time.Duration
 	indexTTL  time.Duration
+	lease     time.Duration
 	now       func() time.Time
 }
 
@@ -203,6 +271,7 @@ func defaults() options {
 		maxHops:   DefaultMaxHops,
 		poll:      DefaultPollInterval,
 		indexTTL:  DefaultIndexTTL,
+		lease:     DefaultLease,
 		now:       time.Now,
 	}
 }
@@ -279,6 +348,17 @@ func WithIndexTTL(d time.Duration) Option {
 	}
 }
 
+// WithLease sets how long a consumer group member holds a tenant's lease
+// without renewing it (default 15s). A shorter lease hands a crashed
+// member's tenants over sooner and costs more renewals.
+func WithLease(d time.Duration) Option {
+	return func(o *options) {
+		if d > 0 {
+			o.lease = d
+		}
+	}
+}
+
 // normalize validates e and stamps its time. Every backend runs it before
 // touching storage, which keeps ErrInvalid identical across them.
 func normalize(e *event.Envelope, o options) error {
@@ -307,6 +387,18 @@ func normalize(e *event.Envelope, o options) error {
 		return fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
 	return nil
+}
+
+// validateGroup checks a consumer group can be joined: it has a name and a
+// tenant to hold a lease on.
+func validateGroup(group string, sub Subscription) error {
+	switch {
+	case group == "":
+		return fmt.Errorf("%w: consumer group has no name", ErrInvalid)
+	case sub.Tenant == "":
+		return fmt.Errorf("%w: consumer group %q names no tenant", ErrInvalid, group)
+	}
+	return validate(sub)
 }
 
 // validate checks a subscription is well formed. An empty one is well formed

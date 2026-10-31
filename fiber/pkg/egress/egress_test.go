@@ -5,10 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/urmzd/humagen/fiber/pkg/address"
 	"github.com/urmzd/humagen/fiber/pkg/bus"
@@ -278,4 +282,145 @@ func TestEgressSkipsAnEventOlderThanItsMaxAge(t *testing.T) {
 	if got := gh.got(); len(got) != 1 || got[0] != "github://urmzd/fiber/issues/42 github://urmzd/fiber/issues/42 2" {
 		t.Errorf("delivered %v, want only the fresh event", got)
 	}
+}
+
+// waitFor polls until cond holds or fails the test.
+func waitFor(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// twoEngines runs two Engines, as two replicas would, on the buses given
+// (one shared bus, or two on one database), delivering to one recorder, and
+// checks every event reaches the surface exactly once.
+func twoEngines(t *testing.T, one, two bus.Bus) {
+	t.Helper()
+	gh := &recorder{name: "github"}
+	reg := connector.NewRegistry()
+	if err := reg.Register(gh); err != nil {
+		t.Fatal(err)
+	}
+	runEgress(t, egress.New(one, reg))
+	runEgress(t, egress.New(two, reg))
+
+	issue := "github://urmzd/fiber/issues/42"
+	events := run(issue)
+	for i, e := range events {
+		b := one
+		if i%2 == 1 {
+			b = two
+		}
+		if err := b.Publish(context.Background(), e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	waitFor(t, "every event delivered", func() bool { return len(gh.got()) >= len(events) })
+	time.Sleep(300 * time.Millisecond)
+
+	var want []string
+	for _, e := range events {
+		want = append(want, fmt.Sprintf("%s %s %d", issue, issue, e.Seq))
+	}
+	if got := gh.got(); !reflect.DeepEqual(got, want) {
+		t.Errorf("two engines delivered %v, want each event once: %v", got, want)
+	}
+}
+
+// Two Engines on one bus are one deliverer: a Slack message or a GitHub
+// comment is posted once, not once per replica.
+func TestEgressTwoEnginesDeliverEachEventOnce(t *testing.T) {
+	b := bus.NewMemory()
+	twoEngines(t, b, b)
+}
+
+// The same on Postgres, with each Engine on a bus of its own over one
+// database: two processes.
+func TestEgressTwoEnginesOnPostgresDeliverEachEventOnce(t *testing.T) {
+	url := os.Getenv("FIBER_POSTGRES_TEST_URL")
+	if url == "" {
+		t.Skip("set FIBER_POSTGRES_TEST_URL")
+	}
+	pool := postgresPool(t, url)
+	one := bus.NewPostgres(pool, bus.WithPollInterval(25*time.Millisecond))
+	two := bus.NewPostgres(pool, bus.WithPollInterval(25*time.Millisecond))
+	if err := one.Migrate(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	twoEngines(t, one, two)
+}
+
+// An Engine that stops commits what it delivered, and the Engine that takes
+// over starts after it: nothing is posted twice and nothing is skipped.
+func TestEgressTakesOverFromTheCommittedCursor(t *testing.T) {
+	gh := &recorder{name: "github"}
+	reg := connector.NewRegistry()
+	if err := reg.Register(gh); err != nil {
+		t.Fatal(err)
+	}
+	b := bus.NewMemory()
+	issue := "github://urmzd/fiber/issues/42"
+	events := run(issue)
+
+	ctx, stop := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- egress.New(b, reg).Run(ctx, tenant) }()
+	for _, e := range events[:3] {
+		if err := b.Publish(context.Background(), e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	waitFor(t, "the first engine to deliver three events", func() bool { return len(gh.got()) == 3 })
+	stop()
+	if err := <-done; err != nil {
+		t.Fatalf("first engine: %v", err)
+	}
+
+	runEgress(t, egress.New(b, reg))
+	for _, e := range events[3:] {
+		if err := b.Publish(context.Background(), e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	waitFor(t, "every event delivered", func() bool { return len(gh.got()) >= len(events) })
+	time.Sleep(200 * time.Millisecond)
+	var want []string
+	for _, e := range events {
+		want = append(want, fmt.Sprintf("%s %s %d", issue, issue, e.Seq))
+	}
+	if got := gh.got(); !reflect.DeepEqual(got, want) {
+		t.Errorf("delivered %v, want each event once across the takeover: %v", got, want)
+	}
+}
+
+// postgresPool returns a pool on a schema of its own, dropped when the test
+// ends.
+func postgresPool(t *testing.T, url string) *pgxpool.Pool {
+	t.Helper()
+	ctx := context.Background()
+	schema := fmt.Sprintf("fibertest_egress_%d", time.Now().UnixNano())
+	cfg, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.ConnConfig.RuntimeParams["search_path"] = schema
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ident := pgx.Identifier{schema}.Sanitize()
+	if _, err := pool.Exec(ctx, "CREATE SCHEMA "+ident); err != nil {
+		pool.Close()
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), "DROP SCHEMA "+ident+" CASCADE")
+		pool.Close()
+	})
+	return pool
 }

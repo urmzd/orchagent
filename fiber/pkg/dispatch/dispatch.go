@@ -17,8 +17,15 @@
 // at-least-once and nothing here deduplicates: the run key does.
 //
 // slack.session.stopped.v1 starts nothing. It is mapped to a stop request
-// (control.stop.v1) for each run this dispatcher started on the session's
-// channel.
+// (control.stop.v1) for each run started on the session's channel, which it
+// finds in Runs: the dispatchers of one deployment share it, so a stop
+// reaches a run that another replica started, or one started before a
+// failover (NewPostgresRuns).
+//
+// A dispatcher reads each tenant's events through the bus consumer group
+// Group, so however many replicas run one, a tenant's events are dispatched
+// by one at a time, and the one that takes over starts after the last event
+// committed.
 package dispatch
 
 import (
@@ -38,6 +45,20 @@ import (
 
 // ErrInvalid reports a dispatcher or tenant that cannot be served.
 var ErrInvalid = errors.New("dispatch: invalid")
+
+// Group is the bus consumer group a dispatcher reads each tenant's events
+// through.
+const Group = "dispatch"
+
+// Runs remembers the runs started on each channel, for a session stop to
+// reach them. A deployment of more than one replica shares one, so what one
+// replica started another can stop.
+type Runs interface {
+	// Add records that runID was started on channel.
+	Add(ctx context.Context, tenant, channel, runID string) error
+	// On returns the most recent runs started on channel.
+	On(ctx context.Context, tenant, channel string) ([]string, error)
+}
 
 // Families are the ingress type prefixes a dispatcher subscribes to.
 var Families = []string{"message", "slack", "github", "jira", "cron"}
@@ -78,7 +99,7 @@ type Dispatcher struct {
 	maxAge   time.Duration
 	now      func() time.Time
 
-	runs *recent
+	runs Runs
 }
 
 // Option configures a Dispatcher.
@@ -109,6 +130,16 @@ func WithMaxAge(age time.Duration) Option {
 	return func(d *Dispatcher) {
 		if age > 0 {
 			d.maxAge = age
+		}
+	}
+}
+
+// WithRuns sets where the runs started per channel are kept (default
+// NewMemoryRuns, which only this process sees).
+func WithRuns(r Runs) Option {
+	return func(d *Dispatcher) {
+		if r != nil {
+			d.runs = r
 		}
 	}
 }
@@ -150,7 +181,7 @@ func New(b bus.Bus, members membership.Store, rt Runtime, opts ...Option) (*Disp
 		maxHops:  bus.DefaultMaxHops,
 		maxAge:   DefaultMaxAge,
 		now:      time.Now,
-		runs:     newRecent(DefaultChannelsTracked, DefaultRunsPerChannel),
+		runs:     NewMemoryRuns(),
 	}
 	for _, o := range opts {
 		o(d)
@@ -163,8 +194,11 @@ func (d *Dispatcher) Subscription(tenant string) bus.Subscription {
 	return bus.Subscription{Tenant: tenant, Channels: slices.Clone(d.channels), Types: slices.Clone(Families)}
 }
 
-// Run dispatches tenant's events until ctx ends. It resubscribes after
-// falling behind, and returns nil once ctx is done.
+// Run dispatches tenant's events until ctx ends. It reads through the
+// consumer group Group, so while another dispatcher holds the tenant's lease
+// it waits to take over. It commits each event once handled, resumes from
+// the committed cursor after falling behind or losing the lease, and returns
+// nil once ctx is done.
 func (d *Dispatcher) Run(ctx context.Context, tenant string) error {
 	if tenant == "" {
 		return fmt.Errorf("%w: no tenant", ErrInvalid)
@@ -173,12 +207,12 @@ func (d *Dispatcher) Run(ctx context.Context, tenant string) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-		stream, err := d.bus.Subscribe(ctx, d.Subscription(tenant))
+		stream, err := d.bus.Consume(ctx, Group, d.Subscription(tenant))
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil
 			}
-			return fmt.Errorf("dispatch: subscribe %s: %w", tenant, err)
+			return fmt.Errorf("dispatch: consume %s: %w", tenant, err)
 		}
 		err = d.consume(ctx, tenant, stream)
 		_ = stream.Close()
@@ -186,7 +220,9 @@ func (d *Dispatcher) Run(ctx context.Context, tenant string) error {
 		case ctx.Err() != nil:
 			return nil
 		case errors.Is(err, bus.ErrSlowConsumer):
-			d.log.Warn("dispatch: fell behind the bus, resubscribing", "tenant", tenant, "error", err)
+			d.log.Warn("dispatch: fell behind the bus, resuming from the committed cursor", "tenant", tenant, "error", err)
+		case errors.Is(err, bus.ErrLeaseLost):
+			d.log.Info("dispatch: another replica took over, waiting to take it back", "tenant", tenant)
 		case errors.Is(err, bus.ErrClosed):
 			d.log.Warn("dispatch: bus stream ended, nothing is dispatched", "tenant", tenant)
 			return nil
@@ -196,21 +232,29 @@ func (d *Dispatcher) Run(ctx context.Context, tenant string) error {
 	}
 }
 
-func (d *Dispatcher) consume(ctx context.Context, tenant string, stream bus.Stream) error {
+func (d *Dispatcher) consume(ctx context.Context, tenant string, stream bus.GroupStream) error {
 	for {
-		e, err := stream.Recv(ctx)
+		got, err := stream.Recv(ctx)
 		if err != nil {
 			return err
 		}
-		if e.Tenant != tenant {
-			continue
-		}
-		if age := d.now().Sub(e.Time); age > d.maxAge {
+		e := got.Event
+		switch age := d.now().Sub(e.Time); {
+		case e.Tenant != tenant:
+		case age > d.maxAge:
 			d.log.Debug("dispatch: event too old to start a run", "event", e.ID, "type", e.Type, "age", age)
-			continue
+		default:
+			if _, err := d.Handle(ctx, e); err != nil {
+				d.log.Error("dispatch: event", "event", e.ID, "type", e.Type, "channel", e.Channel, "error", err)
+			}
 		}
-		if _, err := d.Handle(ctx, e); err != nil {
-			d.log.Error("dispatch: event", "event", e.ID, "type", e.Type, "channel", e.Channel, "error", err)
+		// Handled, even when a member failed: the run key makes a retry of
+		// the same event join what it started, and the failure is logged.
+		if err := stream.Commit(ctx, got.Pos); err != nil {
+			if ctx.Err() != nil || errors.Is(err, bus.ErrLeaseLost) {
+				return err
+			}
+			d.log.Warn("dispatch: cursor not committed; a replica that takes over dispatches again", "tenant", tenant, "error", err)
 		}
 	}
 }
@@ -247,7 +291,9 @@ func (d *Dispatcher) Handle(ctx context.Context, e event.Envelope) ([]runtime.Ac
 		}
 		acc, err := d.rt.Accept(ctx, e, m.Agent)
 		if acc.RunID != "" {
-			d.runs.add(e.Tenant, e.Channel, acc.RunID)
+			if rerr := d.runs.Add(ctx, e.Tenant, e.Channel, acc.RunID); rerr != nil {
+				errs = append(errs, fmt.Errorf("dispatch: remember %s on %s: %w", acc.RunID, e.Channel, rerr))
+			}
 			out = append(out, acc)
 		}
 		if err != nil {
@@ -274,8 +320,12 @@ func (d *Dispatcher) stopSession(ctx context.Context, e event.Envelope) error {
 	if b.User != "" {
 		by = "slack:" + b.User
 	}
+	started, err := d.runs.On(ctx, e.Tenant, e.Channel)
+	if err != nil {
+		return fmt.Errorf("dispatch: runs on %s: %w", e.Channel, err)
+	}
 	var errs []error
-	for _, runID := range d.runs.on(e.Tenant, e.Channel) {
+	for _, runID := range started {
 		if err := d.rt.Stop(ctx, runtime.StopRequest{Tenant: e.Tenant, RunID: runID, Reason: "Stopped in Slack", By: by}); err != nil {
 			errs = append(errs, fmt.Errorf("dispatch: stop %s: %w", runID, err))
 		}
@@ -293,13 +343,23 @@ type recent struct {
 	runs     map[chanKey][]string
 }
 
+var _ Runs = (*recent)(nil)
+
 type chanKey struct{ tenant, channel string }
+
+// NewMemoryRuns returns Runs kept in this process: the most recent
+// DefaultRunsPerChannel runs of each of the DefaultChannelsTracked channels
+// used last. A replica that takes over does not see them.
+func NewMemoryRuns() Runs {
+	return newRecent(DefaultChannelsTracked, DefaultRunsPerChannel)
+}
 
 func newRecent(maxChans, perChan int) *recent {
 	return &recent{perChan: perChan, maxChans: maxChans, runs: map[chanKey][]string{}}
 }
 
-func (r *recent) add(tenant, channel, runID string) {
+// Add implements Runs.
+func (r *recent) Add(_ context.Context, tenant, channel, runID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	k := chanKey{tenant, channel}
@@ -312,17 +372,19 @@ func (r *recent) add(tenant, channel, runID string) {
 		r.order = append(r.order, k)
 	}
 	if slices.Contains(ids, runID) {
-		return
+		return nil
 	}
 	ids = append(ids, runID)
 	if len(ids) > r.perChan {
 		ids = ids[len(ids)-r.perChan:]
 	}
 	r.runs[k] = ids
+	return nil
 }
 
-func (r *recent) on(tenant, channel string) []string {
+// On implements Runs.
+func (r *recent) On(_ context.Context, tenant, channel string) ([]string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return slices.Clone(r.runs[chanKey{tenant, channel}])
+	return slices.Clone(r.runs[chanKey{tenant, channel}]), nil
 }

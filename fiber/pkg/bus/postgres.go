@@ -3,6 +3,7 @@ package bus
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -22,12 +23,25 @@ import (
 // fiber_event_runs holds each run's high-water mark and the time of its last
 // event, which the sweep ages runs out by.
 //
-// fiber_events is the retained window. id is the append order across every
-// stream and the cursor every subscriber reads by. Publishes serialize on one
-// advisory lock per schema (see fiber_event_publish), so an id is assigned and
-// committed before the next one is, and a reader scanning "id > cursor" can
-// never step over a row that commits late. A run event (seq > 0) is unique by
-// (tenant, run, seq); every other event (seq = 0) by (tenant, event_id).
+// fiber_event_tenants holds each tenant's last position (top). It is never
+// swept, so a position is never handed out twice, even after every event of
+// the tenant has aged out.
+//
+// fiber_events is the retained window, and the outbox consumer groups read.
+// tseq is an event's position among its tenant's events, the cursor every
+// reader scans by. Publishes to one tenant serialize on one advisory lock
+// per tenant (see fiber_event_publish), so a tenant's position is assigned
+// and committed before its next one is, and a reader scanning "tseq >
+// cursor" can never step over a row that commits late. Publishes to
+// different tenants do not wait on each other. id is the append order across
+// every tenant, kept for retention and the sweep. A run event (seq > 0) is
+// unique by (tenant, run, seq); every other event (seq = 0) by (tenant,
+// event_id).
+//
+// fiber_consumers is each consumer group's cursor and lease, per tenant.
+//
+// A table created before positions existed gains tseq here, numbered per
+// tenant in id order, which is the order its rows committed in.
 const pgSchema = `
 CREATE TABLE IF NOT EXISTS fiber_event_runs (
 	tenant     text        NOT NULL,
@@ -37,9 +51,15 @@ CREATE TABLE IF NOT EXISTS fiber_event_runs (
 	PRIMARY KEY (tenant, run)
 );
 
+CREATE TABLE IF NOT EXISTS fiber_event_tenants (
+	tenant text   PRIMARY KEY,
+	top    bigint NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS fiber_events (
 	id       bigserial   PRIMARY KEY,
 	tenant   text        NOT NULL,
+	tseq     bigint,
 	channel  text        NOT NULL,
 	type     text        NOT NULL,
 	run      text        NOT NULL DEFAULT '',
@@ -49,25 +69,55 @@ CREATE TABLE IF NOT EXISTS fiber_events (
 	at       timestamptz NOT NULL DEFAULT now()
 );
 
+ALTER TABLE fiber_events ADD COLUMN IF NOT EXISTS tseq bigint;
+UPDATE fiber_events e SET tseq = n.base + n.rn
+	FROM (SELECT f.id,
+			row_number() OVER (PARTITION BY f.tenant ORDER BY f.id) AS rn,
+			COALESCE((SELECT max(x.tseq) FROM fiber_events x WHERE x.tenant = f.tenant), 0) AS base
+		FROM fiber_events f WHERE f.tseq IS NULL) n
+	WHERE e.id = n.id;
+INSERT INTO fiber_event_tenants (tenant, top)
+	SELECT tenant, max(tseq) FROM fiber_events GROUP BY tenant
+	ON CONFLICT (tenant) DO UPDATE SET top = GREATEST(fiber_event_tenants.top, EXCLUDED.top);
+ALTER TABLE fiber_events ALTER COLUMN tseq SET NOT NULL;
+
 CREATE UNIQUE INDEX IF NOT EXISTS fiber_events_run_seq ON fiber_events (tenant, run, seq) WHERE seq > 0;
 CREATE UNIQUE INDEX IF NOT EXISTS fiber_events_event_id ON fiber_events (tenant, event_id) WHERE seq = 0;
+CREATE UNIQUE INDEX IF NOT EXISTS fiber_events_tenant_tseq ON fiber_events (tenant, tseq);
 CREATE INDEX IF NOT EXISTS fiber_events_channel ON fiber_events (tenant, channel, id);
 CREATE INDEX IF NOT EXISTS fiber_events_run ON fiber_events (tenant, run, id);
 CREATE INDEX IF NOT EXISTS fiber_events_at ON fiber_events (at);
 
+CREATE TABLE IF NOT EXISTS fiber_consumers (
+	"group"     text        NOT NULL,
+	tenant      text        NOT NULL,
+	cursor      bigint      NOT NULL DEFAULT 0,
+	owner       text        NOT NULL DEFAULT '',
+	lease_until timestamptz NOT NULL DEFAULT '-infinity',
+	PRIMARY KEY ("group", tenant)
+);
+
 CREATE OR REPLACE FUNCTION fiber_event_publish(p_tenant text, p_channel text, p_type text, p_run text, p_seq bigint, p_event_id text, p_body text, p_retention int)
 RETURNS boolean LANGUAGE plpgsql AS $$
 DECLARE
-	v_top bigint;
+	v_top  bigint;
+	v_tseq bigint;
 BEGIN
-	PERFORM pg_advisory_xact_lock(hashtextextended('fiber_events:' || current_schema(), 0));
+	PERFORM pg_advisory_xact_lock(hashtextextended('fiber_events:' || current_schema() || ':' || p_tenant, 0));
 	IF p_seq > 0 THEN
 		SELECT r.top INTO v_top FROM fiber_event_runs r WHERE r.tenant = p_tenant AND r.run = p_run;
 		IF v_top IS NOT NULL AND p_seq <= v_top THEN
 			RETURN false;
 		END IF;
-		INSERT INTO fiber_events (tenant, channel, type, run, seq, event_id, body)
-			VALUES (p_tenant, p_channel, p_type, p_run, p_seq, p_event_id, p_body);
+	ELSIF EXISTS (SELECT 1 FROM fiber_events x WHERE x.tenant = p_tenant AND x.event_id = p_event_id AND x.seq = 0) THEN
+		RETURN false;
+	END IF;
+	INSERT INTO fiber_event_tenants (tenant, top) VALUES (p_tenant, 1)
+		ON CONFLICT (tenant) DO UPDATE SET top = fiber_event_tenants.top + 1
+		RETURNING top INTO v_tseq;
+	INSERT INTO fiber_events (tenant, tseq, channel, type, run, seq, event_id, body)
+		VALUES (p_tenant, v_tseq, p_channel, p_type, p_run, GREATEST(p_seq, 0), p_event_id, p_body);
+	IF p_seq > 0 THEN
 		INSERT INTO fiber_event_runs (tenant, run, top, updated_at) VALUES (p_tenant, p_run, p_seq, now())
 			ON CONFLICT (tenant, run) DO UPDATE SET top = EXCLUDED.top, updated_at = EXCLUDED.updated_at;
 		DELETE FROM fiber_events e
@@ -76,12 +126,6 @@ BEGIN
 				WHERE x.tenant = p_tenant AND x.run = p_run AND x.seq > 0
 				ORDER BY x.seq DESC OFFSET p_retention - 1 LIMIT 1);
 	ELSE
-		INSERT INTO fiber_events (tenant, channel, type, run, seq, event_id, body)
-			VALUES (p_tenant, p_channel, p_type, p_run, 0, p_event_id, p_body)
-			ON CONFLICT (tenant, event_id) WHERE seq = 0 DO NOTHING;
-		IF NOT FOUND THEN
-			RETURN false;
-		END IF;
 		DELETE FROM fiber_events e
 			WHERE e.tenant = p_tenant AND e.channel = p_channel AND e.seq = 0
 			AND e.id < (SELECT x.id FROM fiber_events x
@@ -107,14 +151,18 @@ const listeningPollFactor = 20
 
 // Postgres is a bus on two tables in the database a deployment already has.
 //
-// Sequencing, idempotent replay, dedupe and retention happen inside one
-// publish function, under one advisory lock per schema, so publishes are
-// serialized across every stream.
+// Sequencing, positions, idempotent replay, dedupe and retention happen
+// inside one publish function, under one advisory lock per tenant, so a
+// tenant's publishes are serialized and different tenants' are not.
 //
-// Readers are one goroutine per subscription. Each scans fiber_events by id,
-// narrowed in SQL to its tenant, channels and run, then waits for a NOTIFY on
-// its tenant (one LISTEN connection per bus, held while anything is
-// subscribed) or the poll interval.
+// Readers are one goroutine per subscription. Each scans fiber_events by
+// position (tseq), narrowed in SQL to its tenant, channels and run, then
+// waits for a NOTIFY whose payload is its tenant (one LISTEN connection per
+// bus, held while anything is subscribed) or the poll interval.
+//
+// Consumer groups keep their cursors and leases in fiber_consumers. A lease
+// is timed by the database's clock, so replicas whose clocks drift agree on
+// when it expires.
 //
 // Events are durable rows until retention trims them or a sweep finds them
 // older than WithIndexTTL (24 hours by default). Those rows reach the
@@ -137,8 +185,8 @@ type Postgres struct {
 var _ Bus = (*Postgres)(nil)
 
 // NewPostgres returns a bus on pool. It honours WithRetention, WithBacklog,
-// WithPollInterval, WithIndexTTL and WithMaxHops, and does not touch the
-// database.
+// WithPollInterval, WithIndexTTL, WithMaxHops and WithLease, and does not
+// touch the database.
 func NewPostgres(pool *pgxpool.Pool, opts ...Option) *Postgres {
 	o := newOptions(opts)
 	return &Postgres{
@@ -153,8 +201,9 @@ func NewPostgres(pool *pgxpool.Pool, opts ...Option) *Postgres {
 	}
 }
 
-// Migrate creates the tables and the publish function. It is idempotent and
-// safe to run from every replica at startup.
+// Migrate creates the tables and the publish function, and numbers the rows
+// of a table created before positions existed. It is idempotent and safe to
+// run from every replica at startup.
 func (p *Postgres) Migrate(ctx context.Context) error {
 	err := pgx.BeginFunc(ctx, p.pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, int64(pgMigrateLock)); err != nil {
@@ -174,7 +223,7 @@ func (p *Postgres) Publish(ctx context.Context, e event.Envelope) error {
 	if err := normalize(&e, p.opts); err != nil {
 		return err
 	}
-	if e.Seq > uint64(1<<63-1) {
+	if e.Seq > maxPos {
 		return fmt.Errorf("%w: sequence %d does not fit in a bigint", ErrInvalid, e.Seq)
 	}
 	body, err := json.Marshal(e)
@@ -216,14 +265,19 @@ func (p *Postgres) Subscribe(ctx context.Context, sub Subscription) (Stream, err
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if sub.From > uint64(1<<63-1) {
+	if sub.From > maxPos {
 		return nil, fmt.Errorf("%w: cursor %d does not fit in a bigint", ErrInvalid, sub.From)
 	}
+	return p.open(ctx, sub, 0), nil
+}
+
+// open starts a reader of sub after the position after.
+func (p *Postgres) open(ctx context.Context, sub Subscription, after uint64) *pgStream {
 	readCtx, cancel := context.WithCancel(ctx)
 	s := &pgStream{
 		p:      p,
 		sub:    sub,
-		ch:     make(chan event.Envelope, p.backlog),
+		ch:     make(chan Delivery, p.backlog),
 		cancel: cancel,
 		closed: make(chan struct{}),
 		done:   make(chan struct{}),
@@ -236,7 +290,7 @@ func (p *Postgres) Subscribe(ctx context.Context, sub Subscription) (Stream, err
 		}()
 	} else {
 		wake, unsubscribe := p.hub.subscribe(sub.Tenant)
-		go s.read(readCtx, wake, unsubscribe)
+		go s.read(readCtx, int64(after), wake, unsubscribe)
 	}
 	if done := ctx.Done(); done != nil {
 		go func() {
@@ -247,14 +301,71 @@ func (p *Postgres) Subscribe(ctx context.Context, sub Subscription) (Stream, err
 			}
 		}()
 	}
-	return s, nil
+	return s
+}
+
+// Consume implements Bus.
+func (p *Postgres) Consume(ctx context.Context, group string, sub Subscription) (GroupStream, error) {
+	if err := validateGroup(group, sub); err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if sub.From > maxPos {
+		return nil, fmt.Errorf("%w: cursor %d does not fit in a bigint", ErrInvalid, sub.From)
+	}
+	return newGroupStream(ctx, p, group, sub, p.opts.lease), nil
+}
+
+// claim implements leases. A group seen for the first time starts at the
+// oldest event retained.
+func (p *Postgres) claim(ctx context.Context, group, tenant, owner string, ttl time.Duration) (uint64, bool, error) {
+	var cursor int64
+	err := p.pool.QueryRow(ctx, `INSERT INTO fiber_consumers ("group", tenant, cursor, owner, lease_until)
+VALUES ($1, $2, 0, $3, now() + $4 * interval '1 millisecond')
+ON CONFLICT ("group", tenant) DO UPDATE SET owner = EXCLUDED.owner, lease_until = EXCLUDED.lease_until
+WHERE fiber_consumers.owner = EXCLUDED.owner OR fiber_consumers.owner = '' OR fiber_consumers.lease_until < now()
+RETURNING cursor`, group, tenant, owner, ttl.Milliseconds()).Scan(&cursor)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return 0, false, nil
+	case err != nil:
+		return 0, false, fmt.Errorf("bus: claim %s for %s: %w", group, tenant, err)
+	}
+	return uint64(cursor), true, nil
+}
+
+// commit implements leases.
+func (p *Postgres) commit(ctx context.Context, group, tenant, owner string, pos uint64) (bool, error) {
+	tag, err := p.pool.Exec(ctx, `UPDATE fiber_consumers SET cursor = GREATEST(cursor, $4)
+WHERE "group" = $1 AND tenant = $2 AND owner = $3`, group, tenant, owner, int64(pos))
+	if err != nil {
+		return false, fmt.Errorf("bus: commit %s for %s: %w", group, tenant, err)
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+// release implements leases.
+func (p *Postgres) release(ctx context.Context, group, tenant, owner string) error {
+	_, err := p.pool.Exec(ctx, `UPDATE fiber_consumers SET owner = '', lease_until = '-infinity'
+WHERE "group" = $1 AND tenant = $2 AND owner = $3`, group, tenant, owner)
+	if err != nil {
+		return fmt.Errorf("bus: release %s for %s: %w", group, tenant, err)
+	}
+	return nil
+}
+
+// read implements leases.
+func (p *Postgres) read(ctx context.Context, sub Subscription, after uint64) (positioned, error) {
+	return p.open(ctx, sub, after), nil
 }
 
 // pgStream is one subscription: a reader goroutine filling a bounded buffer.
 type pgStream struct {
 	p   *Postgres
 	sub Subscription
-	ch  chan event.Envelope
+	ch  chan Delivery
 
 	once   sync.Once
 	cancel context.CancelFunc
@@ -267,6 +378,12 @@ var _ Stream = (*pgStream)(nil)
 
 // Recv implements Stream.
 func (s *pgStream) Recv(ctx context.Context) (event.Envelope, error) {
+	d, err := s.next(ctx)
+	return d.Event, err
+}
+
+// next returns the next event with its position.
+func (s *pgStream) next(ctx context.Context) (Delivery, error) {
 	return recv(ctx, s.ch, s.closed, s.done, func() error { return s.err })
 }
 
@@ -280,13 +397,13 @@ func (s *pgStream) Close() error {
 	return nil
 }
 
-// read scans the events table from the start of what is retained and then
-// keeps scanning as rows arrive.
-func (s *pgStream) read(ctx context.Context, wake <-chan struct{}, unsubscribe func()) {
+// read scans the tenant's events after the position after, from the start
+// of what is retained when it is zero, and then keeps scanning as rows
+// arrive.
+func (s *pgStream) read(ctx context.Context, after int64, wake <-chan struct{}, unsubscribe func()) {
 	defer close(s.done)
 	defer unsubscribe()
 
-	var after int64
 	for {
 		if err := ctx.Err(); err != nil {
 			s.err = ErrClosed
@@ -321,12 +438,12 @@ func (s *pgStream) read(ctx context.Context, wake <-chan struct{}, unsubscribe f
 
 // pgQuery narrows the scan as far as SQL can: the tenant, a channel prefix,
 // the run, and the cursor over run sequences. Accepts decides the rest.
-var pgQuery = `SELECT id, body FROM fiber_events
-WHERE id > $1 AND tenant = $2
+var pgQuery = `SELECT tseq, body FROM fiber_events
+WHERE tseq > $1 AND tenant = $2
 AND (seq = 0 OR seq > $3)
 AND ($4 = '' OR run = $4)
 AND EXISTS (SELECT 1 FROM unnest($5::text[]) AS p(prefix) WHERE starts_with(channel, p.prefix))
-ORDER BY id LIMIT ` + strconv.Itoa(readBatch)
+ORDER BY tseq LIMIT ` + strconv.Itoa(readBatch)
 
 // batch reads one page after the cursor and hands what the subscription
 // accepts to the consumer, advancing the cursor past every row it read.
@@ -367,7 +484,7 @@ func (s *pgStream) batch(ctx context.Context, after *int64) (int, error) {
 			continue
 		}
 		select {
-		case s.ch <- r.e:
+		case s.ch <- Delivery{Event: r.e, Pos: uint64(r.id)}:
 		case <-ctx.Done():
 			return 0, ctx.Err()
 		}
@@ -500,36 +617,36 @@ func (h *pgHub) session(ctx context.Context) {
 const readBatch = 128
 
 // recv is the Recv of a stream fed by a reader goroutine.
-func recv(ctx context.Context, ch <-chan event.Envelope, closed, done <-chan struct{}, err func() error) (event.Envelope, error) {
+func recv(ctx context.Context, ch <-chan Delivery, closed, done <-chan struct{}, err func() error) (Delivery, error) {
 	for {
 		if e := ctx.Err(); e != nil {
-			return event.Envelope{}, e
+			return Delivery{}, e
 		}
 		select {
 		case <-closed:
-			return event.Envelope{}, ErrClosed
+			return Delivery{}, ErrClosed
 		default:
 		}
 		select {
-		case e := <-ch:
-			return e, nil
+		case d := <-ch:
+			return d, nil
 		default:
 		}
 		select {
 		case <-done:
 			if err() == nil {
-				return event.Envelope{}, ErrClosed
+				return Delivery{}, ErrClosed
 			}
-			return event.Envelope{}, err()
+			return Delivery{}, err()
 		default:
 		}
 		select {
-		case e := <-ch:
-			return e, nil
+		case d := <-ch:
+			return d, nil
 		case <-done:
 		case <-closed:
 		case <-ctx.Done():
-			return event.Envelope{}, ctx.Err()
+			return Delivery{}, ctx.Err()
 		}
 	}
 }

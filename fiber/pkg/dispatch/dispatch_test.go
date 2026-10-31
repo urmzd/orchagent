@@ -2,10 +2,15 @@ package dispatch_test
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"slices"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/urmzd/humagen/fiber/pkg/bus"
 	"github.com/urmzd/humagen/fiber/pkg/dispatch"
@@ -265,4 +270,138 @@ func TestSessionStopMapsToRuns(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("stopped %v; want %v", got, want)
 	}
+}
+
+func sessionStopped(ch string) event.Envelope {
+	return event.Envelope{
+		ID: "stop-" + ch, Source: ch, Type: event.TypeSlackSessionStopped, Channel: ch, Tenant: "acme",
+		Time: time.Now().UTC(), Data: event.SlackSessionStopped{Team: "T1", Channel: "C1", User: "U9"},
+	}
+}
+
+// A session stop reaches the runs another dispatcher started, the one that
+// held the tenant before a failover, through the Runs they share.
+func testSessionStopAfterFailover(t *testing.T, runs dispatch.Runs) {
+	t.Helper()
+	m := membership.NewMemory()
+	join(t, m, "docs-bot", ambient)
+	rt := &fakeRuntime{}
+	before, err := dispatch.New(bus.NewMemory(), m, rt, dispatch.WithRuns(runs))
+	if err != nil {
+		t.Fatal(err)
+	}
+	accs := handle(t, before, message("Ev-1", "hello"))
+	if len(accs) != 1 {
+		t.Fatalf("started %d runs; want 1", len(accs))
+	}
+
+	after, err := dispatch.New(bus.NewMemory(), m, rt, dispatch.WithRuns(runs))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle(t, after, sessionStopped(channel))
+	if len(rt.stops) != 1 || rt.stops[0].RunID != accs[0].RunID {
+		t.Fatalf("stops after failover = %+v; want %s", rt.stops, accs[0].RunID)
+	}
+}
+
+func TestSessionStopReachesRunsStartedBeforeAFailover(t *testing.T) {
+	testSessionStopAfterFailover(t, dispatch.NewMemoryRuns())
+}
+
+func TestPostgresRunsSurviveAFailover(t *testing.T) {
+	url := os.Getenv("FIBER_POSTGRES_TEST_URL")
+	if url == "" {
+		t.Skip("set FIBER_POSTGRES_TEST_URL")
+	}
+	runs := dispatch.NewPostgresRuns(postgresPool(t, url))
+	if err := runs.Migrate(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := runs.Migrate(t.Context()); err != nil {
+		t.Fatalf("second Migrate: %v", err)
+	}
+	testSessionStopAfterFailover(t, runs)
+
+	// The newest DefaultRunsPerChannel runs of a channel are kept.
+	for i := range dispatch.DefaultRunsPerChannel + 3 {
+		if err := runs.Add(t.Context(), "acme", "slack://T1/C9", fmt.Sprintf("run_%03d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := runs.On(t.Context(), "acme", "slack://T1/C9")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != dispatch.DefaultRunsPerChannel || slices.Contains(got, "run_000") {
+		t.Fatalf("kept %d runs (%v...), want the newest %d", len(got), got[:1], dispatch.DefaultRunsPerChannel)
+	}
+	if other, _ := runs.On(t.Context(), "globex", "slack://T1/C9"); len(other) != 0 {
+		t.Fatalf("another tenant saw %v", other)
+	}
+}
+
+// Two dispatchers on one bus, as two replicas, wake each member once per
+// event: the consumer group gives the tenant to one of them at a time.
+func TestTwoDispatchersAcceptEachEventOnce(t *testing.T) {
+	b := bus.NewMemory()
+	m := membership.NewMemory()
+	join(t, m, "docs-bot", ambient)
+	rt := &fakeRuntime{}
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	for range 2 {
+		d, err := dispatch.New(b, m, rt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wg.Go(func() {
+			if err := d.Run(ctx, "acme"); err != nil {
+				t.Errorf("Run: %v", err)
+			}
+		})
+	}
+	defer func() { cancel(); wg.Wait() }()
+
+	for i := range 5 {
+		if err := b.Publish(context.Background(), message(fmt.Sprintf("Ev-%d", i), "hello")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for len(rt.runs()) < 5 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	time.Sleep(300 * time.Millisecond)
+	rt.mu.Lock()
+	accepts := rt.accepts
+	rt.mu.Unlock()
+	if accepts != 5 || len(rt.runs()) != 5 {
+		t.Fatalf("accepts = %d, runs = %d; want each of 5 events accepted once", accepts, len(rt.runs()))
+	}
+}
+
+func postgresPool(t *testing.T, url string) *pgxpool.Pool {
+	t.Helper()
+	ctx := context.Background()
+	schema := fmt.Sprintf("fibertest_dispatch_%d", time.Now().UnixNano())
+	cfg, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.ConnConfig.RuntimeParams["search_path"] = schema
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ident := pgx.Identifier{schema}.Sanitize()
+	if _, err := pool.Exec(ctx, "CREATE SCHEMA "+ident); err != nil {
+		pool.Close()
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), "DROP SCHEMA "+ident+" CASCADE")
+		pool.Close()
+	})
+	return pool
 }

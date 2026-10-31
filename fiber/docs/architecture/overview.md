@@ -894,10 +894,11 @@ governs one agent delegating to another.
 
 Verified against the code, and honest.
 
-- **The Postgres bus serializes publishes.** fiber's own `bus.Postgres`
-  takes one advisory lock per schema per publish, so the append id is commit
-  order and readers never skip a late commit. Throughput is one short
-  transaction per event.
+- **The Postgres bus serializes publishes per tenant.** fiber's own
+  `bus.Postgres` takes one advisory lock per tenant per publish, so a
+  tenant's position (`tseq`) is commit order and readers never skip a late
+  commit. Throughput is one short transaction per event for each tenant;
+  different tenants do not wait on each other.
   The run queue fiber builds on Postgres has no `DeltaLog`, so anchor's
   per-run delta journal is not written; the bus carries every event.
 - **playscape's queue is at-most-once** in beta. Durability comes from anchor.
@@ -907,10 +908,12 @@ Verified against the code, and honest.
   not translated into events yet.
 - **anchor v1 workflow bodies are single-goroutine.** Parallelism belongs
   inside a playscape task, not in a forked workflow.
-- **The bus is at-least-once with no consumer groups.** Subjects, filters, and
-  cursors cover real-time consumers. If durable competing consumers with
-  independent offsets become a requirement, the honest answer is NATS JetStream
-  behind the `Bus` interface rather than growing a broker here.
+- **The bus is at-least-once.** Subjects, filters, and cursors cover
+  real-time consumers. A consumer that must act once per deployment reads
+  through a consumer group (`Bus.Consume`): a lease and a committed cursor per
+  (group, tenant), so one member at a time reads a tenant's events and the
+  next resumes from the cursor. After a crash the events since the last commit
+  are delivered again, and nothing older than the bus's retention is.
 - **Definitions are saige's.** fiber refuses the definition fields it cannot
   honor (dials, skills, memory, guardrails, compaction, harness tools, MCP allow
   lists) rather than ignoring them. See [events.md](events.md#7-definitions).
