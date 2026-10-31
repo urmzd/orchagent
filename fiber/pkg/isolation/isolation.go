@@ -22,11 +22,13 @@
 //
 // # Files
 //
-// The instance's work directory starts from a Files source and is written
-// back to it when the run ends. Today that source is a conversation's
-// scratch directory, so a follow-up turn sees what the last one wrote; the
-// memory and files manifest (RFC 0004, layer 6) replaces it behind the same
-// interface.
+// An instance has three directories the host reaches: its work directory
+// (Files), the project's directory (Project, read only inside) and the
+// person's (Me). Each starts empty and belongs to that instance alone. A
+// Files source fills them right after the lease and reads them back when
+// the run ends, before the instance is destroyed: the platform loads the
+// conversation's files into the work directory and the run's memory into
+// /project and /me.
 //
 // # Unisolated
 //
@@ -82,6 +84,12 @@ type Instance interface {
 	// Files is the instance's work directory, for the host to seed inputs
 	// and collect outputs. It is valid until Close.
 	Files() workspace.Workspace
+	// Project is the instance's ProjectDir, empty at the start, written
+	// by the host and read only inside. It is valid until Close.
+	Project() workspace.Workspace
+	// Me is the instance's MeDir, empty at the start, read and write on
+	// both sides. It is valid until Close.
+	Me() workspace.Workspace
 	// Close stops every process in the instance and destroys it.
 	Close(ctx context.Context) error
 }
@@ -135,22 +143,11 @@ type ExitStatus struct {
 	Code int
 }
 
-// Mounts are the host directories an instance sees besides its work
-// directory. Empty mounts nothing.
-type Mounts struct {
-	// Project is mounted read only at ProjectDir.
-	Project string
-	// Me is mounted read and write at MeDir, only in that person's runs.
-	Me string
-}
-
 // Request is what one run asks a Leaser for.
 type Request struct {
 	// Tenant and Run name the run the instance belongs to. They label the
 	// instance; they never choose one.
 	Tenant, Run string
-	// Mounts are the run's mounts.
-	Mounts Mounts
 	// Connectors asks for the connectors compartment, for a run that may
 	// start a tool server.
 	Connectors bool
@@ -174,13 +171,37 @@ type LeaserFunc func(ctx context.Context, req Request) (Instance, error)
 // Lease calls f.
 func (f LeaserFunc) Lease(ctx context.Context, req Request) (Instance, error) { return f(ctx, req) }
 
-// Files is where a run's work directory comes from and goes back to.
+// Files is where a run's files come from and go back to.
 type Files interface {
-	// Load copies the run's starting files into dst, the instance's work
-	// directory.
-	Load(ctx context.Context, dst workspace.Workspace) error
-	// Save writes what the run left in src back.
-	Save(ctx context.Context, src workspace.Workspace) error
+	// Load copies the run's starting files into a freshly leased
+	// instance.
+	Load(ctx context.Context, inst Instance) error
+	// Save writes back what the run left in the instance. It runs
+	// before the instance is destroyed.
+	Save(ctx context.Context, inst Instance) error
+}
+
+// AllFiles is one Files source over several: each loads in order, and
+// every one saves, even when another fails.
+func AllFiles(fs ...Files) Files { return allFiles(fs) }
+
+type allFiles []Files
+
+func (a allFiles) Load(ctx context.Context, inst Instance) error {
+	for _, f := range a {
+		if err := f.Load(ctx, inst); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (a allFiles) Save(ctx context.Context, inst Instance) error {
+	var errs []error
+	for _, f := range a {
+		errs = append(errs, f.Save(ctx, inst))
+	}
+	return errors.Join(errs...)
 }
 
 // Sandbox is a deployment's choice of where tools run.
@@ -307,7 +328,7 @@ func (r *Run) lease(ctx context.Context) (Instance, error) {
 		return nil, fmt.Errorf("isolation: run %s: lease: %w", r.req.Run, err)
 	}
 	if r.files != nil {
-		if err := r.files.Load(ctx, inst.Files()); err != nil {
+		if err := r.files.Load(ctx, inst); err != nil {
 			_ = inst.Close(context.WithoutCancel(ctx))
 			return nil, fmt.Errorf("isolation: run %s: load files: %w", r.req.Run, err)
 		}
@@ -336,8 +357,8 @@ func (r *Run) OnRelease(ctx context.Context, fn func(context.Context) error) err
 	return fn(ctx)
 }
 
-// Release ends the run's claim: it runs the OnRelease hooks, saves the work
-// directory to the Files source and destroys the instance. It is called
+// Release ends the run's claim: it runs the OnRelease hooks, saves the
+// instance's files to the Files source and destroys the instance. It is called
 // once the run's turn is over, however it ended; ctx should outlive the
 // run's own cancellation. Calling it again does nothing.
 func (r *Run) Release(ctx context.Context) error {
@@ -369,7 +390,7 @@ func (r *Run) Release(ctx context.Context) error {
 		return errors.Join(errs...)
 	}
 	if r.files != nil {
-		if err := r.files.Save(ctx, inst.Files()); err != nil {
+		if err := r.files.Save(ctx, inst); err != nil {
 			errs = append(errs, fmt.Errorf("isolation: run %s: save files: %w", r.req.Run, err))
 		}
 	}

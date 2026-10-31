@@ -48,15 +48,17 @@ func (l *Leaser) Lease(ctx context.Context, req isolation.Request) (isolation.In
 	if err != nil {
 		return nil, err
 	}
-	work := filepath.Join(dir, "work")
-	if err := os.Mkdir(work, 0o700); err != nil {
-		return nil, err
+	// The layout of an instance: commands start in work, and reach the
+	// project and person directories as ../project and ../me.
+	inst := &Instance{id: fmt.Sprintf("test-%d", l.n.Add(1)), req: req, dir: dir, work: filepath.Join(dir, "work")}
+	for name, ws := range map[string]**workspace.Local{"work": &inst.ws, "project": &inst.project, "me": &inst.me} {
+		if err := os.Mkdir(filepath.Join(dir, name), 0o700); err != nil {
+			return nil, err
+		}
+		if *ws, err = workspace.NewLocal(filepath.Join(dir, name)); err != nil {
+			return nil, err
+		}
 	}
-	ws, err := workspace.NewLocal(work)
-	if err != nil {
-		return nil, err
-	}
-	inst := &Instance{id: fmt.Sprintf("test-%d", l.n.Add(1)), req: req, dir: dir, work: work, ws: ws}
 	l.mu.Lock()
 	l.instances = append(l.instances, inst)
 	l.mu.Unlock()
@@ -95,6 +97,8 @@ type Instance struct {
 	dir  string
 	work string
 	ws   *workspace.Local
+	// project and me are the instance's ProjectDir and MeDir.
+	project, me *workspace.Local
 
 	mu     sync.Mutex
 	execs  []Exec
@@ -183,6 +187,16 @@ func (i *Instance) Exec(ctx context.Context, cmd isolation.Command, stdio isolat
 // Files implements isolation.Instance.
 func (i *Instance) Files() workspace.Workspace { return i.ws }
 
+// Project implements isolation.Instance. Nothing stops a command writing it.
+func (i *Instance) Project() workspace.Workspace { return i.project }
+
+// Me implements isolation.Instance.
+func (i *Instance) Me() workspace.Workspace { return i.me }
+
+// HostDir is the instance's directory on the host, holding work, project
+// and me.
+func (i *Instance) HostDir() string { return i.dir }
+
 // Close implements isolation.Instance. It removes the instance's directory.
 func (i *Instance) Close(context.Context) error {
 	i.mu.Lock()
@@ -193,5 +207,7 @@ func (i *Instance) Close(context.Context) error {
 	i.closed = true
 	i.mu.Unlock()
 	_ = i.ws.Close()
+	_ = i.project.Close()
+	_ = i.me.Close()
 	return os.RemoveAll(i.dir)
 }

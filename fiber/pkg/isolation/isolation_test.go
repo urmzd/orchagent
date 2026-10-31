@@ -10,8 +10,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/urmzd/playscape/pkg/workspace"
-
 	"github.com/urmzd/humagen/fiber/pkg/isolation"
 	"github.com/urmzd/humagen/fiber/pkg/isolation/isolationtest"
 )
@@ -23,7 +21,8 @@ type files struct {
 	saved int
 }
 
-func (f *files) Load(ctx context.Context, dst workspace.Workspace) error {
+func (f *files) Load(ctx context.Context, inst isolation.Instance) error {
+	dst := inst.Files()
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for k, v := range f.data {
@@ -34,7 +33,8 @@ func (f *files) Load(ctx context.Context, dst workspace.Workspace) error {
 	return nil
 }
 
-func (f *files) Save(ctx context.Context, src workspace.Workspace) error {
+func (f *files) Save(ctx context.Context, inst isolation.Instance) error {
+	src := inst.Files()
 	keys, err := src.List(ctx, "")
 	if err != nil {
 		return err
@@ -193,5 +193,41 @@ func TestAProcessSpeaksOverItsStdio(t *testing.T) {
 	<-p.Done()
 	if p.Err() != nil || p.ExitCode() != 0 {
 		t.Fatalf("cat ended with %v, exit %d", p.Err(), p.ExitCode())
+	}
+}
+
+// failing is a Files source whose Save fails.
+type failing struct{ saved bool }
+
+func (f *failing) Load(context.Context, isolation.Instance) error { return nil }
+func (f *failing) Save(context.Context, isolation.Instance) error {
+	f.saved = true
+	return errors.New("save failed")
+}
+
+// AllFiles loads every source into the instance and saves every one at the
+// end, even after another fails.
+func TestAllFilesSavesEverySource(t *testing.T) {
+	ctx := context.Background()
+	l := &isolationtest.Leaser{Dir: t.TempDir()}
+	first, second := &failing{}, &files{data: map[string]string{"notes.md": "kept"}}
+	r := isolation.NewRun(l, isolation.Request{Tenant: "acme", Run: "r1"}, isolation.AllFiles(first, second))
+	inst, err := r.Instance(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc, err := inst.Files().Read(ctx, "notes.md"); err != nil {
+		t.Fatalf("the second source was not loaded: %v", err)
+	} else {
+		_ = rc.Close()
+	}
+	if err := r.Release(ctx); err == nil || !strings.Contains(err.Error(), "save failed") {
+		t.Fatalf("release = %v, want the first source's failure", err)
+	}
+	if !first.saved || second.saved != 1 {
+		t.Fatalf("saved: first %v, second %d", first.saved, second.saved)
+	}
+	if len(l.Open()) != 0 {
+		t.Fatal("the instance outlived the run")
 	}
 }

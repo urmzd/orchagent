@@ -101,7 +101,6 @@ func New(d isolate.Driver, cfg Config) (*Leaser, error) {
 func (l *Leaser) spec(req isolation.Request) isolate.Spec {
 	s := isolate.Spec{
 		Image:     l.cfg.Image,
-		Mounts:    isolate.Mounts{Project: req.Mounts.Project, Me: req.Mounts.Me},
 		Resources: l.cfg.Resources,
 		Labels:    l.cfg.Labels,
 	}
@@ -179,8 +178,10 @@ type instance struct {
 	once   sync.Once
 }
 
-func (i *instance) ID() string                 { return i.lease.ID() }
-func (i *instance) Files() workspace.Workspace { return i.lease.Files() }
+func (i *instance) ID() string                   { return i.lease.ID() }
+func (i *instance) Files() workspace.Workspace   { return i.lease.Files() }
+func (i *instance) Project() workspace.Workspace { return i.lease.Project() }
+func (i *instance) Me() workspace.Workspace      { return i.lease.Me() }
 
 // Close revokes the egress grant, then releases the lease.
 func (i *instance) Close(ctx context.Context) error {
