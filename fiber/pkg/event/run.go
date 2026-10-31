@@ -53,6 +53,11 @@ const (
 	QuestionChoice     = "choice"
 	QuestionReply      = "reply"
 	QuestionDelegation = "delegation"
+	// QuestionHold is a question the host put to a person about a run, not
+	// one its agent asked: whether the run may go on (see
+	// runtime.Runtime.Hold). It is answered approve, and the run continues,
+	// or deny, and the run is stopped.
+	QuestionHold = "hold"
 )
 
 // Decisions on an approval.
@@ -200,6 +205,19 @@ type Question struct {
 	Default      *Answer       `json:"default,omitempty"`
 	At           time.Time     `json:"at,omitzero"`
 	ChildRunID   string        `json:"child_run_id,omitempty"`
+	// Hold is set on a question of kind QuestionHold: which of the host's
+	// holds it asks about.
+	Hold *Hold `json:"hold,omitempty"`
+}
+
+// Hold is the host's hold a QuestionHold question asks about.
+type Hold struct {
+	// ID is the host's id for the hold, unique within the run.
+	ID string `json:"id"`
+	// Topic is the host's name for what the run is held on ("budget", say).
+	Topic string `json:"topic,omitempty"`
+	// Data is the host's own detail about the hold, opaque to fiber.
+	Data json.RawMessage `json:"data,omitempty"`
 }
 
 // QuestionTool is the tool call an approval asks about.

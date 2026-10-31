@@ -173,6 +173,8 @@ type turn struct {
 	// compact carries requests to compact the turn's history. Nil for a
 	// turn nobody can ask.
 	compact <-chan native.CompactRequest
+	// holds reads the run's holds. Nil for a turn nobody can hold.
+	holds turnrt.Holds
 	// abort is closed when nobody is waiting on the turn any more: its
 	// caller returned, was cancelled, or gave up on a stop. The tool cancels
 	// its own context on it, which is the only cancellation that reaches a
@@ -448,7 +450,7 @@ func (s *Sandbox) execute(ctx context.Context, req Request, emit func(context.Co
 	// timing.
 	childQuestion, _ := ctx.Value(childQuestionKey{}).(func(context.Context, string) (event.ChildParked, bool, bool, error))
 	actor, _ := event.ActorFrom(ctx)
-	if err := s.attach(req.RunID, &turn{sink: sink, stop: StopSignal(ctx), compact: CompactSignal(ctx), abort: make(chan struct{}), childUsage: childUsageOf(ctx), childQuestion: childQuestion, actor: actor}); err != nil {
+	if err := s.attach(req.RunID, &turn{sink: sink, stop: StopSignal(ctx), compact: CompactSignal(ctx), holds: turnrt.HoldsFrom(ctx), abort: make(chan struct{}), childUsage: childUsageOf(ctx), childQuestion: childQuestion, actor: actor}); err != nil {
 		return Outcome{}, err
 	}
 	// Detaching aborts the task if it is still running, which it is on every
@@ -692,9 +694,11 @@ func (s *Sandbox) call(ctx context.Context, rt tool.Runtime, input []byte) ([]by
 	var sink chan event.Body
 	var stop <-chan native.Stop
 	var compact <-chan native.CompactRequest
+	var holds turnrt.Holds
 	if waited != nil {
 		sink = waited.sink
 		compact = waited.compact
+		holds = waited.holds
 		if waited.stop != nil {
 			// The request passes through here on its way to the agent loop,
 			// so the turn remembers it before anything it cancels can ask.
@@ -762,7 +766,7 @@ func (s *Sandbox) call(ctx context.Context, rt tool.Runtime, input []byte) ([]by
 	res, err := runner.Run(tctx, native.Turn{
 		Text: req.Text, Meta: req.Meta, History: req.History, Instructions: req.Instructions,
 		Attachments: req.Attachments, Tenant: req.Tenant,
-		Stop: stop, Compact: compact, Accounting: req.Accounting,
+		Stop: stop, Compact: compact, Holds: holds, Accounting: req.Accounting,
 		Park: req.Park, QuestionTTL: req.QuestionTTL, Resume: req.Resume,
 	}, func(_ context.Context, c event.Body) error {
 		return send(c)

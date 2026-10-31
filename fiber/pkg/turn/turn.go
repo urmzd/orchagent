@@ -8,8 +8,8 @@
 // neither saige nor anything that does.
 //
 // What a turn may read beyond its arguments travels on its context: the stop
-// and compact signals (StopSignal, CompactSignal) and the actor the turn acts
-// for (event.ActorFrom).
+// and compact signals (StopSignal, CompactSignal), the host's holds
+// (HoldsFrom) and the actor the turn acts for (event.ActorFrom).
 package turn
 
 import (
@@ -236,9 +236,52 @@ type Result struct {
 	Parked *Parked `json:"parked,omitempty"`
 }
 
+// Hold is a host's request that a run wait for a person before it does
+// anything more: a run at a spending limit, say. A turn that may park ends at
+// its next batch of tool calls with a question of kind event.QuestionHold,
+// and runs nothing in that batch until the question is answered. An approval
+// continues the turn; a denial, or nobody answering in time, stops the run.
+type Hold struct {
+	// ID is the host's id for the hold, unique within the run. A hold whose
+	// question was answered is not asked again.
+	ID string `json:"id"`
+	// Topic is the host's name for what the run is held on.
+	Topic string `json:"topic,omitempty"`
+	// Prompt is the question, for a person.
+	Prompt string `json:"prompt"`
+	// Approvers, when set, are the only people who may answer, named as a
+	// spec's Approvers are. Empty leaves who may answer to the host.
+	Approvers []string `json:"approvers,omitempty"`
+	// Data is the host's own detail, carried on the question unread.
+	Data json.RawMessage `json:"data,omitempty"`
+	// ExpiresIn is how long the question waits before it is denied. Zero
+	// keeps the turn's question lifetime.
+	ExpiresIn time.Duration `json:"expires_in,omitempty"`
+}
+
+// Holds reports the holds a run has that no answer has settled yet, oldest
+// first. It is called from inside the turn, between model calls, so it must
+// be cheap and safe for concurrent use.
+type Holds func(ctx context.Context) []Hold
+
 type stopKey struct{}
 
 type compactKey struct{}
+
+type holdsKey struct{}
+
+// WithHolds returns a context on which a turn reads its run's holds through
+// fn.
+func WithHolds(ctx context.Context, fn Holds) context.Context {
+	return context.WithValue(ctx, holdsKey{}, fn)
+}
+
+// HoldsFrom returns how a turn under ctx reads its run's holds, or nil when
+// nobody can hold it.
+func HoldsFrom(ctx context.Context) Holds {
+	fn, _ := ctx.Value(holdsKey{}).(Holds)
+	return fn
+}
 
 // WithStopSignal returns a context on which a turn is asked to stop through
 // ch. The first value received stops the turn.

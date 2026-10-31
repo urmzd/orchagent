@@ -538,8 +538,9 @@ host shows the question and answers it, and the run resumes with the answer.
 | `approval` | A call to a tool the definition lists in `approval.ask`, or any tool the host's catalog wrapped with a saige marker (`types.MarkedTool`) | `approve` (optionally with edited arguments) or `deny` (optionally with a note the model is shown) |
 | `choice` | The built-in `ask_person` tool with `options` | One of the options |
 | `reply` | `ask_person` without `options` | Free text |
+| `hold` | The host, through `Runtime.Hold`, not the agent (see [Holding a run for the host](#holding-a-run-for-the-host)) | `approve`, and the run goes on, or `deny`, and it is stopped |
 
-Both are saige's own vocabulary. An approval is saige's marker: saige stops
+The first three are saige's own vocabulary. An approval is saige's marker: saige stops
 at the call and asks. `ask_person` is a tool the agent calls when its
 definition grants it; its result is the answer. A definition may name the person or role it
 wants an answer from (`asked_of`, a hint for routing, never an
@@ -551,6 +552,29 @@ for an approval the tool, the call id, the arguments and the tool's schema,
 `run.parked.v1` (`Parked.Question`), and `App.Status` reports a parked
 run as `parked` with `Run.Question`, read from the run's records
 (`Runtime.PendingQuestion`).
+
+### Holding a run for the host
+
+A host can ask that a run wait for a person without the agent asking
+anything: a run that reached a spending limit, say. `Runtime.Hold` records a
+`turn.Hold` (the host's id, a topic, a prompt, optional approvers, opaque
+data and a wait) on the run in the ledger as the write-once record
+`event:fiber.hold.<id>#0`, once it has checked that the run is the caller's
+tenant's and has not ended (`ErrNotHeld` otherwise). Nothing is published:
+the turn reads the run's holds from the ledger (`turn.WithHolds`) every time
+the model sends a message with tool calls, so a hold made while the run is
+queued, parked, between attempts or mid-turn is found at its next batch.
+
+That batch parks on a question of kind `hold` carrying the hold
+(`Question.Hold`), and nothing in it runs. From there it is a question like
+any other: announced once, answered through `Answer`, expired at its deadline
+and stopped by `Stop`. An approval continues the turn, which runs the batch,
+and the hold is not asked again. A denial, or nobody answering in time (a
+hold's default is a denial), ends the run `stopped` with the answer's note as
+the reason, and the batch never runs. Who may answer is the hold's
+`approvers` when it names any, else whoever the host lets answer. A turn that
+answers without another tool call is never held: its last model call was
+already made.
 
 ### Ending the turn at the question
 

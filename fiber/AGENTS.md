@@ -161,7 +161,11 @@ Run from the repository root.
   `event:fiber.answer.<id>#0`, written by `Runtime.Answer`, by a stop, or by
   an expiry, and whichever was first is the answer. The body never reads the
   clock or a request to decide; it reads that record. An attempt runs at most
-  one turn: the attempt that asked parks, and the answer wakes the next.
+  one turn: the attempt that asked parks, and the answer wakes the next. A
+  host's hold (`Runtime.Hold`) is a write-once record the turn reads at its
+  next batch of tool calls, and parks a question of kind `hold` the same way;
+  the body stops a run whose hold was not approved, from the resolution
+  record alone.
 - **An approval is a second pair of eyes.** `Runtime.Answer` refuses an
   approval from the requester, or from the credential that raised the run,
   unless the pinned Policy sets `self_approval`, and admits only the Policy's

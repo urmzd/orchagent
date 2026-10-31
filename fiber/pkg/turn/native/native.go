@@ -173,6 +173,10 @@ func RequestText(text string, meta map[string]string) string {
 // saige's default.
 type Stop = turn.Stop
 
+// Hold is a host's request that the run wait for a person: see
+// "Holding a turn for the host" in park.go.
+type Hold = turn.Hold
+
 // Turn is one request to an agent.
 type Turn struct {
 	// Instructions is a trusted host-generated return contract. It supplements
@@ -193,6 +197,11 @@ type Turn struct {
 	// Compaction.OnRequest; without it values are read and ignored. Nil is
 	// a turn nobody can ask.
 	Compact <-chan CompactRequest
+	// Holds reads the host's holds on the run, when the host can hold it.
+	// With Park, the turn ends at its next batch of tool calls on the oldest
+	// hold its answers do not settle (see "Holding a turn for the host" in
+	// park.go). Nil is a turn nobody holds.
+	Holds turn.Holds
 	// Attachments are the files that arrived with the request. They need
 	// WithAttachments, and Tenant, which scopes every read of them.
 	Attachments []attachment.Attachment
@@ -717,6 +726,7 @@ func (r *Runner) Run(ctx context.Context, t Turn, emit func(context.Context, eve
 		scope:   firstOf(t.Accounting, DefaultAccounting),
 		ttl:     t.QuestionTTL,
 		now:     time.Now,
+		held:    t.Holds,
 	}
 	if park.ttl <= 0 {
 		park.ttl = DefaultQuestionTTL

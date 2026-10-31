@@ -15,6 +15,7 @@ import (
 	saigetypes "github.com/urmzd/saige/agent/types"
 
 	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/humagen/fiber/pkg/turn"
 )
 
 // Parking a turn on a person.
@@ -59,6 +60,18 @@ import (
 //
 // A batch with two questions parks twice, once per question, and the second
 // continuation carries both answers.
+//
+// # Holding a turn for the host
+//
+// A host can also ask that a run wait for a person, without the agent asking
+// anything: a run that reached a spending limit, say (Turn.Holds). The turn
+// reads the run's holds whenever the model sends a message with tool calls,
+// before any of them runs, and parks that batch on the oldest hold its
+// answers do not settle, exactly as on an approval: the question is of kind
+// event.QuestionHold, nothing in the batch runs, and the continuation runs the
+// batch once the hold is approved. A message with no tool calls ends the turn
+// and is not held: the answer it gives is already spent. The runtime never
+// continues a turn whose hold was denied; it stops the run instead.
 
 // AskPersonToolName is the built-in tool an agent calls to ask a person a
 // question. An agent has it when its spec lists it in Tools.
@@ -391,6 +404,7 @@ type parker struct {
 	ttl     time.Duration
 	now     func() time.Time
 	answers map[string]event.Answer
+	held    turn.Holds
 
 	mu       sync.Mutex
 	parking  bool
@@ -403,11 +417,11 @@ type parker struct {
 func (p *parker) hooks() saige.Hooks {
 	return saige.Hooks{
 		Name: "fiber.park",
-		AfterModelCall: func(_ context.Context, ev *saige.AfterModelCallEvent) error {
+		AfterModelCall: func(ctx context.Context, ev *saige.AfterModelCallEvent) error {
 			if len(ev.Path) > 0 || ev.Message == nil || ev.Err != nil {
 				return nil
 			}
-			p.afterModel(*ev.Message)
+			p.afterModel(ctx, *ev.Message)
 			return nil
 		},
 		BeforeTool: func(_ context.Context, ev *saige.BeforeToolEvent) error {
@@ -428,7 +442,7 @@ func (p *parker) hooks() saige.Hooks {
 // afterModel looks at a message the model just sent, before any of its tool
 // calls run. A call that needs a person and has no answer parks the whole
 // batch, on the first such call.
-func (p *parker) afterModel(msg saigetypes.AssistantMessage) {
+func (p *parker) afterModel(ctx context.Context, msg saigetypes.AssistantMessage) {
 	if !p.enabled {
 		return
 	}
@@ -440,7 +454,22 @@ func (p *parker) afterModel(msg saigetypes.AssistantMessage) {
 	}
 	var q *event.Question
 	var callID string
+	// A host's hold comes first: nothing in the batch runs until it is
+	// settled, the calls that need a person included.
+	if len(calls) > 0 && p.held != nil {
+		for _, h := range p.held(ctx) {
+			if _, settled := p.answers[holdKey(h.ID)]; settled || strings.TrimSpace(h.ID) == "" {
+				continue
+			}
+			built := p.hold(h)
+			q, callID = &built, holdKey(h.ID)
+			break
+		}
+	}
 	for _, tc := range calls {
+		if q != nil {
+			break
+		}
 		if _, answered := p.answers[tc.ID]; !answered {
 			if built, ok := p.need(tc); ok {
 				q, callID = &built, tc.ID
@@ -540,6 +569,31 @@ func (p *parker) approval(q event.Question, tc saigetypes.ToolCallPart, t saiget
 	schema, _ := json.Marshal(t.Definition().Parameters)
 	q.Tool = &event.QuestionTool{Name: tc.Name, CallID: tc.ID, Arguments: args, Schema: schema, ActsForPerson: actsForPerson(t)}
 	q.ID = saigetypes.InterruptID(p.scope, nil, q.Kind, tc.ID)
+	q.Default = &event.Answer{QuestionID: q.ID, Decision: event.DecisionDeny, Expired: true,
+		Note: "nobody answered before the question expired"}
+	return q
+}
+
+// holdKey is where the answer to a host's hold is kept among a turn's
+// answers. No tool call id has its shape.
+func holdKey(id string) string { return "hold:" + id }
+
+// hold is the question a host's hold puts to a person: approve and the batch
+// runs, deny or no answer in time and the run is stopped.
+func (p *parker) hold(h Hold) event.Question {
+	now := p.now().UTC()
+	q := event.Question{
+		Kind: event.QuestionHold, Agent: p.agent, At: now, ExpiresAt: now.Add(p.ttl),
+		Prompt: clipText(h.Prompt), Approvers: cleanApprovers(h.Approvers),
+		Hold: &event.Hold{ID: clipText(h.ID), Topic: clipText(h.Topic), Data: h.Data},
+	}
+	if q.Prompt == "" {
+		q.Prompt = fmt.Sprintf("May %s go on?", p.agent)
+	}
+	if h.ExpiresIn > 0 {
+		q.ExpiresAt = now.Add(min(h.ExpiresIn, MaxApprovalWait))
+	}
+	q.ID = saigetypes.InterruptID(p.scope, nil, q.Kind, holdKey(h.ID))
 	q.Default = &event.Answer{QuestionID: q.ID, Decision: event.DecisionDeny, Expired: true,
 		Note: "nobody answered before the question expired"}
 	return q

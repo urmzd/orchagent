@@ -295,7 +295,7 @@ func expired(q event.Question, now time.Time) *event.Answer {
 		a = *q.Default
 		a.QuestionID, a.Expired, a.At = q.ID, true, now.UTC()
 	}
-	if q.Kind == event.QuestionApproval && a.Decision == "" {
+	if (q.Kind == event.QuestionApproval || q.Kind == event.QuestionHold) && a.Decision == "" {
 		a.Decision = event.DecisionDeny
 	}
 	return &a
@@ -583,6 +583,16 @@ func checkAnswer(q event.Question, a event.Answer) (event.Answer, error) {
 			return out, fmt.Errorf("%w: a reply needs text", ErrInvalid)
 		}
 		out.Text = text
+	case event.QuestionHold:
+		switch a.Decision {
+		case event.DecisionApprove, event.DecisionDeny:
+		default:
+			return out, fmt.Errorf("%w: a hold is answered %q or %q, not %q", ErrInvalid, event.DecisionApprove, event.DecisionDeny, a.Decision)
+		}
+		if len(bytes.TrimSpace(a.Arguments)) > 0 {
+			return out, fmt.Errorf("%w: an answer to a hold carries no arguments", ErrInvalid)
+		}
+		out.Decision = a.Decision
 	case event.QuestionDelegation:
 		return out, fmt.Errorf("%w: question %s waits on a child run, and is answered by that run ending", ErrInvalid, q.ID)
 	default:
@@ -844,6 +854,10 @@ func (r *Runtime) mayAnswer(ctx context.Context, in Input, q event.Question, req
 		}
 	case event.QuestionChoice, event.QuestionReply:
 		admitted = policy.Answerers
+	case event.QuestionHold:
+		// The host's question names its own answerers, or leaves who may
+		// answer to the host, which checks before it asks.
+		admitted = q.Approvers
 	default:
 		return nil
 	}

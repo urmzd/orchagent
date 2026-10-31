@@ -19,6 +19,7 @@ import (
 
 	"github.com/urmzd/humagen/fiber/pkg/event"
 	"github.com/urmzd/humagen/fiber/pkg/runtime"
+	"github.com/urmzd/humagen/fiber/pkg/turn"
 	"github.com/urmzd/humagen/fiber/pkg/turn/native"
 )
 
@@ -1106,5 +1107,248 @@ func TestRepeatedParksStoreTheTranscriptOnce(t *testing.T) {
 	// the previous call and its result.
 	if stored != 4 {
 		t.Errorf("the parks store %d transcript messages, want 4", stored)
+	}
+}
+
+// ── holds ───────────────────────────────────────────────────────────
+
+// holdTool holds its own run when it is called, as a host that notices
+// something mid-turn (a run that reached its limit) would.
+type holdTool struct {
+	rt    func() *runtime.Runtime
+	hold  turn.Hold
+	runID string
+}
+
+func (h *holdTool) Definition() saigetypes.ToolDef {
+	return saigetypes.ToolDef{Name: "spend", Description: "Spend.", Parameters: saigetypes.ParameterSchema{Type: "object"}}
+}
+
+func (h *holdTool) Execute(context.Context, map[string]any) (string, error) {
+	if err := h.rt().Hold(context.Background(), runtime.HoldRequest{Tenant: "acme", RunID: h.runID, Hold: h.hold}); err != nil {
+		return "", err
+	}
+	return "spent", nil
+}
+
+// holding is a world whose "ops" agent deploys without approvals, and may
+// call spend, which holds its own run.
+type holding struct {
+	*parking
+	spend *holdTool
+	live  *runtime.Runtime
+}
+
+func newHolding(t *testing.T, w *world, script ...[]saigetypes.Delta) *holding {
+	t.Helper()
+	h := &holding{parking: &parking{world: w, deploy: newDeployTool(), model: &agenttest.ScriptedProvider{Responses: script}}}
+	h.spend = &holdTool{rt: func() *runtime.Runtime { return h.live }, hold: budgetHold("h1")}
+	w.specs.set(native.Spec{
+		Name: "ops", Provider: native.ProviderOffline, Model: "scripted", SystemPrompt: "You run deploys.",
+		Tools: []string{"deploy", "spend"},
+	})
+	h.exec = sandboxOf(t, w.specs, map[string]saigetypes.Provider{"ops": h.model, "docs-bot": bystander()},
+		runtime.WithCatalog(func(runtime.Request, func(event.Action) error) (native.Tools, error) {
+			return native.StaticTools(h.deploy, h.spend), nil
+		}))
+	return h
+}
+
+func (h *holding) rt(t *testing.T, opts ...runtime.Option) *runtime.Runtime {
+	t.Helper()
+	h.live = h.parking.rt(t, opts...)
+	return h.live
+}
+
+func budgetHold(id string) turn.Hold {
+	return turn.Hold{ID: id, Topic: "budget", Prompt: "ops reached its spend limit. Grant $5 more?", Data: json.RawMessage(`{"grant":5000000}`)}
+}
+
+func hold(t *testing.T, rt *runtime.Runtime, runID string, h turn.Hold) {
+	t.Helper()
+	if err := rt.Hold(context.Background(), runtime.HoldRequest{Tenant: "acme", RunID: runID, Hold: h}); err != nil {
+		t.Fatalf("Hold: %v", err)
+	}
+}
+
+// A hold recorded before the run starts parks it at its first batch of tool
+// calls, before any of them runs, on a question of kind hold carrying the
+// host's hold. An approval runs the batch and the turn carries on, and the
+// hold is not asked again at the next batch.
+func TestAHeldRunParksAtItsNextToolCallsAndAnApprovalRunsThem(t *testing.T) {
+	h := newHolding(t, newWorld(t),
+		sayThenCall("Deploying.", "c1", "deploy", map[string]any{"env": "prod"}),
+		call("c2", "deploy", map[string]any{"env": "staging"}),
+		agenttest.TextResponse("Done."))
+	rt := h.rt(t)
+	runID := h.accept(t, rt, tag("ops", "evt-1", "ship"))
+	hold(t, rt, runID, budgetHold("h1"))
+	hold(t, rt, runID, budgetHold("h1")) // the same hold twice is one hold
+	h.workers(t, rt, 1, 0)
+
+	q := h.parkedOn(t, rt, runID)
+	if q.Kind != event.QuestionHold || q.Hold == nil || q.Hold.ID != "h1" || q.Hold.Topic != "budget" ||
+		string(q.Hold.Data) != `{"grant":5000000}` || !strings.Contains(q.Prompt, "spend limit") {
+		t.Fatalf("question = %+v (hold %+v), want the host's hold", q, q.Hold)
+	}
+	if q.Default == nil || q.Default.Decision != event.DecisionDeny {
+		t.Errorf("a hold's default is %+v, want a denial", q.Default)
+	}
+	if n := len(h.deploy.calls()); n != 0 {
+		t.Fatalf("deploy ran %d times while the run was held", n)
+	}
+
+	got, first := h.answer(t, rt, runID, q.ID, event.Answer{Decision: event.DecisionApprove})
+	if !first || got.Decision != event.DecisionApprove {
+		t.Fatalf("Answer = %+v (%v)", got, first)
+	}
+	out := h.result(t, rt, runID)
+	if out.Stopped != nil || out.Text != "Deploying.Done." {
+		t.Fatalf("Output = %+v, want the turn finished", out)
+	}
+	if n := len(h.deploy.calls()); n != 2 {
+		t.Errorf("deploy ran %d times, want both batches once each", n)
+	}
+	if parked := lifecycleOf(t, h.bus.of(runID), event.TypeParked); len(parked) != 1 {
+		t.Errorf("the run parked %d times, want once: an answered hold is not asked again", len(parked))
+	}
+}
+
+// A hold that is denied, or that nobody answers in time, stops the run: the
+// batch it held never runs, the model is not called again, and the reason is
+// the person's note, or says nobody answered.
+func TestADeniedOrExpiredHoldStopsTheRunWithoutRunningWhatItHeld(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		answer *event.Answer
+		reason string
+		by     string
+	}{
+		{"denied with a note", &event.Answer{Decision: event.DecisionDeny, Note: "Not this month"}, "Not this month", "ana"},
+		{"denied", &event.Answer{Decision: event.DecisionDeny}, "A person declined to let it go on", "ana"},
+		{"expired", nil, "Nobody answered in time", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHolding(t, newWorld(t),
+				sayThenCall("Deploying.", "c1", "deploy", map[string]any{"env": "prod"}),
+				agenttest.TextResponse("never"))
+			opts := []runtime.Option{}
+			janitor := time.Duration(0)
+			if tc.answer == nil {
+				opts, janitor = append(opts, runtime.WithQuestionTTL(200*time.Millisecond)), 50*time.Millisecond
+			}
+			rt := h.rt(t, opts...)
+			runID := h.accept(t, rt, tag("ops", "evt-1", "ship"))
+			hold(t, rt, runID, budgetHold("h1"))
+			h.workers(t, rt, 1, janitor)
+			q := h.parkedOn(t, rt, runID)
+			if tc.answer != nil {
+				h.answer(t, rt, runID, q.ID, *tc.answer)
+			}
+
+			out := h.result(t, rt, runID)
+			if out.Stopped == nil || !strings.HasPrefix(out.Stopped.Reason, tc.reason) || out.Stopped.By != tc.by || out.Text != "Deploying." {
+				t.Fatalf("Output = %+v (stopped %+v), want stopped by %q with %q", out, out.Stopped, tc.by, tc.reason)
+			}
+			if calls := h.model.CallCount(); calls != 1 || len(h.deploy.calls()) != 0 {
+				t.Fatalf("the model was called %d times and deploy ran %d times", calls, len(h.deploy.calls()))
+			}
+			ended(t, h.bus.of(runID))
+		})
+	}
+}
+
+// A host that holds a run while its turn is running is heard at the turn's
+// next batch of tool calls: what it was already running finishes, and
+// nothing after it runs until the hold is settled.
+func TestAHoldMadeMidTurnParksTheNextBatch(t *testing.T) {
+	h := newHolding(t, newWorld(t),
+		call("c1", "spend", map[string]any{}),
+		call("c2", "deploy", map[string]any{"env": "prod"}),
+		agenttest.TextResponse("Done."))
+	rt := h.rt(t)
+	runID := h.accept(t, rt, tag("ops", "evt-1", "ship"))
+	h.spend.runID = runID
+	h.workers(t, rt, 1, 0)
+
+	q := h.parkedOn(t, rt, runID)
+	if q.Kind != event.QuestionHold || q.Hold == nil || q.Hold.ID != "h1" {
+		t.Fatalf("question = %+v, want the hold made mid-turn", q)
+	}
+	if n := len(h.deploy.calls()); n != 0 {
+		t.Fatalf("deploy ran %d times after the hold", n)
+	}
+	h.answer(t, rt, runID, q.ID, event.Answer{Decision: event.DecisionApprove})
+	if out := h.result(t, rt, runID); out.Text != "Done." || len(h.deploy.calls()) != 1 {
+		t.Fatalf("Output = %+v with %d deploys, want the held batch run once", out, len(h.deploy.calls()))
+	}
+}
+
+// A turn that answers without another tool call is not held: its last model
+// call was made, and there is nothing left for a person to stop.
+func TestATurnThatAnswersWithNoToolCallIsNotHeld(t *testing.T) {
+	h := newHolding(t, newWorld(t), agenttest.TextResponse("Done."))
+	rt := h.rt(t)
+	runID := h.accept(t, rt, tag("ops", "evt-1", "ship"))
+	hold(t, rt, runID, budgetHold("h1"))
+	h.workers(t, rt, 1, 0)
+	if out := h.result(t, rt, runID); out.Stopped != nil || out.Text != "Done." {
+		t.Fatalf("Output = %+v, want the run completed", out)
+	}
+}
+
+// Hold records nothing for a run it may not hold: another tenant's, one that
+// has ended, or none at all, which read alike. A malformed hold is refused.
+func TestAHoldIsRecordedOnlyOnARunOfTheTenantStillGoing(t *testing.T) {
+	h := newHolding(t, newWorld(t), agenttest.TextResponse("Done."))
+	rt := h.rt(t)
+	runID := h.accept(t, rt, tag("ops", "evt-1", "ship"))
+	ctx := context.Background()
+
+	if err := rt.Hold(ctx, runtime.HoldRequest{Tenant: "globex", RunID: runID, Hold: budgetHold("h1")}); !errors.Is(err, runtime.ErrNotHeld) {
+		t.Errorf("another tenant's hold: %v, want ErrNotHeld", err)
+	}
+	if err := rt.Hold(ctx, runtime.HoldRequest{Tenant: "acme", RunID: "rnope", Hold: budgetHold("h1")}); !errors.Is(err, runtime.ErrNotHeld) {
+		t.Errorf("a hold of no run: %v, want ErrNotHeld", err)
+	}
+	for _, bad := range []turn.Hold{{}, {ID: "has space"}, {ID: strings.Repeat("x", runtime.MaxHoldID+1)}, {ID: "h", Data: json.RawMessage(`{`)}} {
+		if err := rt.Hold(ctx, runtime.HoldRequest{Tenant: "acme", RunID: runID, Hold: bad}); !errors.Is(err, runtime.ErrInvalid) {
+			t.Errorf("hold %+v: %v, want ErrInvalid", bad, err)
+		}
+	}
+	h.workers(t, rt, 1, 0)
+	h.result(t, rt, runID)
+	if err := rt.Hold(ctx, runtime.HoldRequest{Tenant: "acme", RunID: runID, Hold: budgetHold("h1")}); !errors.Is(err, runtime.ErrNotHeld) {
+		t.Errorf("a hold of an ended run: %v, want ErrNotHeld", err)
+	}
+}
+
+// A hold that names its approvers is answered by them alone, and an answer
+// must be approve or deny.
+func TestAHoldIsAnsweredOnlyByItsApproversWithApproveOrDeny(t *testing.T) {
+	h := newHolding(t, newWorld(t), call("c1", "deploy", map[string]any{"env": "prod"}), agenttest.TextResponse("Done."))
+	rt := h.rt(t)
+	runID := h.accept(t, rt, tag("ops", "evt-1", "ship"))
+	named := budgetHold("h1")
+	named.Approvers = []string{"lee"}
+	hold(t, rt, runID, named)
+	h.workers(t, rt, 1, 0)
+	q := h.parkedOn(t, rt, runID)
+
+	ask := func(by string, a event.Answer) error {
+		_, _, err := rt.Answer(context.Background(), runtime.AnswerRequest{Tenant: "acme", RunID: runID, QuestionID: q.ID, Answer: a, By: by})
+		return err
+	}
+	if err := ask("ana", event.Answer{Decision: event.DecisionApprove}); !errors.Is(err, runtime.ErrNotAllowed) {
+		t.Errorf("ana's answer: %v, want ErrNotAllowed", err)
+	}
+	if err := ask("lee", event.Answer{Choice: "yes"}); !errors.Is(err, runtime.ErrInvalid) {
+		t.Errorf("a choice for a hold: %v, want ErrInvalid", err)
+	}
+	if err := ask("lee", event.Answer{Decision: event.DecisionApprove}); err != nil {
+		t.Fatalf("lee's approval: %v", err)
+	}
+	if out := h.result(t, rt, runID); out.Text != "Done." {
+		t.Fatalf("Output = %+v", out)
 	}
 }

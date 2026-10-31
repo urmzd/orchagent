@@ -548,6 +548,11 @@ func (r *Runtime) execute(ctx context.Context, in Input, req Request, emit func(
 	if stop, ok := r.recordedStop(ctx, req.RunID); ok {
 		return Outcome{Prompt: native.RequestText(req.Text, req.Meta), Stopped: &stop, StopRecorded: true}, nil
 	}
+	// The host's holds are read by the turn itself, from the ledger the
+	// runtime records them in (hold.go).
+	if r.stops != nil && req.Park {
+		ctx = turnrt.WithHolds(ctx, r.holdsOf(req.RunID))
+	}
 	// Requests to compact are heard for as long as the turn runs (compact.go).
 	ctx, stopListening := r.listenCompact(ctx, in, req.RunID)
 	defer stopListening()

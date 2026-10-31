@@ -58,6 +58,7 @@ func (rt *Runtime) Turn(ctx context.Context, def turn.Pinned, in turn.Input, emi
 		Instructions: in.Instructions,
 		Stop:         turn.StopSignal(ctx),
 		Compact:      turn.CompactSignal(ctx),
+		Holds:        turn.HoldsFrom(ctx),
 		Tenant:       in.Tenant,
 		History:      in.History,
 		Text:         text,

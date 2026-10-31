@@ -765,6 +765,12 @@ func (r *Runtime) runTurn(ctx context.Context, in Input) (Output, error) {
 			out.Text = said.String()
 			return r.stoppedWhileParked(ctx, at, out, *res.Stopped, parks)
 		}
+		if q := out.Parked.Question; q.Kind == event.QuestionHold && res.Answer.Decision != event.DecisionApprove {
+			// A hold that was not approved stops the run, and the batch it
+			// held never runs (hold.go).
+			out.Text = said.String()
+			return r.stoppedWhileParked(ctx, at, out, heldStop(q, *res.Answer), parks)
+		}
 		parks++
 		at.answer = res.Answer
 		next := *out.Parked
