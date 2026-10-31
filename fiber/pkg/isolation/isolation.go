@@ -154,6 +154,11 @@ type Request struct {
 	// Connectors asks for the connectors compartment, for a run that may
 	// start a tool server.
 	Connectors bool
+	// Egress are the hosts the run may reach, each an exact name or
+	// "*.domain", through the sandbox's egress gate. Empty reaches none.
+	// Like Tenant and Run it never chooses an instance: it is granted to
+	// the lease, not written into what the pool warms by.
+	Egress []string
 }
 
 // Leaser starts an instance for one run. The caller owns it and Closes it,
@@ -185,6 +190,9 @@ type Sandbox struct {
 	// Name says what the Leaser is, for the start message and the run's
 	// log: "docker/runsc", "docker/runc", "unisolated".
 	Name string
+	// Egress reports that instances reach the hosts a Request names
+	// through an egress gate. False is no network at all.
+	Egress bool
 }
 
 // Isolated reports whether the sandbox starts instances.
