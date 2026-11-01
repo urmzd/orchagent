@@ -578,10 +578,21 @@ func signal(ch chan struct{}) {
 }
 
 func (h *pgHub) listen(ctx context.Context) {
+	pgListen(ctx, h.pool, h.retry, pgChannel, &h.listening, func(context.Context, *pgx.Conn) error {
+		h.wakeAll()
+		return nil
+	}, h.wake)
+}
+
+// pgListen holds one LISTEN connection on channel until ctx ends, taking a
+// new one retry after it fails. connected runs on every new connection once
+// it listens, notified on every notification's payload. listening is true
+// while a connection listens.
+func pgListen(ctx context.Context, pool *pgxpool.Pool, retry time.Duration, channel string, listening *atomic.Bool, connected func(context.Context, *pgx.Conn) error, notified func(string)) {
 	for ctx.Err() == nil {
-		h.session(ctx)
-		h.listening.Store(false)
-		t := time.NewTimer(h.retry)
+		pgSession(ctx, pool, channel, listening, connected, notified)
+		listening.Store(false)
+		t := time.NewTimer(retry)
 		select {
 		case <-ctx.Done():
 			t.Stop()
@@ -591,25 +602,27 @@ func (h *pgHub) listen(ctx context.Context) {
 	}
 }
 
-// session holds one LISTEN connection until it fails or ctx ends.
-func (h *pgHub) session(ctx context.Context) {
-	pc, err := h.pool.Acquire(ctx)
+// pgSession holds one LISTEN connection until it fails or ctx ends.
+func pgSession(ctx context.Context, pool *pgxpool.Pool, channel string, listening *atomic.Bool, connected func(context.Context, *pgx.Conn) error, notified func(string)) {
+	pc, err := pool.Acquire(ctx)
 	if err != nil {
 		return
 	}
 	conn := pc.Hijack()
 	defer func() { _ = conn.Close(context.Background()) }()
-	if _, err := conn.Exec(ctx, "LISTEN "+pgChannel); err != nil {
+	if _, err := conn.Exec(ctx, "LISTEN "+channel); err != nil {
 		return
 	}
-	h.listening.Store(true)
-	h.wakeAll()
+	listening.Store(true)
+	if err := connected(ctx, conn); err != nil {
+		return
+	}
 	for {
 		n, err := conn.WaitForNotification(ctx)
 		if err != nil {
 			return
 		}
-		h.wake(n.Payload)
+		notified(n.Payload)
 	}
 }
 
