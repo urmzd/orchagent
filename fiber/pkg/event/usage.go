@@ -1,6 +1,11 @@
 package event
 
-import "github.com/urmzd/humagen/fiber/pkg/address"
+import (
+	"encoding/json"
+	"slices"
+
+	"github.com/urmzd/humagen/fiber/pkg/address"
+)
 
 // TargetAddress parses the address the action was taken on. An action with
 // no target returns the zero address.
@@ -160,4 +165,37 @@ func (t *Tally) Usage() RunUsage {
 		out.Context = &c
 	}
 	return out
+}
+
+// tallyJSON is a Tally as it is stored: what it has counted and the
+// accounting ids it has seen, so a tally read back counts a redelivered
+// report once, whichever process reads it.
+type tallyJSON struct {
+	Seen     []string      `json:"seen,omitempty"`
+	Own      Usage         `json:"own"`
+	Children Usage         `json:"children"`
+	Context  *ContextUsage `json:"context,omitempty"`
+}
+
+// MarshalJSON keeps a tally, its seen accounting ids sorted.
+func (t Tally) MarshalJSON() ([]byte, error) {
+	seen := make([]string, 0, len(t.seen))
+	for id := range t.seen {
+		seen = append(seen, id)
+	}
+	slices.Sort(seen)
+	return json.Marshal(tallyJSON{Seen: seen, Own: t.own, Children: t.children, Context: t.context})
+}
+
+// UnmarshalJSON reads a tally MarshalJSON kept.
+func (t *Tally) UnmarshalJSON(b []byte) error {
+	var v tallyJSON
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	*t = Tally{own: v.Own, children: v.Children, context: v.Context}
+	for _, id := range v.Seen {
+		t.first(id)
+	}
+	return nil
 }
