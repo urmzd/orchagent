@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -71,49 +72,25 @@ func (e *Error) Retryable() bool {
 // Do performs one call. in is marshalled as the request body when non-nil, and
 // out is unmarshalled from the response body when non-nil.
 func (c *Client) Do(ctx context.Context, method, path string, in, out any) error {
-	var body io.Reader
-	if in != nil {
-		encoded, err := json.Marshal(in)
-		if err != nil {
-			return fmt.Errorf("httpjson: marshal %s %s: %w", method, path, err)
-		}
-		body = bytes.NewReader(encoded)
+	if in == nil {
+		return c.Send(ctx, method, path, "", nil, out)
 	}
-
-	url := c.Base + path
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	encoded, err := json.Marshal(in)
 	if err != nil {
-		return fmt.Errorf("httpjson: build %s %s: %w", method, url, err)
+		return fmt.Errorf("httpjson: marshal %s %s: %w", method, path, err)
 	}
-	for k, vs := range c.Header {
-		for _, v := range vs {
-			req.Header.Add(k, v)
-		}
-	}
-	if in != nil && req.Header.Get("Content-Type") == "" {
-		req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	}
+	return c.Send(ctx, method, path, "application/json; charset=utf-8", bytes.NewReader(encoded), out)
+}
 
-	resp, err := c.client().Do(req)
+// Send performs one call with a body that is already encoded, such as a
+// multipart upload, and decodes a JSON answer into out when non-nil.
+// contentType is set when the client's headers name none.
+func (c *Client) Send(ctx context.Context, method, path, contentType string, body io.Reader, out any) error {
+	resp, url, err := c.open(ctx, method, path, contentType, body)
 	if err != nil {
-		return fmt.Errorf("httpjson: %s %s: %w", method, url, err)
+		return err
 	}
-	defer func() {
-		// Drain before closing: an undrained body cannot be reused, and these
-		// connectors call the same host repeatedly.
-		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxErrorBody))
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBody))
-		return &Error{
-			Status: resp.StatusCode,
-			Method: method,
-			URL:    url,
-			Body:   strings.TrimSpace(string(snippet)),
-		}
-	}
+	defer drain(resp)
 	if out == nil || resp.StatusCode == http.StatusNoContent {
 		return nil
 	}
@@ -121,6 +98,79 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out any) error
 		return fmt.Errorf("httpjson: decode %s %s: %w", method, url, err)
 	}
 	return nil
+}
+
+// Open performs a GET and returns the 2xx response body for the caller to
+// stream, with its headers. The caller closes the body. It is how a file is
+// downloaded from an API that serves it from its own base.
+func (c *Client) Open(ctx context.Context, path string) (io.ReadCloser, http.Header, error) {
+	resp, _, err := c.open(ctx, http.MethodGet, path, "", nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	return resp.Body, resp.Header, nil
+}
+
+// open sends the request and returns a 2xx response, or the provider's
+// error. On error the body is already drained and closed.
+func (c *Client) open(ctx context.Context, method, path, contentType string, body io.Reader) (*http.Response, string, error) {
+	url := c.Base + path
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return nil, url, fmt.Errorf("httpjson: build %s %s: %w", method, redact(url), err)
+	}
+	for k, vs := range c.Header {
+		for _, v := range vs {
+			req.Header.Add(k, v)
+		}
+	}
+	if body != nil && contentType != "" && req.Header.Get("Content-Type") == "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+
+	resp, err := c.client().Do(req)
+	if err != nil {
+		return nil, url, fmt.Errorf("httpjson: %s %s: %w", method, redact(url), scrub(err, url))
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBody))
+		drain(resp)
+		return nil, url, &Error{
+			Status: resp.StatusCode,
+			Method: method,
+			URL:    redact(url),
+			Body:   strings.TrimSpace(string(snippet)),
+		}
+	}
+	return resp, url, nil
+}
+
+// drain empties and closes a response body: an undrained body cannot be
+// reused, and these connectors call the same host repeatedly.
+func drain(resp *http.Response) {
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxErrorBody))
+	_ = resp.Body.Close()
+}
+
+// redact drops the query string from a URL before it goes into an error. A
+// provider that authenticates with a query parameter (BlueBubbles takes its
+// server password as ?password=) would otherwise put the credential in every
+// log line that prints a failed call.
+func redact(url string) string {
+	if i := strings.IndexByte(url, '?'); i >= 0 {
+		return url[:i] + "?[redacted]"
+	}
+	return url
+}
+
+// scrub replaces the URL inside a transport error (net/http wraps it in a
+// *url.Error that prints it) with its redacted form.
+func scrub(err error, url string) error {
+	msg := err.Error()
+	if !strings.Contains(msg, url) {
+		return err
+	}
+	return errors.New(strings.ReplaceAll(msg, url, redact(url)))
 }
 
 func (c *Client) client() *http.Client {
