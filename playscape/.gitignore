@@ -1,0 +1,22 @@
+# Build artifacts
+bin/
+build/
+
+# Runtime state
+.playscape/
+
+# Git worktrees
+.worktrees/
+
+# Coverage
+*.out
+coverage.html
+
+# OS noise
+.DS_Store
+
+# direnv
+.direnv/
+
+# Built example binary
+examples/saige/saige
