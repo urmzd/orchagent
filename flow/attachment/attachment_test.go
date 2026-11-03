@@ -53,6 +53,7 @@ func TestMediaTypeIsDecidedByContentAndTheNameOnlyRefinesIt(t *testing.T) {
 		{"aac adts", []byte{0xff, 0xf1, 0x50, 0x80, 0, 0, 0, 0}, "", "audio/aac", attachment.KindAudio},
 		{"flac", pad("fLaC", 8), "", "audio/flac", attachment.KindAudio},
 		{"ogg opus", []byte("OggS\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00OpusHead"), "", "audio/ogg", attachment.KindAudio},
+		{"caf audio message", []byte("caff\x00\x01\x00\x00desc"), "Audio Message.caf", "audio/x-caf", attachment.KindAudio},
 		{"m4a voice clip", []byte("\x00\x00\x00\x1cftypM4A \x00\x00\x00\x00"), "clip.m4a", "audio/mp4", attachment.KindAudio},
 		{"mp4", []byte("\x00\x00\x00\x18ftypisom\x00\x00\x02\x00"), "", "video/mp4", attachment.KindVideo},
 		{"an mp4 named as a png is video", []byte("\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00"), "x.png", "video/mp4", attachment.KindVideo},
@@ -239,5 +240,18 @@ func TestAFileThatWasNeverStoredIsAReferenceWithAReasonAndNoContent(t *testing.T
 	twice := attachment.Inherit([]attachment.Attachment{m}, []attachment.Attachment{m, attachment.Missing("other.png", origin, "", "refused")})
 	if len(twice) != 2 {
 		t.Errorf("Inherit = %+v, want the repeated unread file once and the other kept", twice)
+	}
+}
+
+func TestOfKindFindsTheAudioOnAMessageInOrder(t *testing.T) {
+	as := []attachment.Attachment{
+		{Name: "a", MediaType: "audio/ogg"}, {Name: "b", MediaType: "image/png"}, {Name: "c", MediaType: "audio/x-caf"},
+	}
+	got := attachment.OfKind(as, attachment.KindAudio)
+	if len(got) != 2 || got[0].Name != "a" || got[1].Name != "c" {
+		t.Fatalf("OfKind = %+v", got)
+	}
+	if attachment.OfKind(nil, attachment.KindAudio) != nil {
+		t.Fatal("OfKind(nil) is not nil")
 	}
 }

@@ -192,6 +192,10 @@ func sniffSignature(b []byte) string {
 		return "audio/mpeg"
 	case has(0, "#!AMR"):
 		return "audio/amr"
+	case has(0, "caff\x00\x01"):
+		// Core Audio Format, version 1: what Messages on macOS stores an
+		// audio message as (Audio Message.caf).
+		return "audio/x-caf"
 	case has(0, "FLV\x01"):
 		return "video/x-flv"
 	case has(0, "\x30\x26\xb2\x75\x8e\x66\xcf\x11"):

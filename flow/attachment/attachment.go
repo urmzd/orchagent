@@ -182,6 +182,18 @@ func ValidateAll(as []Attachment) error {
 	return nil
 }
 
+// OfKind returns the attachments of kind k, in order. It is how a host finds
+// the audio on a message (a voice note) to transcribe before a run starts.
+func OfKind(as []Attachment, k Kind) []Attachment {
+	var out []Attachment
+	for _, a := range as {
+		if a.Kind() == k {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
 // Inherit returns the attachments a delegated child run should carry: the
 // ones the parent holds, then the ones passed with the delegation, with a
 // file that appears in both listed once at its first position.
