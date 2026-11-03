@@ -1,6 +1,6 @@
 # playscape
 
-Beta library for where an agent's turn runs: sandboxed tools, one shared workspace, NGAC access control, and bounded in-process pools of execution nodes. Go module `github.com/urmzd/playscape`. Library first: nothing here listens on a port or reads configuration. The `playscape` binary (`cmd/playscape`) only validates a command in the sandbox (`playscape run`).
+Beta library for where an agent's turn runs: sandboxed tools, one shared workspace, NGAC access control, and bounded in-process pools of execution nodes. Go module `github.com/urmzd/orchagent/playscape`. Library first: nothing here listens on a port or reads configuration. The `playscape` binary (`cmd/playscape`) only validates a command in the sandbox (`playscape run`).
 
 ## Architecture
 
@@ -11,7 +11,7 @@ A program composes the pieces in code: `controlplane.NewMemory(inproc.NewFactory
 - `pkg/ngac` is the NGAC policy machine where access is defined (users/attributes/associations/prohibitions); `pkg/sandbox` is the enforcement point decorating `workspace`, with flat `Policy` compiling into the same graph via `FromPolicies`
 - `pkg/tool` defines the capability unit, the `Runtime` it executes against, and `Provider` (a family of tools of one `Kind`); `pkg/tool/cli` is the `cli` provider kind wrapping CLI binaries
 - `pkg/runner` is the run executor seam (`Executor`: run one command, stream logs, report the exit code; `Local` for dev/tests, `Shell` adapts an executor into a tool). Process isolation lives here, not in `pkg/sandbox`
-- `pkg/runner/k8s` is its own Go module (`github.com/urmzd/playscape/pkg/runner/k8s`, so only its importers get client-go): one restricted batch/v1 Job per run; the RBAC and NetworkPolicy it needs are in `pkg/runner/k8s/manifests`
+- `pkg/runner/k8s` is its own Go module (`github.com/urmzd/orchagent/playscape/pkg/runner/k8s`, so only its importers get client-go): one restricted batch/v1 Job per run; the RBAC and NetworkPolicy it needs are in `pkg/runner/k8s/manifests`
 - `pkg/isolate` is where a run's tools execute: `Driver` starts an `Instance` from a `Spec` (zero value is the strictest: no network, read-only root, non-root, default limits), `Pool` keeps them warm and leases each to one run, never reused, and `Executor` adapts an instance into a `runner.Executor`. `isolate/docker` drives the docker CLI with runsc (gVisor) and an embedded seccomp profile; runc needs `Config.InsecureDevelopmentRuntime`; `Config.Host` drives a remote daemon, with `/work`, `/project` and `/me` in volumes reached through `docker exec`; `isolate/local` has no isolation and is for tests; `isolate/isolatetest` is the conformance suite every driver runs; `isolate/egress` is the egress gate (an `http.Handler` forward proxy: per-lease default-deny allowlist, credential injection for plain HTTP and gate-terminated routes, never inside a CONNECT tunnel)
 - `pkg/node` + `pkg/node/inproc` define and implement the execution substrate
 - `pkg/controlplane` is the composition root and owns the pools

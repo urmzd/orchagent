@@ -14,14 +14,14 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/bus"
-	"github.com/urmzd/humagen/fiber/pkg/connector"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/github"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/jira"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/slack"
-	"github.com/urmzd/humagen/fiber/pkg/egress"
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/bus"
+	"github.com/urmzd/orchagent/fiber/pkg/connector"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/github"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/jira"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/slack"
+	"github.com/urmzd/orchagent/fiber/pkg/egress"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 const tenant = "acme"
@@ -36,7 +36,7 @@ func run(channel string) []event.Envelope {
 		event.TypeToolCall + `|{"id":"c1","name":"search","phase":"executing"}`,
 		event.TypeToolDone + `|{"id":"c1","name":"search","result":"3 hits"}`,
 		event.TypeText + `|{"text":"because the handle was lost [1]."}`,
-		event.TypeCitation + `|{"label":"[1]","source":{"document_title":"sink.go","source_uri":"https://github.com/urmzd/humagen/fiber/blob/main/sink.go"}}`,
+		event.TypeCitation + `|{"label":"[1]","source":{"document_title":"sink.go","source_uri":"https://github.com/urmzd/orchagent/fiber/blob/main/sink.go"}}`,
 		event.TypeCompleted + `|{"attempt":1,"text":"The retry path posts twice because the handle was lost [1]."}`,
 	}
 	out := make([]event.Envelope, len(bodies))

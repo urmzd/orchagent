@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 )
 
 func TestLocalRoundTrip(t *testing.T) {

@@ -14,12 +14,12 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/urmzd/humagen/fiber/pkg/definition"
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/mcptools"
-	"github.com/urmzd/humagen/fiber/pkg/toolprovider"
-	"github.com/urmzd/humagen/fiber/pkg/turn"
-	"github.com/urmzd/humagen/fiber/pkg/turn/native"
+	"github.com/urmzd/orchagent/fiber/pkg/definition"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/mcptools"
+	"github.com/urmzd/orchagent/fiber/pkg/toolprovider"
+	"github.com/urmzd/orchagent/fiber/pkg/turn"
+	"github.com/urmzd/orchagent/fiber/pkg/turn/native"
 )
 
 // A listing of an agent's tools is what a run of the tag would be granted,

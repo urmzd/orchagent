@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"slices"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
 )
 
 // TargetAddress parses the address the action was taken on. An action with

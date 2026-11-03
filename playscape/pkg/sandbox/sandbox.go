@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/urmzd/playscape/pkg/ngac"
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/ngac"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 )
 
 // Operations checked by the sandbox. Associations in the policy graph grant

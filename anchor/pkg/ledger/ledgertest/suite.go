@@ -23,8 +23,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/anchor/pkg/ledger"
-	"github.com/urmzd/anchor/pkg/run"
+	"github.com/urmzd/orchagent/anchor/pkg/ledger"
+	"github.com/urmzd/orchagent/anchor/pkg/run"
 )
 
 // racers is the number of goroutines the concurrency subtests race against

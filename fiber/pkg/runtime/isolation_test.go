@@ -7,19 +7,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/playscape/pkg/controlplane"
-	"github.com/urmzd/playscape/pkg/metrics"
-	"github.com/urmzd/playscape/pkg/node/inproc"
-	"github.com/urmzd/playscape/pkg/tool"
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/controlplane"
+	"github.com/urmzd/orchagent/playscape/pkg/metrics"
+	"github.com/urmzd/orchagent/playscape/pkg/node/inproc"
+	"github.com/urmzd/orchagent/playscape/pkg/tool"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/isolation"
-	"github.com/urmzd/humagen/fiber/pkg/isolation/isolationtest"
-	"github.com/urmzd/humagen/fiber/pkg/runtime"
-	"github.com/urmzd/humagen/fiber/pkg/turn/native"
-	"github.com/urmzd/humagen/fiber/pkg/turn/native/agenttest"
-	saigetypes "github.com/urmzd/humagen/fiber/pkg/turn/native/saigetypes"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/isolation"
+	"github.com/urmzd/orchagent/fiber/pkg/isolation/isolationtest"
+	"github.com/urmzd/orchagent/fiber/pkg/runtime"
+	"github.com/urmzd/orchagent/fiber/pkg/turn/native"
+	"github.com/urmzd/orchagent/fiber/pkg/turn/native/agenttest"
+	saigetypes "github.com/urmzd/orchagent/fiber/pkg/turn/native/saigetypes"
 )
 
 // leaseTool takes the turn's instance, then does what then says.

@@ -112,8 +112,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/urmzd/humagen/fiber/pkg/isolation"
-	"github.com/urmzd/humagen/fiber/pkg/toolprovider"
+	"github.com/urmzd/orchagent/fiber/pkg/isolation"
+	"github.com/urmzd/orchagent/fiber/pkg/toolprovider"
 )
 
 // Sentinels, matched with errors.Is.

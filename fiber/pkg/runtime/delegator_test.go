@@ -8,17 +8,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/playscape/pkg/controlplane"
-	"github.com/urmzd/playscape/pkg/metrics"
-	"github.com/urmzd/playscape/pkg/node/inproc"
-	"github.com/urmzd/playscape/pkg/tool"
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/controlplane"
+	"github.com/urmzd/orchagent/playscape/pkg/metrics"
+	"github.com/urmzd/orchagent/playscape/pkg/node/inproc"
+	"github.com/urmzd/orchagent/playscape/pkg/tool"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 	"github.com/urmzd/saige/agent/agenttest"
 	saigetypes "github.com/urmzd/saige/agent/types"
 
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/runtime"
-	"github.com/urmzd/humagen/fiber/pkg/turn/native"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/runtime"
+	"github.com/urmzd/orchagent/fiber/pkg/turn/native"
 )
 
 // scripted gives each agent its own canned model, keyed by the agent's name,

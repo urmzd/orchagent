@@ -22,8 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/playscape/pkg/isolate"
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 )
 
 // Options configures Run.

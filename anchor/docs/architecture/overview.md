@@ -27,7 +27,7 @@ Nothing under `pkg/` imports the root package, and adapters are invisible to all
 
 Every `go.mod` in the tree is its own module:
 
-- root (`github.com/urmzd/anchor`): the SDK and `pkg/*`, zero third-party dependencies.
+- root (`github.com/urmzd/orchagent/anchor`): the SDK and `pkg/*`, zero third-party dependencies.
 - `adapters/postgres` (pgx) and `adapters/redis` (go-redis): separate modules so their dependencies never touch the root. They are imported only by user code and `examples/`.
 - `examples/*`: separate modules wiring root + adapters together; the only code in the repo that imports adapters.
 

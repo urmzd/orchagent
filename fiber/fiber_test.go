@@ -3,11 +3,11 @@ package fiber
 import (
 	"testing"
 
-	"github.com/urmzd/humagen/fiber/pkg/runtime"
-	"github.com/urmzd/humagen/fiber/pkg/toolprovider"
-	"github.com/urmzd/humagen/fiber/pkg/turn/native"
-	"github.com/urmzd/humagen/fiber/pkg/turn/native/agenttest"
-	saigetypes "github.com/urmzd/humagen/fiber/pkg/turn/native/saigetypes"
+	"github.com/urmzd/orchagent/fiber/pkg/runtime"
+	"github.com/urmzd/orchagent/fiber/pkg/toolprovider"
+	"github.com/urmzd/orchagent/fiber/pkg/turn/native"
+	"github.com/urmzd/orchagent/fiber/pkg/turn/native/agenttest"
+	saigetypes "github.com/urmzd/orchagent/fiber/pkg/turn/native/saigetypes"
 )
 
 type named string

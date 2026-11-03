@@ -12,7 +12,7 @@
 ## Getting Started
 
 ```sh
-git clone https://github.com/urmzd/anchor
+git clone https://github.com/urmzd/orchagent/anchor
 cd anchor
 make init
 ```

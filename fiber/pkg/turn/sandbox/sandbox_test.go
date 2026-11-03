@@ -7,16 +7,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/playscape/pkg/controlplane"
-	"github.com/urmzd/playscape/pkg/metrics"
-	"github.com/urmzd/playscape/pkg/node/inproc"
-	"github.com/urmzd/playscape/pkg/tool"
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/controlplane"
+	"github.com/urmzd/orchagent/playscape/pkg/metrics"
+	"github.com/urmzd/orchagent/playscape/pkg/node/inproc"
+	"github.com/urmzd/orchagent/playscape/pkg/tool"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/turn"
-	"github.com/urmzd/humagen/fiber/pkg/turn/runtimetest"
-	"github.com/urmzd/humagen/fiber/pkg/turn/sandbox"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/turn"
+	"github.com/urmzd/orchagent/fiber/pkg/turn/runtimetest"
+	"github.com/urmzd/orchagent/fiber/pkg/turn/sandbox"
 )
 
 func plane(t *testing.T) sandbox.Plane {

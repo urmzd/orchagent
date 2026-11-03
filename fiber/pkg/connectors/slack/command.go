@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/inbound"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/mention"
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/signature"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/internal/inbound"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/mention"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/signature"
 )
 
 // CommandsPath is the path suffix that receives slash command invocations. It

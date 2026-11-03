@@ -26,8 +26,8 @@ package pgledger
 import (
 	"errors"
 
-	"github.com/urmzd/anchor/adapters/postgres/internal/pgident"
-	"github.com/urmzd/anchor/pkg/run"
+	"github.com/urmzd/orchagent/anchor/adapters/postgres/internal/pgident"
+	"github.com/urmzd/orchagent/anchor/pkg/run"
 )
 
 // Scope is an optional discriminator for tables shared with non-anchor

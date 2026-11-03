@@ -14,10 +14,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/urmzd/anchor/adapters/postgres/pgledger"
-	"github.com/urmzd/anchor/pkg/ledger"
-	"github.com/urmzd/anchor/pkg/ledger/ledgertest"
-	"github.com/urmzd/anchor/pkg/run"
+	"github.com/urmzd/orchagent/anchor/adapters/postgres/pgledger"
+	"github.com/urmzd/orchagent/anchor/pkg/ledger"
+	"github.com/urmzd/orchagent/anchor/pkg/ledger/ledgertest"
+	"github.com/urmzd/orchagent/anchor/pkg/run"
 )
 
 // The integration harness owns all DDL: it applies pgledger.RecommendedDDL

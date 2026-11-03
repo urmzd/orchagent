@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/attachment"
-	"github.com/urmzd/humagen/fiber/pkg/blob"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/attachment"
+	"github.com/urmzd/orchagent/fiber/pkg/blob"
 )
 
 // ErrRefused reports a surface that would not hand over a file: it answered

@@ -24,11 +24,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/urmzd/playscape/pkg/isolate"
-	"github.com/urmzd/playscape/pkg/isolate/egress"
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate/egress"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 
-	"github.com/urmzd/humagen/fiber/pkg/isolation"
+	"github.com/urmzd/orchagent/fiber/pkg/isolation"
 )
 
 // Config is what every instance a Leaser leases is started with.

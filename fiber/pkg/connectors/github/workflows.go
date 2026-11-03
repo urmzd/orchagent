@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/connector"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/connector"
 )
 
 // WorkflowAPI reads actual CI results and reruns an existing immutable run.

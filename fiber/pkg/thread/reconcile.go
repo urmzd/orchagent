@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/attachment"
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/attachment"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 // Message is one message as its surface holds it now.

@@ -10,11 +10,11 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/urmzd/playscape/pkg/node"
-	"github.com/urmzd/playscape/pkg/sandbox"
-	"github.com/urmzd/playscape/pkg/task"
-	"github.com/urmzd/playscape/pkg/tool"
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/node"
+	"github.com/urmzd/orchagent/playscape/pkg/sandbox"
+	"github.com/urmzd/orchagent/playscape/pkg/task"
+	"github.com/urmzd/orchagent/playscape/pkg/tool"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 )
 
 // Factory creates in-process nodes over a shared tool registry and

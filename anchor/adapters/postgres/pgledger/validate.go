@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/urmzd/anchor/adapters/postgres/internal/pgident"
-	"github.com/urmzd/anchor/adapters/postgres/internal/pginspect"
+	"github.com/urmzd/orchagent/anchor/adapters/postgres/internal/pgident"
+	"github.com/urmzd/orchagent/anchor/adapters/postgres/internal/pginspect"
 )
 
 // envelopeTypes are the column types an envelope may have. jsonb is

@@ -51,17 +51,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/attachment/intake"
-	"github.com/urmzd/humagen/fiber/pkg/connector"
-	"github.com/urmzd/humagen/fiber/pkg/connectors"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/files"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/httpjson"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/inbound"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/render"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/sink"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/mention"
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/attachment/intake"
+	"github.com/urmzd/orchagent/fiber/pkg/connector"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/internal/files"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/internal/httpjson"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/internal/inbound"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/internal/render"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/internal/sink"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/mention"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 // Name is the address scheme this connector owns.

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/playscape/pkg/isolate"
-	"github.com/urmzd/playscape/pkg/isolate/local"
-	"github.com/urmzd/playscape/pkg/runner"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate/local"
+	"github.com/urmzd/orchagent/playscape/pkg/runner"
 )
 
 func TestExecutorRunsShellInALease(t *testing.T) {

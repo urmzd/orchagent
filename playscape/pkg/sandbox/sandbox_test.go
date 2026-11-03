@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urmzd/playscape/pkg/sandbox"
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/sandbox"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 )
 
 func newWorkspace(t *testing.T) workspace.Workspace {

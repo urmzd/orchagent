@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/attachment"
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/attachment"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 // ErrInvalid reports a pinned definition or input a Runtime cannot run.

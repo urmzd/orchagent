@@ -3,8 +3,8 @@ package queue_test
 import (
 	"testing"
 
-	"github.com/urmzd/anchor/pkg/queue"
-	"github.com/urmzd/anchor/pkg/queue/queuetest"
+	"github.com/urmzd/orchagent/anchor/pkg/queue"
+	"github.com/urmzd/orchagent/anchor/pkg/queue/queuetest"
 )
 
 func TestMemoryQueue(t *testing.T) {

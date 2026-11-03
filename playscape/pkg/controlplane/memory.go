@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/urmzd/playscape/pkg/metrics"
-	"github.com/urmzd/playscape/pkg/node"
-	"github.com/urmzd/playscape/pkg/sandbox"
-	"github.com/urmzd/playscape/pkg/task"
+	"github.com/urmzd/orchagent/playscape/pkg/metrics"
+	"github.com/urmzd/orchagent/playscape/pkg/node"
+	"github.com/urmzd/orchagent/playscape/pkg/sandbox"
+	"github.com/urmzd/orchagent/playscape/pkg/task"
 )
 
 const (

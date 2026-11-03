@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/attachment"
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/attachment"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 // Trigger is an old tag read as an event, with the two things a tag held

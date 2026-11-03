@@ -19,7 +19,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 
-	"github.com/urmzd/playscape/pkg/runner"
+	"github.com/urmzd/orchagent/playscape/pkg/runner"
 )
 
 const ns = "runs"

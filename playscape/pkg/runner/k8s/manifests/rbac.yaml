@@ -1,5 +1,5 @@
 # RBAC for the Job-backed run executor (module
-# github.com/urmzd/playscape/pkg/runner/k8s). Bind this service account to
+# github.com/urmzd/orchagent/playscape/pkg/runner/k8s). Bind this service account to
 # the pod of the program that embeds the executor (set
 # `serviceAccountName: playscape-runner` on it). Run pods themselves get no
 # token: the executor sets automountServiceAccountToken: false on every Job.

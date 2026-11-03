@@ -9,8 +9,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/urmzd/anchor/pkg/queue"
-	"github.com/urmzd/anchor/pkg/run"
+	"github.com/urmzd/orchagent/anchor/pkg/queue"
+	"github.com/urmzd/orchagent/anchor/pkg/run"
 )
 
 // Enqueue implements queue.Queue. A run already queued or leased is left

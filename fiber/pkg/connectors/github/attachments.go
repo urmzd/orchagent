@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/urmzd/humagen/fiber/pkg/attachment"
-	"github.com/urmzd/humagen/fiber/pkg/attachment/intake"
+	"github.com/urmzd/orchagent/fiber/pkg/attachment"
+	"github.com/urmzd/orchagent/fiber/pkg/attachment/intake"
 )
 
 // Where GitHub keeps the images and videos people paste into issues, pull

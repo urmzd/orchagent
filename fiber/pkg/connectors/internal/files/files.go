@@ -12,10 +12,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/attachment/intake"
-	"github.com/urmzd/humagen/fiber/pkg/connectors"
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/attachment/intake"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 // HandoffGrace bounds how long an event that carries files waits to be

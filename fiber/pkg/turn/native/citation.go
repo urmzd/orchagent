@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 	ragtypes "github.com/urmzd/saige/rag/types"
 )
 

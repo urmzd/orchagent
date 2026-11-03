@@ -10,10 +10,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/urmzd/anchor"
-	"github.com/urmzd/anchor/pkg/run"
+	"github.com/urmzd/orchagent/anchor"
+	"github.com/urmzd/orchagent/anchor/pkg/run"
 
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 // # Usage

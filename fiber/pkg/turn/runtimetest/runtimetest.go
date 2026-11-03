@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/turn"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/turn"
 )
 
 // Harness is what the suite runs against.

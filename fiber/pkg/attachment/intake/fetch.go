@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/attachment"
-	"github.com/urmzd/humagen/fiber/pkg/blob"
+	"github.com/urmzd/orchagent/fiber/pkg/attachment"
+	"github.com/urmzd/orchagent/fiber/pkg/blob"
 )
 
 // Errors a Fetcher returns. Callers match with errors.Is.

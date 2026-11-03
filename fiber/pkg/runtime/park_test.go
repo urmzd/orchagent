@@ -12,15 +12,15 @@ import (
 	"testing"
 	"time"
 
-	drun "github.com/urmzd/anchor/pkg/run"
-	"github.com/urmzd/anchor/pkg/worker"
+	drun "github.com/urmzd/orchagent/anchor/pkg/run"
+	"github.com/urmzd/orchagent/anchor/pkg/worker"
 	"github.com/urmzd/saige/agent/agenttest"
 	saigetypes "github.com/urmzd/saige/agent/types"
 
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/runtime"
-	"github.com/urmzd/humagen/fiber/pkg/turn"
-	"github.com/urmzd/humagen/fiber/pkg/turn/native"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/runtime"
+	"github.com/urmzd/orchagent/fiber/pkg/turn"
+	"github.com/urmzd/orchagent/fiber/pkg/turn/native"
 )
 
 // ── fixtures ────────────────────────────────────────────────────────

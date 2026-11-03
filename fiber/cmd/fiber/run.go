@@ -13,13 +13,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urmzd/humagen/fiber"
+	"github.com/urmzd/orchagent/fiber"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/urmzd/humagen/fiber/pkg/bus"
-	"github.com/urmzd/humagen/fiber/pkg/definition"
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/runtime"
+	"github.com/urmzd/orchagent/fiber/pkg/bus"
+	"github.com/urmzd/orchagent/fiber/pkg/definition"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/runtime"
 )
 
 // The scope and the person a local run belongs to. Both are fixed: nothing

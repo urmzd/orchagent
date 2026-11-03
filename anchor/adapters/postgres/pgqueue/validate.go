@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/urmzd/anchor/adapters/postgres/internal/pgident"
-	"github.com/urmzd/anchor/adapters/postgres/internal/pginspect"
+	"github.com/urmzd/orchagent/anchor/adapters/postgres/internal/pgident"
+	"github.com/urmzd/orchagent/anchor/adapters/postgres/internal/pginspect"
 )
 
 // timeTypes are the column types ReadyAt and LeaseUntil may have.

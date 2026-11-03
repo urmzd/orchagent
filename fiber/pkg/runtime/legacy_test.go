@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	drun "github.com/urmzd/anchor/pkg/run"
+	drun "github.com/urmzd/orchagent/anchor/pkg/run"
 
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/runtime"
-	"github.com/urmzd/humagen/internal/legacy"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/runtime"
+	"github.com/urmzd/orchagent/fiber/internal/legacy"
 )
 
 // untouched is an executor a run must never reach.

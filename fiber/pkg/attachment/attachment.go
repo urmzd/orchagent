@@ -44,7 +44,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
 )
 
 // ErrInvalid reports a malformed attachment. Callers match with errors.Is.

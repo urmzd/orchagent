@@ -61,8 +61,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/urmzd/playscape/pkg/isolate"
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 )
 
 // Runtimes the driver knows by name. Any other OCI runtime registered with

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 )
 
 // fakeDriver starts fakeInstances and keeps count of what is alive.

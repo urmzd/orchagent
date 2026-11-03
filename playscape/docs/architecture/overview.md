@@ -35,7 +35,7 @@ controlplane -> everything above  (composition root: pools, Deploy/Scale/Submit/
 cmd/playscape -> controlplane, runner, ... (the validation CLI: `playscape run`)
 ```
 
-Arrows point at dependencies. Nothing under `pkg/` depends on `controlplane`, and the leaves depend on nothing but the standard library. The root module has no dependencies at all; `pkg/runner/k8s` is a separate module (`github.com/urmzd/playscape/pkg/runner/k8s`) so that only its importers inherit client-go.
+Arrows point at dependencies. Nothing under `pkg/` depends on `controlplane`, and the leaves depend on nothing but the standard library. The root module has no dependencies at all; `pkg/runner/k8s` is a separate module (`github.com/urmzd/orchagent/playscape/pkg/runner/k8s`) so that only its importers inherit client-go.
 
 ## Execution: Bounded In-Process Pools
 

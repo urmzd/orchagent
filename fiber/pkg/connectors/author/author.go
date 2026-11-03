@@ -83,9 +83,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/connector"
-	"github.com/urmzd/humagen/fiber/pkg/definition"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/connector"
+	"github.com/urmzd/orchagent/fiber/pkg/definition"
 )
 
 // Name is the connector's name and the prefix of every action it contributes.

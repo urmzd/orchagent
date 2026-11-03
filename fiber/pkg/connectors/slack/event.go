@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/mention"
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/mention"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 // eventEnvelope is the outer body of an Events API request. Only the fields the

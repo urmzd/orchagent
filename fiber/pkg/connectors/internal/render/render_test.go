@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/render"
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/internal/render"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 // ev builds a run event the way the bus delivers one, decoding data into the

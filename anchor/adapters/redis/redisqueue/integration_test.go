@@ -13,9 +13,9 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/urmzd/anchor/adapters/redis/redisqueue"
-	"github.com/urmzd/anchor/pkg/queue"
-	"github.com/urmzd/anchor/pkg/queue/queuetest"
+	"github.com/urmzd/orchagent/anchor/adapters/redis/redisqueue"
+	"github.com/urmzd/orchagent/anchor/pkg/queue"
+	"github.com/urmzd/orchagent/anchor/pkg/queue/queuetest"
 )
 
 // nsCounter disambiguates namespaces created within the same nanosecond.

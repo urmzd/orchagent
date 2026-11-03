@@ -10,8 +10,8 @@ import (
 
 	sdef "github.com/urmzd/saige/agent/definition"
 
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/turn"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/turn"
 )
 
 // Providers every fiber knows. A deployment adds its own (Checks.Providers).

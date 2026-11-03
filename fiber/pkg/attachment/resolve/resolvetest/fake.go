@@ -19,7 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/attachment/resolve"
+	"github.com/urmzd/orchagent/fiber/pkg/attachment/resolve"
 )
 
 // Transcriber is a fake resolve.Transcriber.

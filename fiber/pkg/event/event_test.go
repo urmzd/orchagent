@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 var update = flag.Bool("update", false, "rewrite testdata from the samples")

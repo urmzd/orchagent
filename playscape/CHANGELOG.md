@@ -4,45 +4,45 @@
 
 ### Breaking
 
-- **isolate**: drive a remote Docker daemon from the docker driver (#21) ([4aea447](https://github.com/urmzd/playscape/commit/4aea447e58ec1db5cfe73e8a450431a7be84f34c))
+- **isolate**: drive a remote Docker daemon from the docker driver (#21) ([4aea447](https://github.com/urmzd/orchagent/playscape/commit/4aea447e58ec1db5cfe73e8a450431a7be84f34c))
 
-[Full Changelog](https://github.com/urmzd/playscape/compare/v0.11.0...v0.12.0)
+[Full Changelog](https://github.com/urmzd/orchagent/playscape/compare/v0.11.0...v0.12.0)
 
 
 ## 0.11.0 (2026-10-31)
 
 ### Breaking
 
-- **isolate**: give each instance its own /project and /me workspaces (#20) ([41558c5](https://github.com/urmzd/playscape/commit/41558c54d708ba129908addcc9b3249089ace613))
+- **isolate**: give each instance its own /project and /me workspaces (#20) ([41558c5](https://github.com/urmzd/orchagent/playscape/commit/41558c54d708ba129908addcc9b3249089ace613))
 
-[Full Changelog](https://github.com/urmzd/playscape/compare/v0.10.0...v0.11.0)
+[Full Changelog](https://github.com/urmzd/orchagent/playscape/compare/v0.10.0...v0.11.0)
 
 
 ## 0.10.0 (2026-10-30)
 
 ### Breaking
 
-- **isolate**: require gVisor and a stricter seccomp profile in the docker driver (#19) ([a55543f](https://github.com/urmzd/playscape/commit/a55543f8389adfc55db104a0948ca00a2c83045a))
+- **isolate**: require gVisor and a stricter seccomp profile in the docker driver (#19) ([a55543f](https://github.com/urmzd/orchagent/playscape/commit/a55543f8389adfc55db104a0948ca00a2c83045a))
 
-[Full Changelog](https://github.com/urmzd/playscape/compare/v0.9.0...v0.10.0)
+[Full Changelog](https://github.com/urmzd/orchagent/playscape/compare/v0.9.0...v0.10.0)
 
 
 ## 0.9.0 (2026-10-30)
 
 ### Features
 
-- **isolate**: add the egress gate with credential injection (#18) ([b901f25](https://github.com/urmzd/playscape/commit/b901f2514212952c4228bc4176de6ef7aedd973e))
+- **isolate**: add the egress gate with credential injection (#18) ([b901f25](https://github.com/urmzd/orchagent/playscape/commit/b901f2514212952c4228bc4176de6ef7aedd973e))
 
-[Full Changelog](https://github.com/urmzd/playscape/compare/v0.8.0...v0.9.0)
+[Full Changelog](https://github.com/urmzd/orchagent/playscape/compare/v0.8.0...v0.9.0)
 
 
 ## 0.8.0 (2026-10-30)
 
 ### Features
 
-- **isolate**: run a run's tools in pooled, isolated instances (#17) ([d8415f6](https://github.com/urmzd/playscape/commit/d8415f6ec77c02601d8781311eaa500365ddfb79))
+- **isolate**: run a run's tools in pooled, isolated instances (#17) ([d8415f6](https://github.com/urmzd/orchagent/playscape/commit/d8415f6ec77c02601d8781311eaa500365ddfb79))
 
-[Full Changelog](https://github.com/urmzd/playscape/compare/v0.7.2...v0.8.0)
+[Full Changelog](https://github.com/urmzd/orchagent/playscape/compare/v0.7.2...v0.8.0)
 
 
 ## 0.7.2 (2026-10-29)
@@ -53,67 +53,67 @@
 
 #### Bug Fixes
 
-- **deps**: patch vulnerable Go dependencies (#16) ([6f303fa](https://github.com/urmzd/playscape/commit/6f303fab274e6c6b869d3fb786c13e13c2098dbc))
+- **deps**: patch vulnerable Go dependencies (#16) ([6f303fa](https://github.com/urmzd/orchagent/playscape/commit/6f303fab274e6c6b869d3fb786c13e13c2098dbc))
 
-[Full Changelog](https://github.com/urmzd/playscape/compare/v0.7.1...v0.7.2)
+[Full Changelog](https://github.com/urmzd/orchagent/playscape/compare/v0.7.1...v0.7.2)
 
 
 ## 0.7.1 (2026-10-21)
 
 ### Bug Fixes
 
-- **k8s**: require playscape v0.7.0, the first release without the package (#13) ([7c9297a](https://github.com/urmzd/playscape/commit/7c9297af1bf20521bd9b5c21fb4afe347b69209e))
+- **k8s**: require playscape v0.7.0, the first release without the package (#13) ([7c9297a](https://github.com/urmzd/orchagent/playscape/commit/7c9297af1bf20521bd9b5c21fb4afe347b69209e))
 
-[Full Changelog](https://github.com/urmzd/playscape/compare/v0.7.0...v0.7.1)
+[Full Changelog](https://github.com/urmzd/orchagent/playscape/compare/v0.7.0...v0.7.1)
 
 
 ## 0.7.0 (2026-10-21)
 
 ### Breaking
 
-- playscape is a library with a playscape run CLI; the server and its queue are gone (#12) ([7ff97a4](https://github.com/urmzd/playscape/commit/7ff97a4a36f9fee2b5ad4f2b72865bfea543f8fb))
+- playscape is a library with a playscape run CLI; the server and its queue are gone (#12) ([7ff97a4](https://github.com/urmzd/orchagent/playscape/commit/7ff97a4a36f9fee2b5ad4f2b72865bfea543f8fb))
 
-[Full Changelog](https://github.com/urmzd/playscape/compare/v0.6.1...v0.7.0)
+[Full Changelog](https://github.com/urmzd/orchagent/playscape/compare/v0.6.1...v0.7.0)
 
 
 ## 0.6.1 (2026-10-20)
 
 ### Bug Fixes
 
-- exact CLI arguments, Kubernetes expansion and timeouts, process-group cancel (#11) ([ee48cda](https://github.com/urmzd/playscape/commit/ee48cda705e0fdea52471757d3e405a3f207ddcf))
+- exact CLI arguments, Kubernetes expansion and timeouts, process-group cancel (#11) ([ee48cda](https://github.com/urmzd/orchagent/playscape/commit/ee48cda705e0fdea52471757d3e405a3f207ddcf))
 
-[Full Changelog](https://github.com/urmzd/playscape/compare/v0.6.0...v0.6.1)
+[Full Changelog](https://github.com/urmzd/orchagent/playscape/compare/v0.6.0...v0.6.1)
 
 
 ## 0.5.0 (2026-10-20)
 
 ### Features
 
-- **runner**: add Job-backed sandboxed shell executor (#9) ([6ab98ed](https://github.com/urmzd/playscape/commit/6ab98ed27691e54e6345bfe5829c0b01bf62f126))
+- **runner**: add Job-backed sandboxed shell executor (#9) ([6ab98ed](https://github.com/urmzd/orchagent/playscape/commit/6ab98ed27691e54e6345bfe5829c0b01bf62f126))
 
-[Full Changelog](https://github.com/urmzd/playscape/compare/v0.4.0...v0.5.0)
+[Full Changelog](https://github.com/urmzd/orchagent/playscape/compare/v0.4.0...v0.5.0)
 
 
 ## 0.4.0 (2026-10-18)
 
 ### Features
 
-- **tool**: add cli provider kind wrapping CLI binaries (#8) ([18d2b1c](https://github.com/urmzd/playscape/commit/18d2b1cd9f20981c5f7f52da06459d4e5105239d))
+- **tool**: add cli provider kind wrapping CLI binaries (#8) ([18d2b1c](https://github.com/urmzd/orchagent/playscape/commit/18d2b1cd9f20981c5f7f52da06459d4e5105239d))
 
-[Full Changelog](https://github.com/urmzd/playscape/compare/v0.3.0...v0.4.0)
+[Full Changelog](https://github.com/urmzd/orchagent/playscape/compare/v0.3.0...v0.4.0)
 
 
 ## 0.3.0 (2026-10-18)
 
 ### Breaking
 
-- rename legatus to playscape (#6) ([f5e0921](https://github.com/urmzd/playscape/commit/f5e0921266bbf3af68e43c47205acc6fda05d81d))
+- rename legatus to playscape (#6) ([f5e0921](https://github.com/urmzd/orchagent/playscape/commit/f5e0921266bbf3af68e43c47205acc6fda05d81d))
 
 ### Misc
 
-- **deps**: upgrade saige example to v0.37.0 (#5) ([efa3091](https://github.com/urmzd/playscape/commit/efa309174e91a4751578248c025de1657f1ddb34))
+- **deps**: upgrade saige example to v0.37.0 (#5) ([efa3091](https://github.com/urmzd/orchagent/playscape/commit/efa309174e91a4751578248c025de1657f1ddb34))
 
-[Full Changelog](https://github.com/urmzd/playscape/compare/v0.2.0...v0.3.0)
+[Full Changelog](https://github.com/urmzd/orchagent/playscape/compare/v0.2.0...v0.3.0)
 
 
 ## 0.2.0 (2026-10-10)

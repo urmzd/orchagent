@@ -28,9 +28,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/urmzd/playscape/internal/procgroup"
-	"github.com/urmzd/playscape/pkg/isolate"
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/internal/procgroup"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 )
 
 // killGrace is how long a timed-out command's processes have between

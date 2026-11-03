@@ -5,9 +5,9 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/urmzd/humagen/fiber/pkg/blob"
-	"github.com/urmzd/humagen/fiber/pkg/definition"
-	"github.com/urmzd/humagen/fiber/pkg/membership"
+	"github.com/urmzd/orchagent/fiber/pkg/blob"
+	"github.com/urmzd/orchagent/fiber/pkg/definition"
+	"github.com/urmzd/orchagent/fiber/pkg/membership"
 )
 
 // The runtime reconciles a thread through the connector that owns its

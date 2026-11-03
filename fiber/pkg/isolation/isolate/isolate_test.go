@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/playscape/pkg/isolate/docker"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate/docker"
 
-	"github.com/urmzd/humagen/fiber/pkg/isolation"
-	poolleaser "github.com/urmzd/humagen/fiber/pkg/isolation/isolate"
-	"github.com/urmzd/humagen/fiber/pkg/mcptools"
-	"github.com/urmzd/humagen/fiber/pkg/toolprovider"
+	"github.com/urmzd/orchagent/fiber/pkg/isolation"
+	poolleaser "github.com/urmzd/orchagent/fiber/pkg/isolation/isolate"
+	"github.com/urmzd/orchagent/fiber/pkg/mcptools"
+	"github.com/urmzd/orchagent/fiber/pkg/toolprovider"
 )
 
 // testImage has sh, the busybox tools and python3.

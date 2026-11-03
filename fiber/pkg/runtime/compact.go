@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/bus"
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	turnrt "github.com/urmzd/humagen/fiber/pkg/turn"
-	"github.com/urmzd/humagen/fiber/pkg/turn/native"
+	"github.com/urmzd/orchagent/fiber/pkg/bus"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	turnrt "github.com/urmzd/orchagent/fiber/pkg/turn"
+	"github.com/urmzd/orchagent/fiber/pkg/turn/native"
 )
 
 // Compacting a run on request.

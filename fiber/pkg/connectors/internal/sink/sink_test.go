@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/render"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/sink"
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/internal/render"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/internal/sink"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 // fakeSurface is a complete in-memory surface: it holds a body per handle, just

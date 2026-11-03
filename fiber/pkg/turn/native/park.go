@@ -14,8 +14,8 @@ import (
 	"github.com/urmzd/saige/agent/provider/wrapper"
 	saigetypes "github.com/urmzd/saige/agent/types"
 
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/turn"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/turn"
 )
 
 // Parking a turn on a person.

@@ -37,10 +37,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/bus"
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/membership"
-	"github.com/urmzd/humagen/fiber/pkg/runtime"
+	"github.com/urmzd/orchagent/fiber/pkg/bus"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/membership"
+	"github.com/urmzd/orchagent/fiber/pkg/runtime"
 )
 
 // ErrInvalid reports a dispatcher or tenant that cannot be served.

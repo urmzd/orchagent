@@ -12,11 +12,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/urmzd/humagen/fiber/pkg/bus"
-	"github.com/urmzd/humagen/fiber/pkg/dispatch"
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/membership"
-	"github.com/urmzd/humagen/fiber/pkg/runtime"
+	"github.com/urmzd/orchagent/fiber/pkg/bus"
+	"github.com/urmzd/orchagent/fiber/pkg/dispatch"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/membership"
+	"github.com/urmzd/orchagent/fiber/pkg/runtime"
 )
 
 const channel = "slack://T1/C1"

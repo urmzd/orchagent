@@ -15,11 +15,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/connector"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/webhook"
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/signature"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/connector"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/webhook"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/signature"
 )
 
 const secret = "an outbound signing secret"

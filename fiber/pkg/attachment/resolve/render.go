@@ -7,7 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/urmzd/humagen/fiber/pkg/attachment"
+	"github.com/urmzd/orchagent/fiber/pkg/attachment"
 )
 
 // The text forms below are what a model reads. They are fixed strings built

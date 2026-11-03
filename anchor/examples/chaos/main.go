@@ -16,10 +16,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
-	anchor "github.com/urmzd/anchor"
-	"github.com/urmzd/anchor/adapters/postgres/pgledger"
-	"github.com/urmzd/anchor/adapters/redis/redisqueue"
-	"github.com/urmzd/anchor/examples/chaos/internal/chaoswf"
+	anchor "github.com/urmzd/orchagent/anchor"
+	"github.com/urmzd/orchagent/anchor/adapters/postgres/pgledger"
+	"github.com/urmzd/orchagent/anchor/adapters/redis/redisqueue"
+	"github.com/urmzd/orchagent/anchor/examples/chaos/internal/chaoswf"
 )
 
 func env(key, fallback string) string {

@@ -19,15 +19,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/urmzd/playscape/pkg/controlplane"
-	"github.com/urmzd/playscape/pkg/metrics"
-	"github.com/urmzd/playscape/pkg/ngac"
-	"github.com/urmzd/playscape/pkg/node/inproc"
-	"github.com/urmzd/playscape/pkg/runner"
-	"github.com/urmzd/playscape/pkg/sandbox"
-	"github.com/urmzd/playscape/pkg/task"
-	"github.com/urmzd/playscape/pkg/tool"
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/controlplane"
+	"github.com/urmzd/orchagent/playscape/pkg/metrics"
+	"github.com/urmzd/orchagent/playscape/pkg/ngac"
+	"github.com/urmzd/orchagent/playscape/pkg/node/inproc"
+	"github.com/urmzd/orchagent/playscape/pkg/runner"
+	"github.com/urmzd/orchagent/playscape/pkg/sandbox"
+	"github.com/urmzd/orchagent/playscape/pkg/task"
+	"github.com/urmzd/orchagent/playscape/pkg/tool"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 )
 
 const runUsage = `Usage: playscape run [flags] COMMAND

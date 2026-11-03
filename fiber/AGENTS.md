@@ -3,7 +3,7 @@
 Agent library and low-latency pub/sub bus. Publish a typed event on a channel,
 wake the agents that are members of it, stream the run's events to anyone,
 deliver them anywhere. It lives in `fiber/` of the Humagen module and is
-imported as `github.com/urmzd/humagen/fiber`; before the fold it was its own
+imported as `github.com/urmzd/orchagent/fiber`; before the fold it was its own
 module, `github.com/urmzd/fiber`. Humagen's root `AGENTS.md` rules apply here
 too. It is a library first, composed in Go: no
 service, no configuration files, no environment variables. The root package

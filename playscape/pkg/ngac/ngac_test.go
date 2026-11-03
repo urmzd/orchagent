@@ -3,7 +3,7 @@ package ngac_test
 import (
 	"testing"
 
-	"github.com/urmzd/playscape/pkg/ngac"
+	"github.com/urmzd/orchagent/playscape/pkg/ngac"
 )
 
 // buildSpec compiles a spec or fails the test.

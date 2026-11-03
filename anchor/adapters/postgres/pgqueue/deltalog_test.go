@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urmzd/anchor/adapters/postgres/pgkit"
-	"github.com/urmzd/anchor/pkg/queue"
+	"github.com/urmzd/orchagent/anchor/adapters/postgres/pgkit"
+	"github.com/urmzd/orchagent/anchor/pkg/queue"
 )
 
 func TestNewDeltaQueueValidatesDeltaMapping(t *testing.T) {

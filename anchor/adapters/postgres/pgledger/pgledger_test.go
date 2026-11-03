@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/urmzd/anchor/pkg/ledger"
+	"github.com/urmzd/orchagent/anchor/pkg/ledger"
 )
 
 // lazyPool returns a pool that parses but never connects: pgxpool dials

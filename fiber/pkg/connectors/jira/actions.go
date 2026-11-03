@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/connector"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/connector"
 )
 
 // Actions implements connector.Actor.

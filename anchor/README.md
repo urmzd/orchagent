@@ -5,16 +5,16 @@
     <br /><br />
     <a href="#installation">Install</a>
     &middot;
-    <a href="https://github.com/urmzd/anchor/issues">Report Bug</a>
+    <a href="https://github.com/urmzd/orchagent/anchor/issues">Report Bug</a>
     &middot;
-    <a href="https://pkg.go.dev/github.com/urmzd/anchor">Go Docs</a>
+    <a href="https://pkg.go.dev/github.com/urmzd/orchagent/anchor">Go Docs</a>
   </p>
 </p>
 
 <p align="center">
-  <a href="https://github.com/urmzd/anchor/actions/workflows/ci.yml"><img src="https://github.com/urmzd/anchor/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/urmzd/orchagent/anchor/actions/workflows/ci.yml"><img src="https://github.com/urmzd/orchagent/anchor/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   &nbsp;
-  <a href="https://pkg.go.dev/github.com/urmzd/anchor"><img src="https://pkg.go.dev/badge/github.com/urmzd/anchor.svg" alt="Go Reference"></a>
+  <a href="https://pkg.go.dev/github.com/urmzd/orchagent/anchor"><img src="https://pkg.go.dev/badge/github.com/urmzd/anchor.svg" alt="Go Reference"></a>
   &nbsp;
   <a href="LICENSE"><img src="https://img.shields.io/github/license/urmzd/anchor" alt="License"></a>
 </p>
@@ -46,14 +46,14 @@
 ## Installation
 
 ```sh
-go get github.com/urmzd/anchor
+go get github.com/urmzd/orchagent/anchor
 ```
 
 The adapters are separate modules, so their dependencies never touch yours until you choose one:
 
 ```sh
-go get github.com/urmzd/anchor/adapters/postgres
-go get github.com/urmzd/anchor/adapters/redis
+go get github.com/urmzd/orchagent/anchor/adapters/postgres
+go get github.com/urmzd/orchagent/anchor/adapters/redis
 ```
 
 ## Quick Start

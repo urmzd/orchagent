@@ -16,9 +16,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/urmzd/playscape/pkg/ngac"
-	"github.com/urmzd/playscape/pkg/sandbox"
-	"github.com/urmzd/playscape/pkg/task"
+	"github.com/urmzd/orchagent/playscape/pkg/ngac"
+	"github.com/urmzd/orchagent/playscape/pkg/sandbox"
+	"github.com/urmzd/orchagent/playscape/pkg/task"
 )
 
 var (

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/urmzd/humagen/fiber/pkg/definition"
+	"github.com/urmzd/orchagent/fiber/pkg/definition"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")

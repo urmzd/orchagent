@@ -4,36 +4,36 @@
 
 ### Bug Fixes
 
-- a stop mid-claim no longer leases a Postgres run to nobody (#7) ([ff938a4](https://github.com/urmzd/anchor/commit/ff938a4ab4e635888b1c5aebc273600a1f7564bb))
+- a stop mid-claim no longer leases a Postgres run to nobody (#7) ([ff938a4](https://github.com/urmzd/orchagent/anchor/commit/ff938a4ab4e635888b1c5aebc273600a1f7564bb))
 
-[Full Changelog](https://github.com/urmzd/anchor/compare/v0.5.0...v0.5.1)
+[Full Changelog](https://github.com/urmzd/orchagent/anchor/compare/v0.5.0...v0.5.1)
 
 
 ## 0.5.0 (2026-10-22)
 
 ### Features
 
-- **postgres**: anchor CLI to inspect and replay a ledger (#6) ([0e960bf](https://github.com/urmzd/anchor/commit/0e960bfc9aa4ed3180b14b98a7db619ae0e18c04))
+- **postgres**: anchor CLI to inspect and replay a ledger (#6) ([0e960bf](https://github.com/urmzd/orchagent/anchor/commit/0e960bfc9aa4ed3180b14b98a7db619ae0e18c04))
 
-[Full Changelog](https://github.com/urmzd/anchor/compare/v0.4.0...v0.5.0)
+[Full Changelog](https://github.com/urmzd/orchagent/anchor/compare/v0.4.0...v0.5.0)
 
 
 ## 0.4.0 (2026-10-21)
 
 ### Features
 
-- **postgres**: pgkit for migrations and LISTEN, a ledger prefix read, byte-ordered keys (#5) ([078fd82](https://github.com/urmzd/anchor/commit/078fd82554ea493779749438885bb7a543aea442))
+- **postgres**: pgkit for migrations and LISTEN, a ledger prefix read, byte-ordered keys (#5) ([078fd82](https://github.com/urmzd/orchagent/anchor/commit/078fd82554ea493779749438885bb7a543aea442))
 
-[Full Changelog](https://github.com/urmzd/anchor/compare/v0.3.0...v0.4.0)
+[Full Changelog](https://github.com/urmzd/orchagent/anchor/compare/v0.3.0...v0.4.0)
 
 
 ## 0.3.0 (2026-10-18)
 
 ### Features
 
-- **pgqueue**: Postgres DeltaLog for streaming without Redis (#4) ([3213600](https://github.com/urmzd/anchor/commit/3213600d071a947b389402420e274e86cfd9d7ea))
+- **pgqueue**: Postgres DeltaLog for streaming without Redis (#4) ([3213600](https://github.com/urmzd/orchagent/anchor/commit/3213600d071a947b389402420e274e86cfd9d7ea))
 
-[Full Changelog](https://github.com/urmzd/anchor/compare/v0.2.0...v0.3.0)
+[Full Changelog](https://github.com/urmzd/orchagent/anchor/compare/v0.2.0...v0.3.0)
 
 
 ## 0.2.0 (2026-10-18)
@@ -42,22 +42,22 @@
 
 #### Misc
 
-- **release**: read the sr-releaser key from the release environment (#2) ([97864b2](https://github.com/urmzd/anchor/commit/97864b205e0cc03fc8221938bca0097889034dd6))
-- upgrade urmzd/sr action to v9 (#1) ([f3031fb](https://github.com/urmzd/anchor/commit/f3031fb9d46d9c2fc3d0954fd80a48361c0384a1))
+- **release**: read the sr-releaser key from the release environment (#2) ([97864b2](https://github.com/urmzd/orchagent/anchor/commit/97864b205e0cc03fc8221938bca0097889034dd6))
+- upgrade urmzd/sr action to v9 (#1) ([f3031fb](https://github.com/urmzd/orchagent/anchor/commit/f3031fb9d46d9c2fc3d0954fd80a48361c0384a1))
 
 ### adapters/postgres
 
 #### Breaking
 
-- rename duraturo to anchor (#3) ([aaaad82](https://github.com/urmzd/anchor/commit/aaaad82fbda62b81616f840dff7c01e54cf88dd3))
+- rename duraturo to anchor (#3) ([aaaad82](https://github.com/urmzd/orchagent/anchor/commit/aaaad82fbda62b81616f840dff7c01e54cf88dd3))
 
 ### adapters/redis
 
 #### Breaking
 
-- rename duraturo to anchor (#3) ([aaaad82](https://github.com/urmzd/anchor/commit/aaaad82fbda62b81616f840dff7c01e54cf88dd3))
+- rename duraturo to anchor (#3) ([aaaad82](https://github.com/urmzd/orchagent/anchor/commit/aaaad82fbda62b81616f840dff7c01e54cf88dd3))
 
-[Full Changelog](https://github.com/urmzd/anchor/compare/v0.1.1...v0.2.0)
+[Full Changelog](https://github.com/urmzd/orchagent/anchor/compare/v0.1.1...v0.2.0)
 
 
 ## 0.1.1 (2026-07-15)

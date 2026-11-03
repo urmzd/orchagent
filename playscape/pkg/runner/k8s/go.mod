@@ -1,9 +1,9 @@
-module github.com/urmzd/playscape/pkg/runner/k8s
+module github.com/urmzd/orchagent/playscape/pkg/runner/k8s
 
 go 1.26.4
 
 require (
-	github.com/urmzd/playscape v0.7.0
+	github.com/urmzd/orchagent v0.0.0
 	k8s.io/api v0.37.1
 	k8s.io/apimachinery v0.37.1
 	k8s.io/client-go v0.37.1
@@ -55,4 +55,4 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/urmzd/playscape => ../../..
+replace github.com/urmzd/orchagent => ../../../..

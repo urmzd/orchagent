@@ -40,7 +40,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 // DefaultMaxBody bounds a request body. It is well above the largest realistic

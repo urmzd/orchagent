@@ -6,9 +6,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/connector"
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/connector"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 // Three connectors covering the three shapes the mesh actually has: a full

@@ -28,8 +28,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/urmzd/playscape/pkg/runner"
-	"github.com/urmzd/playscape/pkg/task"
+	"github.com/urmzd/orchagent/playscape/pkg/runner"
+	"github.com/urmzd/orchagent/playscape/pkg/task"
 )
 
 const (

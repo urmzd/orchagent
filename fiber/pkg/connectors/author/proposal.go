@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/definition"
+	"github.com/urmzd/orchagent/fiber/pkg/definition"
 )
 
 // Operations a proposal can stage.

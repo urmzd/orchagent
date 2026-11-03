@@ -14,14 +14,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/attachment"
-	"github.com/urmzd/humagen/fiber/pkg/attachment/intake"
-	"github.com/urmzd/humagen/fiber/pkg/blob"
-	"github.com/urmzd/humagen/fiber/pkg/connectors"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/slack"
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/thread"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/attachment"
+	"github.com/urmzd/orchagent/fiber/pkg/attachment/intake"
+	"github.com/urmzd/orchagent/fiber/pkg/blob"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/slack"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/thread"
 )
 
 const (

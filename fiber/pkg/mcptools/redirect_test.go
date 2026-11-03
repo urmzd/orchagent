@@ -12,7 +12,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/urmzd/humagen/fiber/pkg/mcptools"
+	"github.com/urmzd/orchagent/fiber/pkg/mcptools"
 )
 
 // redirector answers every request with a 307 to target+path, so the client

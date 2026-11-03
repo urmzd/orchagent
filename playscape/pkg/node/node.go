@@ -7,8 +7,8 @@ package node
 import (
 	"context"
 
-	"github.com/urmzd/playscape/pkg/sandbox"
-	"github.com/urmzd/playscape/pkg/task"
+	"github.com/urmzd/orchagent/playscape/pkg/sandbox"
+	"github.com/urmzd/orchagent/playscape/pkg/task"
 )
 
 // Health is a node's reported condition.

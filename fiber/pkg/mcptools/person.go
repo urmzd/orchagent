@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/toolprovider"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/toolprovider"
 )
 
 // ErrNoPersonCredential reports a person-scoped provider reached for someone

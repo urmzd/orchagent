@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 func TestValidTokenIsOneSegment(t *testing.T) {

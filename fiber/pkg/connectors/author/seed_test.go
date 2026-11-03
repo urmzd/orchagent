@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urmzd/humagen/fiber/pkg/connectors/author"
-	"github.com/urmzd/humagen/fiber/pkg/definition"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/author"
+	"github.com/urmzd/orchagent/fiber/pkg/definition"
 )
 
 func TestSeedingAtEveryStartupWritesNoNewVersions(t *testing.T) {

@@ -16,9 +16,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/urmzd/anchor/adapters/postgres/pgkit"
-	"github.com/urmzd/anchor/adapters/postgres/pgledger"
-	"github.com/urmzd/anchor/adapters/postgres/pgqueue"
+	"github.com/urmzd/orchagent/anchor/adapters/postgres/pgkit"
+	"github.com/urmzd/orchagent/anchor/adapters/postgres/pgledger"
+	"github.com/urmzd/orchagent/anchor/adapters/postgres/pgqueue"
 )
 
 const wait = 5 * time.Second

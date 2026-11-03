@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/httpjson"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/internal/httpjson"
 )
 
 // Ref names a repository resource: a repository, and optionally the issue or

@@ -3,7 +3,7 @@ package runtime
 import (
 	"testing"
 
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 // The relay a delegation runs is the same at every level, so a call made two

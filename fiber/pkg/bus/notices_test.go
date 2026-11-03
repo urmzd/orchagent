@@ -10,7 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/urmzd/humagen/fiber/pkg/bus"
+	"github.com/urmzd/orchagent/fiber/pkg/bus"
 )
 
 type heard struct {

@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/urmzd/humagen/internal/legacy"
+	"github.com/urmzd/orchagent/fiber/internal/legacy"
 )
 
 // schema is everything the Postgres store owns: one row per document, one row

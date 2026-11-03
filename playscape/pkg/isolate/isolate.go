@@ -39,7 +39,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 )
 
 // Paths inside an instance.

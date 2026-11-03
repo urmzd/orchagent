@@ -12,10 +12,10 @@ import (
 	saigetypes "github.com/urmzd/saige/agent/types"
 	ragtypes "github.com/urmzd/saige/rag/types"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/connector"
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/turn/native"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/connector"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/turn/native"
 )
 
 func offlineRevision(rev int, prompt string) native.Revision {

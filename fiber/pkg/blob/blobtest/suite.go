@@ -19,7 +19,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/urmzd/humagen/fiber/pkg/blob"
+	"github.com/urmzd/orchagent/fiber/pkg/blob"
 )
 
 // Factory returns a fresh, empty store. Each call must be isolated from every

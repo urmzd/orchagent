@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 // Memory is a complete single-process bus: it is what the zero-infrastructure

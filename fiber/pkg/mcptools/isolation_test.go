@@ -5,10 +5,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/urmzd/humagen/fiber/pkg/isolation"
-	"github.com/urmzd/humagen/fiber/pkg/isolation/isolationtest"
-	"github.com/urmzd/humagen/fiber/pkg/mcptools"
-	"github.com/urmzd/humagen/fiber/pkg/toolprovider"
+	"github.com/urmzd/orchagent/fiber/pkg/isolation"
+	"github.com/urmzd/orchagent/fiber/pkg/isolation/isolationtest"
+	"github.com/urmzd/orchagent/fiber/pkg/mcptools"
+	"github.com/urmzd/orchagent/fiber/pkg/toolprovider"
 )
 
 func stdioProvider(t *testing.T) toolprovider.Provider {

@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/playscape/pkg/isolate"
-	"github.com/urmzd/playscape/pkg/isolate/isolatetest"
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate/isolatetest"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 )
 
 // testImage has a shell, busybox tools and python3. Override it with

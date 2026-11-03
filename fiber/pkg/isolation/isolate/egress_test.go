@@ -13,11 +13,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/urmzd/playscape/pkg/isolate/egress"
-	"github.com/urmzd/playscape/pkg/isolate/local"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate/egress"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate/local"
 
-	"github.com/urmzd/humagen/fiber/pkg/isolation"
-	poolleaser "github.com/urmzd/humagen/fiber/pkg/isolation/isolate"
+	"github.com/urmzd/orchagent/fiber/pkg/isolation"
+	poolleaser "github.com/urmzd/orchagent/fiber/pkg/isolation/isolate"
 )
 
 // gateLeaser is a Leaser over the local driver whose instances go out

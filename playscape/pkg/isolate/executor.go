@@ -7,7 +7,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/urmzd/playscape/pkg/runner"
+	"github.com/urmzd/orchagent/playscape/pkg/runner"
 )
 
 // Executor runs runner requests in one Instance, so runner.Shell and other

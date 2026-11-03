@@ -27,8 +27,8 @@ fiber composes three libraries and adds the parts that make them a product.
 | Concern | Owner |
 |---------|-------|
 | The agent loop, typed deltas, RAG, citations, versioned agent definitions | [saige](https://github.com/urmzd/saige) |
-| Durability, replay, exactly-once effects, per-run journal | [anchor](https://github.com/urmzd/anchor) |
-| Sandboxed execution nodes, NGAC access control | [playscape](https://github.com/urmzd/playscape) |
+| Durability, replay, exactly-once effects, per-run journal | [anchor](https://github.com/urmzd/orchagent/anchor) |
+| Sandboxed execution nodes, NGAC access control | [playscape](https://github.com/urmzd/orchagent/playscape) |
 | The event union and its catalog, the channel bus, membership, dispatch, delivery | fiber |
 | Definition storage, pins and the Policy sidecar | fiber |
 | Ingress and egress adapters, and native actions | fiber |

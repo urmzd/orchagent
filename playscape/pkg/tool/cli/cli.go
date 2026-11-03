@@ -25,8 +25,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urmzd/playscape/internal/procgroup"
-	"github.com/urmzd/playscape/pkg/tool"
+	"github.com/urmzd/orchagent/playscape/internal/procgroup"
+	"github.com/urmzd/orchagent/playscape/pkg/tool"
 )
 
 const (

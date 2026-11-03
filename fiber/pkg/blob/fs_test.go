@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urmzd/humagen/fiber/pkg/blob"
-	"github.com/urmzd/humagen/fiber/pkg/blob/blobtest"
+	"github.com/urmzd/orchagent/fiber/pkg/blob"
+	"github.com/urmzd/orchagent/fiber/pkg/blob/blobtest"
 )
 
 func newFS(t *testing.T) (*blob.FS, string) {

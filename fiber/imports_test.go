@@ -9,18 +9,18 @@ import (
 // removedPackages are the bridges the event union replaced. Stored JSON from
 // before it is read only through pkg/event/legacy.
 var removedPackages = []string{
-	"github.com/urmzd/humagen/fiber/pkg/envelope",
-	"github.com/urmzd/humagen/fiber/pkg/topic",
-	"github.com/urmzd/humagen/fiber/pkg/agentrt",
-	"github.com/urmzd/humagen/fiber/pkg/agentrt/payload",
-	"github.com/urmzd/humagen/fiber/pkg/router",
+	"github.com/urmzd/orchagent/fiber/pkg/envelope",
+	"github.com/urmzd/orchagent/fiber/pkg/topic",
+	"github.com/urmzd/orchagent/fiber/pkg/agentrt",
+	"github.com/urmzd/orchagent/fiber/pkg/agentrt/payload",
+	"github.com/urmzd/orchagent/fiber/pkg/router",
 }
 
 // Nothing in the module, its tests or its examples depends on a removed
 // package, directly or through a dependency.
 func TestNoBridgePackages(t *testing.T) {
 	t.Parallel()
-	out, err := exec.Command("go", "list", "-deps", "-test", "github.com/urmzd/humagen/fiber/...").CombinedOutput()
+	out, err := exec.Command("go", "list", "-deps", "-test", "github.com/urmzd/orchagent/fiber/...").CombinedOutput()
 	if err != nil {
 		t.Fatalf("go list: %v\n%s", err, out)
 	}

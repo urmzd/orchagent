@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urmzd/playscape/pkg/isolate"
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 )
 
 // userOr returns user, or the default when it is empty. A remote daemon's

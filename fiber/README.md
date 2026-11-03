@@ -7,14 +7,14 @@
     &middot;
     <a href="https://github.com/urmzd/humagen/issues">Report Bug</a>
     &middot;
-    <a href="https://pkg.go.dev/github.com/urmzd/humagen/fiber">Go Docs</a>
+    <a href="https://pkg.go.dev/github.com/urmzd/orchagent/fiber">Go Docs</a>
   </p>
 </p>
 
 <p align="center">
   <a href="https://github.com/urmzd/humagen/actions/workflows/ci.yml"><img src="https://github.com/urmzd/humagen/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   &nbsp;
-  <a href="https://pkg.go.dev/github.com/urmzd/humagen/fiber"><img src="https://pkg.go.dev/badge/github.com/urmzd/humagen/fiber.svg" alt="Go Reference"></a>
+  <a href="https://pkg.go.dev/github.com/urmzd/orchagent/fiber"><img src="https://pkg.go.dev/badge/github.com/urmzd/orchagent/fiber.svg" alt="Go Reference"></a>
   &nbsp;
   <a href="../LICENSE"><img src="https://img.shields.io/github/license/urmzd/humagen" alt="License"></a>
 </p>
@@ -82,7 +82,7 @@ retry never runs a newer prompt.
 go get github.com/urmzd/humagen
 ```
 
-and import `github.com/urmzd/humagen/fiber`. Requires the Go version in
+and import `github.com/urmzd/orchagent/fiber`. Requires the Go version in
 [`go.mod`](../go.mod). Real inference needs provider
 credentials or an OpenAI-compatible server, such as a local Ollama. The Postgres
 backends need Postgres (`make integration` starts it with Docker).
@@ -355,7 +355,7 @@ the version of fiber you build against, or run it from a checkout with
 `go run ./fiber/cmd/fiber`:
 
 ```sh
-go install github.com/urmzd/humagen/fiber/cmd/fiber@latest
+go install github.com/urmzd/orchagent/fiber/cmd/fiber@latest
 fiber run -offline docs-bot.agent.md "how does a release get out the door?"
 ```
 
@@ -535,7 +535,7 @@ guides.
 | `App.ToolsFor` | Lists what an agent's run of an event would be granted, without running it |
 | `App.WebhookHandler()` | An `http.Handler` for the connectors that receive webhooks, for your program to mount |
 
-Full reference: [pkg.go.dev/github.com/urmzd/humagen/fiber](https://pkg.go.dev/github.com/urmzd/humagen/fiber)
+Full reference: [pkg.go.dev/github.com/urmzd/orchagent/fiber](https://pkg.go.dev/github.com/urmzd/orchagent/fiber)
 
 ## Development
 

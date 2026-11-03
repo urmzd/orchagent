@@ -11,7 +11,7 @@
 ## Getting Started
 
 ```sh
-git clone https://github.com/urmzd/playscape
+git clone https://github.com/urmzd/orchagent/playscape
 cd playscape
 make init
 ```

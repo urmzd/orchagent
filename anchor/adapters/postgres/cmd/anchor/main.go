@@ -35,7 +35,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/urmzd/anchor/adapters/postgres/pgledger"
+	"github.com/urmzd/orchagent/anchor/adapters/postgres/pgledger"
 )
 
 // envDatabaseURL names the environment variable read when -db is not set.

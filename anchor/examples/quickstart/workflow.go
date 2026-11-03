@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	anchor "github.com/urmzd/anchor"
+	anchor "github.com/urmzd/orchagent/anchor"
 )
 
 // Order is the workflow input.

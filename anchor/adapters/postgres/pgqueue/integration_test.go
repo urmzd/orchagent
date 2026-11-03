@@ -14,9 +14,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/urmzd/anchor/adapters/postgres/pgqueue"
-	"github.com/urmzd/anchor/pkg/queue"
-	"github.com/urmzd/anchor/pkg/queue/queuetest"
+	"github.com/urmzd/orchagent/anchor/adapters/postgres/pgqueue"
+	"github.com/urmzd/orchagent/anchor/pkg/queue"
+	"github.com/urmzd/orchagent/anchor/pkg/queue/queuetest"
 )
 
 // The integration harness owns all DDL: it applies pgqueue.RecommendedDDL

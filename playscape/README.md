@@ -5,16 +5,16 @@
     <br /><br />
     <a href="#installation">Install</a>
     &middot;
-    <a href="https://github.com/urmzd/playscape/issues">Report Bug</a>
+    <a href="https://github.com/urmzd/orchagent/playscape/issues">Report Bug</a>
     &middot;
-    <a href="https://pkg.go.dev/github.com/urmzd/playscape">Go Docs</a>
+    <a href="https://pkg.go.dev/github.com/urmzd/orchagent/playscape">Go Docs</a>
   </p>
 </p>
 
 <p align="center">
-  <a href="https://github.com/urmzd/playscape/actions/workflows/ci.yml"><img src="https://github.com/urmzd/playscape/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/urmzd/orchagent/playscape/actions/workflows/ci.yml"><img src="https://github.com/urmzd/orchagent/playscape/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   &nbsp;
-  <a href="https://pkg.go.dev/github.com/urmzd/playscape"><img src="https://pkg.go.dev/badge/github.com/urmzd/playscape.svg" alt="Go Reference"></a>
+  <a href="https://pkg.go.dev/github.com/urmzd/orchagent/playscape"><img src="https://pkg.go.dev/badge/github.com/urmzd/playscape.svg" alt="Go Reference"></a>
   &nbsp;
   <a href="LICENSE"><img src="https://img.shields.io/github/license/urmzd/playscape" alt="License"></a>
 </p>
@@ -46,19 +46,19 @@ can see what a policy lets it read and change.
 The library has no dependencies outside the Go standard library:
 
 ```sh
-go get github.com/urmzd/playscape
+go get github.com/urmzd/orchagent/playscape
 ```
 
 The Kubernetes Job runner is a separate module, so only programs that use it inherit client-go:
 
 ```sh
-go get github.com/urmzd/playscape/pkg/runner/k8s
+go get github.com/urmzd/orchagent/playscape/pkg/runner/k8s
 ```
 
 The CLI, for validating commands:
 
 ```sh
-go install github.com/urmzd/playscape/cmd/playscape@latest
+go install github.com/urmzd/orchagent/playscape/cmd/playscape@latest
 # or a release binary (macOS, Linux)
 curl -fsSL https://raw.githubusercontent.com/urmzd/playscape/main/install.sh | sh
 ```
@@ -87,13 +87,13 @@ import (
 	"os"
 	"sort"
 
-	"github.com/urmzd/playscape/pkg/controlplane"
-	"github.com/urmzd/playscape/pkg/metrics"
-	"github.com/urmzd/playscape/pkg/node/inproc"
-	"github.com/urmzd/playscape/pkg/sandbox"
-	"github.com/urmzd/playscape/pkg/task"
-	"github.com/urmzd/playscape/pkg/tool"
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/controlplane"
+	"github.com/urmzd/orchagent/playscape/pkg/metrics"
+	"github.com/urmzd/orchagent/playscape/pkg/node/inproc"
+	"github.com/urmzd/orchagent/playscape/pkg/sandbox"
+	"github.com/urmzd/orchagent/playscape/pkg/task"
+	"github.com/urmzd/orchagent/playscape/pkg/tool"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 )
 
 func main() {

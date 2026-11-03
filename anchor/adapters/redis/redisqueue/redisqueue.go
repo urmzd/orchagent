@@ -47,7 +47,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/urmzd/anchor/pkg/queue"
+	"github.com/urmzd/orchagent/anchor/pkg/queue"
 )
 
 // defaultPollInterval is the Claim/Watch poll cadence when no option is set.

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urmzd/humagen/fiber/pkg/connectors/slack"
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/slack"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 )
 
 func TestVerifiedMessagesStayWithinTheConfiguredTeam(t *testing.T) {

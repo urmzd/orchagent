@@ -82,9 +82,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/attachment"
-	"github.com/urmzd/humagen/fiber/pkg/blob"
-	types "github.com/urmzd/humagen/fiber/pkg/turn/native/saigetypes"
+	"github.com/urmzd/orchagent/fiber/pkg/attachment"
+	"github.com/urmzd/orchagent/fiber/pkg/blob"
+	types "github.com/urmzd/orchagent/fiber/pkg/turn/native/saigetypes"
 )
 
 // Sentinel errors.

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/urmzd/humagen/fiber/pkg/definition"
+	"github.com/urmzd/orchagent/fiber/pkg/definition"
 )
 
 // AgentName is the built-in agent's name. It matches the connector's, so the

@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/urmzd/playscape/pkg/task"
-	"github.com/urmzd/playscape/pkg/tool"
+	"github.com/urmzd/orchagent/playscape/pkg/task"
+	"github.com/urmzd/orchagent/playscape/pkg/tool"
 )
 
 // DefaultMaxLogBytes caps the logs a Shell tool returns when

@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/urmzd/playscape/pkg/isolate/isolatetest"
-	"github.com/urmzd/playscape/pkg/isolate/local"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate/isolatetest"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate/local"
 )
 
 func TestConformance(t *testing.T) {

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/playscape/pkg/isolate"
-	"github.com/urmzd/playscape/pkg/isolate/egress"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate/egress"
 )
 
 // upstreamServer answers every GET with the Authorization header it got and

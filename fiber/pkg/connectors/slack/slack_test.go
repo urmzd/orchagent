@@ -15,13 +15,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/rendertest"
-	"github.com/urmzd/humagen/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/internal/rendertest"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/connector"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/slack"
-	"github.com/urmzd/humagen/fiber/pkg/signature"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/connector"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/slack"
+	"github.com/urmzd/orchagent/fiber/pkg/signature"
 )
 
 const secret = "8f742231b10e8888abcd99yyyzzz85a5"

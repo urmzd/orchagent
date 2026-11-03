@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/urmzd/humagen/fiber/pkg/definition"
+	"github.com/urmzd/orchagent/fiber/pkg/definition"
 )
 
 // Content returns a valid .agent.md file for name at version with prompt.

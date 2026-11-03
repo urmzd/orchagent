@@ -16,7 +16,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	anchor "github.com/urmzd/anchor"
+	anchor "github.com/urmzd/orchagent/anchor"
 )
 
 // EffectsDDL creates the witness table. It belongs to the example, not to

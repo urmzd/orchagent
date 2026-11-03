@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/connector"
-	"github.com/urmzd/humagen/fiber/pkg/definition"
-	"github.com/urmzd/humagen/fiber/pkg/turn"
+	"github.com/urmzd/orchagent/fiber/pkg/connector"
+	"github.com/urmzd/orchagent/fiber/pkg/definition"
+	"github.com/urmzd/orchagent/fiber/pkg/turn"
 )
 
 // draftSchema is the JSON Schema of a draft, shared by every action that takes

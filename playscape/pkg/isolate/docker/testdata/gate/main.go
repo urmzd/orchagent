@@ -8,7 +8,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/urmzd/playscape/pkg/isolate/egress"
+	"github.com/urmzd/orchagent/playscape/pkg/isolate/egress"
 )
 
 func main() {

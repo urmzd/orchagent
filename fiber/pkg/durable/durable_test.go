@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/urmzd/humagen/fiber/pkg/durable"
+	"github.com/urmzd/orchagent/fiber/pkg/durable"
 )
 
 // postgresEnv names the Postgres these tests run against. Without it they

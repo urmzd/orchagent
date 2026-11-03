@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/urmzd/anchor"
+	"github.com/urmzd/orchagent/anchor"
 	sdef "github.com/urmzd/saige/agent/definition"
 )
 

@@ -8,9 +8,9 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/render"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/internal/sink"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/internal/render"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/internal/sink"
 )
 
 // CheckAPI owns one check per agent run on the pinned commit.

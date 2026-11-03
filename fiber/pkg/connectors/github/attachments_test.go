@@ -13,12 +13,12 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/urmzd/humagen/fiber/pkg/address"
-	"github.com/urmzd/humagen/fiber/pkg/attachment/intake"
-	"github.com/urmzd/humagen/fiber/pkg/blob"
-	"github.com/urmzd/humagen/fiber/pkg/connectors"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/github"
-	"github.com/urmzd/humagen/fiber/pkg/connectors/mention"
+	"github.com/urmzd/orchagent/fiber/pkg/address"
+	"github.com/urmzd/orchagent/fiber/pkg/attachment/intake"
+	"github.com/urmzd/orchagent/fiber/pkg/blob"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/github"
+	"github.com/urmzd/orchagent/fiber/pkg/connectors/mention"
 )
 
 const (

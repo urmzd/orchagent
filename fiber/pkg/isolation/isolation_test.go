@@ -10,8 +10,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/urmzd/humagen/fiber/pkg/isolation"
-	"github.com/urmzd/humagen/fiber/pkg/isolation/isolationtest"
+	"github.com/urmzd/orchagent/fiber/pkg/isolation"
+	"github.com/urmzd/orchagent/fiber/pkg/isolation/isolationtest"
 )
 
 // files is an in-memory Files source.

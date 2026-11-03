@@ -1,6 +1,6 @@
 # anchor
 
-Beta durable-execution framework for existing Go code: wrap functions with `Activity`/`Step`/`Event`, run a worker, and code survives crashes by replaying from the ledger. Go module `github.com/urmzd/anchor`; a library, whose one binary is `anchor`, a read-only ledger inspector in `adapters/postgres/cmd/anchor`.
+Beta durable-execution framework for existing Go code: wrap functions with `Activity`/`Step`/`Event`, run a worker, and code survives crashes by replaying from the ledger. Go module `github.com/urmzd/orchagent/anchor`; a library, whose one binary is `anchor`, a read-only ledger inspector in `adapters/postgres/cmd/anchor`.
 
 ## Architecture
 
@@ -57,7 +57,7 @@ Full guide: `docs/architecture/overview.md`. Discover layout with `tree` or ripg
 
 ## Releases
 
-sr versions the root and adapters together per `sr.yaml`, cutting one `vX.Y.Z` tag (no per-module `adapters/...` tags, so external consumers of the adapter modules resolve pseudo-versions). The adapters' `go.mod` files pin the released root version and keep `replace github.com/urmzd/anchor => ../..` for in-repo development; downstream consumers ignore the replace and resolve the pinned require. Bump the pin when a release changes the core contracts.
+sr versions the root and adapters together per `sr.yaml`, cutting one `vX.Y.Z` tag (no per-module `adapters/...` tags, so external consumers of the adapter modules resolve pseudo-versions). The adapters' `go.mod` files pin the released root version and keep `replace github.com/urmzd/orchagent/anchor => ../..` for in-repo development; downstream consumers ignore the replace and resolve the pinned require. Bump the pin when a release changes the core contracts.
 
 ## Extension Guide
 

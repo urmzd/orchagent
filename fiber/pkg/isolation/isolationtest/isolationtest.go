@@ -16,9 +16,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/urmzd/playscape/pkg/workspace"
+	"github.com/urmzd/orchagent/playscape/pkg/workspace"
 
-	"github.com/urmzd/humagen/fiber/pkg/isolation"
+	"github.com/urmzd/orchagent/fiber/pkg/isolation"
 )
 
 // Leaser starts host-process instances under Dir (a temporary directory

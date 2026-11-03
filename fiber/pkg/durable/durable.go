@@ -3,7 +3,7 @@
 //
 // It is deliberately only a schema. anchor already ships Postgres
 // implementations of ledger.Ledger and queue.Queue, pgledger and pgqueue in the
-// module github.com/urmzd/anchor/adapters/postgres, and they are held to
+// module github.com/urmzd/orchagent/anchor/adapters/postgres, and they are held to
 // anchor's own conformance suites. What they refuse to do is own tables: an
 // adapter maps onto tables the application names, validates them, and never
 // executes DDL. Something has to create those tables, and that something is the
@@ -52,7 +52,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/urmzd/humagen/internal/legacy"
+	"github.com/urmzd/orchagent/fiber/internal/legacy"
 )
 
 // The tables this package owns. They are exported so the mapping handed to

@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/urmzd/anchor/adapters/postgres/pgledger"
-	"github.com/urmzd/anchor/adapters/postgres/pgqueue"
+	"github.com/urmzd/orchagent/anchor/adapters/postgres/pgledger"
+	"github.com/urmzd/orchagent/anchor/adapters/postgres/pgqueue"
 )
 
 // Open migrates the schema and returns anchor's Postgres ledger and queue

@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/anchor/pkg/queue"
-	"github.com/urmzd/anchor/pkg/run"
+	"github.com/urmzd/orchagent/anchor/pkg/queue"
+	"github.com/urmzd/orchagent/anchor/pkg/run"
 )
 
 const (

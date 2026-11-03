@@ -32,7 +32,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/urmzd/humagen/fiber/pkg/signature"
+	"github.com/urmzd/orchagent/fiber/pkg/signature"
 )
 
 const (

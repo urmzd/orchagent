@@ -10,11 +10,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/urmzd/humagen/fiber"
-	"github.com/urmzd/humagen/fiber/pkg/definition"
-	"github.com/urmzd/humagen/fiber/pkg/event"
-	"github.com/urmzd/humagen/fiber/pkg/turn/native"
-	saigetypes "github.com/urmzd/humagen/fiber/pkg/turn/native/saigetypes"
+	"github.com/urmzd/orchagent/fiber"
+	"github.com/urmzd/orchagent/fiber/pkg/definition"
+	"github.com/urmzd/orchagent/fiber/pkg/event"
+	"github.com/urmzd/orchagent/fiber/pkg/turn/native"
+	saigetypes "github.com/urmzd/orchagent/fiber/pkg/turn/native/saigetypes"
 )
 
 // renderer prints a run's events as they arrive.
