@@ -393,8 +393,13 @@ func newDurable(ctx context.Context, pool *pgxpool.Pool, o options) (Ledger, dqu
 func surfaceMessageID(e event.Envelope) string {
 	switch b := e.Data.(type) {
 	case event.MessagePosted:
-		if b.Slack != nil {
+		switch {
+		case b.Slack != nil:
 			return b.Slack.TS
+		case b.WhatsApp != nil:
+			return b.WhatsApp.MessageID
+		case b.IMessage != nil:
+			return b.IMessage.GUID
 		}
 	case event.GitHubIssueCommentCreated:
 		return commentID(b.CommentID)

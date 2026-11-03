@@ -73,6 +73,10 @@ func TestIngressRendersTheTriggerContext(t *testing.T) {
 			"Context from the trigger:\n- a: 1\n- b: 2\n\nhi"},
 		{event.MessagePosted{Request: event.Request{Text: "hi"}, Slack: &event.SlackRef{Team: "T", Channel: "C", User: "U", Event: "message"}},
 			"Context from the trigger:\n- slack_channel: C\n- slack_event: message\n- slack_team: T\n- slack_ts: \n- slack_user: U\n\nhi"},
+		{event.MessagePosted{Request: event.Request{Text: "hi"}, WhatsApp: &event.WhatsAppRef{PhoneNumberID: "106", From: "15551234567", MessageID: "wamid.1", Type: "audio", Voice: true}},
+			"Context from the trigger:\n- whatsapp_from: 15551234567\n- whatsapp_message_id: wamid.1\n- whatsapp_phone_number_id: 106\n- whatsapp_type: audio\n- whatsapp_voice: true\n\nhi"},
+		{event.MessagePosted{Request: event.Request{Text: "hi"}, IMessage: &event.IMessageRef{Server: "home", Chat: "iMessage;+;chat1", Sender: "+15551234567", GUID: "G1", Group: true}},
+			"Context from the trigger:\n- imessage_chat: iMessage;+;chat1\n- imessage_group: true\n- imessage_guid: G1\n- imessage_sender: +15551234567\n- imessage_server: home\n\nhi"},
 		{event.SlackCommandInvoked{Request: event.Request{Text: "/ask x"}, Command: "/ask", Team: "T", Channel: "C", User: "U"},
 			"Context from the trigger:\n- slack_channel: C\n- slack_command: /ask\n- slack_event: slash_command\n- slack_team: T\n- slack_user: U\n\n/ask x"},
 		{event.GitHubIssueOpened{Request: event.Request{Text: "t"}, GitHubRef: event.GitHubRef{Owner: "o", Repo: "r", Number: 1, Title: "T", Sender: "s", Draft: true}},
@@ -169,5 +173,25 @@ func TestGitHubTypeCoversEveryGitHubBody(t *testing.T) {
 	}
 	if _, ok := event.GitHubType("push", ""); ok {
 		t.Error("GitHubType(push) is registered")
+	}
+}
+
+func TestDirectMessageCoversEveryOneToOneSurface(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body event.Body
+		want bool
+	}{
+		{"slack dm", event.MessagePosted{Slack: &event.SlackRef{ChannelType: "im"}}, true},
+		{"slack channel", event.MessagePosted{Slack: &event.SlackRef{ChannelType: "channel"}}, false},
+		{"whatsapp", event.MessagePosted{WhatsApp: &event.WhatsAppRef{From: "1"}}, true},
+		{"imessage one to one", event.MessagePosted{IMessage: &event.IMessageRef{Chat: "iMessage;-;+1"}}, true},
+		{"imessage group", event.MessagePosted{IMessage: &event.IMessageRef{Chat: "iMessage;+;chat1", Group: true}}, false},
+		{"no surface", event.MessagePosted{}, false},
+		{"not a message", event.CronTick{}, false},
+	} {
+		if got := event.DirectMessage(tc.body); got != tc.want {
+			t.Errorf("%s: DirectMessage = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }

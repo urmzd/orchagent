@@ -75,11 +75,52 @@ type SlackRef struct {
 	AppID       string `json:"app_id,omitempty"`
 }
 
+// WhatsAppRef is where in WhatsApp (the Cloud API) a message was received.
+// A Cloud API conversation is always one person and one business number.
+type WhatsAppRef struct {
+	// PhoneNumberID is the business number's Graph API id, the address
+	// workspace.
+	PhoneNumberID string `json:"phone_number_id"`
+	// From is the sender's WhatsApp id (wa_id), usually their phone number
+	// in international form without the "+".
+	From string `json:"from"`
+	// MessageID is the message's id (wamid...), which is also the event id.
+	MessageID string `json:"message_id"`
+	// Type is the WhatsApp message type: "text" or "audio".
+	Type string `json:"type"`
+	// Voice is set for an audio message recorded as a voice note.
+	Voice bool `json:"voice,omitempty"`
+	// ReplyTo is the id of the message this one replies to, when the person
+	// used WhatsApp's reply.
+	ReplyTo string `json:"reply_to,omitempty"`
+}
+
+// IMessageRef is where in iMessage (through a BlueBubbles server) a message
+// was received.
+type IMessageRef struct {
+	// Server names the BlueBubbles server, the address workspace.
+	Server string `json:"server"`
+	// Chat is the chat guid ("iMessage;-;+15551234567" for a one-to-one
+	// chat, "iMessage;+;chat123..." for a group).
+	Chat string `json:"chat"`
+	// Sender is the handle that sent the message: a phone number or an
+	// email address.
+	Sender string `json:"sender"`
+	// GUID is the message guid, which is also the event id.
+	GUID string `json:"guid"`
+	// Group is set for a group chat.
+	Group bool `json:"group,omitempty"`
+	// Audio is set for an audio message (a voice note recorded in Messages).
+	Audio bool `json:"audio,omitempty"`
+}
+
 // MessagePosted is the body of message.posted.v1: a person writing to an
-// agent on any surface. Slack is set when the surface is Slack.
+// agent on any surface. At most one surface ref is set, naming the surface.
 type MessagePosted struct {
 	Request
-	Slack *SlackRef `json:"slack,omitempty"`
+	Slack    *SlackRef    `json:"slack,omitempty"`
+	WhatsApp *WhatsAppRef `json:"whatsapp,omitempty"`
+	IMessage *IMessageRef `json:"imessage,omitempty"`
 }
 
 // SlackCommandInvoked is the body of slack.command.invoked.v1: a slash
@@ -335,10 +376,42 @@ func (s SlackRef) meta(m map[string]string) {
 	setNonEmpty(m, "slack_app_id", s.AppID)
 }
 
+// meta adds the trigger context a WhatsApp message carries to m.
+func (w WhatsAppRef) meta(m map[string]string) {
+	m["whatsapp_phone_number_id"] = w.PhoneNumberID
+	m["whatsapp_from"] = w.From
+	m["whatsapp_message_id"] = w.MessageID
+	setNonEmpty(m, "whatsapp_type", w.Type)
+	if w.Voice {
+		m["whatsapp_voice"] = "true"
+	}
+	setNonEmpty(m, "whatsapp_reply_to", w.ReplyTo)
+}
+
+// meta adds the trigger context an iMessage carries to m.
+func (i IMessageRef) meta(m map[string]string) {
+	m["imessage_server"] = i.Server
+	m["imessage_chat"] = i.Chat
+	m["imessage_sender"] = i.Sender
+	m["imessage_guid"] = i.GUID
+	if i.Group {
+		m["imessage_group"] = "true"
+	}
+	if i.Audio {
+		m["imessage_audio"] = "true"
+	}
+}
+
 func (b MessagePosted) meta() map[string]string {
 	m := b.contextMap()
 	if b.Slack != nil {
 		b.Slack.meta(m)
+	}
+	if b.WhatsApp != nil {
+		b.WhatsApp.meta(m)
+	}
+	if b.IMessage != nil {
+		b.IMessage.meta(m)
 	}
 	return m
 }
@@ -679,8 +752,21 @@ func Addressees(b Body) []string {
 }
 
 // DirectMessage reports whether an event arrived in a one-to-one
-// conversation with the agent, such as a Slack DM.
+// conversation with the agent: a Slack DM, any WhatsApp message (a Cloud API
+// conversation is always one person and the business), or an iMessage that is
+// not in a group chat.
 func DirectMessage(b Body) bool {
 	m, ok := b.(MessagePosted)
-	return ok && m.Slack != nil && m.Slack.ChannelType == "im"
+	if !ok {
+		return false
+	}
+	switch {
+	case m.Slack != nil:
+		return m.Slack.ChannelType == "im"
+	case m.WhatsApp != nil:
+		return true
+	case m.IMessage != nil:
+		return !m.IMessage.Group
+	}
+	return false
 }
