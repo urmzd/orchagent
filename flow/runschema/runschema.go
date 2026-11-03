@@ -1,4 +1,4 @@
-// Package durable owns the Postgres schema that durable's run ledger and queue
+// Package runschema owns the Postgres schema that durable's run ledger and queue
 // are stored in, so a run in flight outlives the process that accepted it.
 //
 // It is deliberately only a schema. durable already ships Postgres
@@ -72,7 +72,7 @@ const (
 // ErrNoPool is returned by Migrate when it is handed a nil pool. It is a
 // sentinel, not a panic, because the pool comes from deployment configuration
 // and a missing one should stop startup with a message, not a stack trace.
-var ErrNoPool = errors.New("durable: no connection pool")
+var ErrNoPool = errors.New("runschema: no connection pool")
 
 // schema is everything this package owns.
 //
@@ -175,7 +175,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("durable: migrate: %w", err)
+		return fmt.Errorf("runschema: migrate: %w", err)
 	}
 	return nil
 }

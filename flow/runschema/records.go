@@ -39,7 +39,7 @@ func (r *Records) RecordsWithPrefix(ctx context.Context, runID string, prefixes 
 		`SELECT record_key, envelope FROM `+RecordsTable+` WHERE run_id = $1 AND record_key LIKE ANY($2)`,
 		runID, patterns)
 	if err != nil {
-		return nil, fmt.Errorf("durable: records of %s: %w", runID, err)
+		return nil, fmt.Errorf("runschema: records of %s: %w", runID, err)
 	}
 	defer rows.Close()
 	var out []run.Record
@@ -47,17 +47,17 @@ func (r *Records) RecordsWithPrefix(ctx context.Context, runID string, prefixes 
 		var key string
 		var env []byte
 		if err := rows.Scan(&key, &env); err != nil {
-			return nil, fmt.Errorf("durable: records of %s: %w", runID, err)
+			return nil, fmt.Errorf("runschema: records of %s: %w", runID, err)
 		}
 		var rec run.Record
 		if err := json.Unmarshal(env, &rec); err != nil {
-			return nil, fmt.Errorf("durable: record %s/%s: %w", runID, key, err)
+			return nil, fmt.Errorf("runschema: record %s/%s: %w", runID, key, err)
 		}
 		rec.RunID, rec.Key = runID, key
 		out = append(out, rec)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("durable: records of %s: %w", runID, err)
+		return nil, fmt.Errorf("runschema: records of %s: %w", runID, err)
 	}
 	return out, nil
 }

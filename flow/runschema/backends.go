@@ -21,20 +21,20 @@ func Open(ctx context.Context, pool *pgxpool.Pool, opts ...pgqueue.Option) (*pgl
 	lm.Records.Table = RecordsTable
 	lgr, err := pgledger.New(pool, lm)
 	if err != nil {
-		return nil, nil, fmt.Errorf("durable: ledger: %w", err)
+		return nil, nil, fmt.Errorf("runschema: ledger: %w", err)
 	}
 	if err := lgr.Validate(ctx); err != nil {
-		return nil, nil, fmt.Errorf("durable: ledger: %w", err)
+		return nil, nil, fmt.Errorf("runschema: ledger: %w", err)
 	}
 
 	qm := pgqueue.DefaultMapping()
 	qm.Table = QueueTable
 	q, err := pgqueue.New(pool, qm, opts...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("durable: queue: %w", err)
+		return nil, nil, fmt.Errorf("runschema: queue: %w", err)
 	}
 	if err := q.Validate(ctx); err != nil {
-		return nil, nil, fmt.Errorf("durable: queue: %w", err)
+		return nil, nil, fmt.Errorf("runschema: queue: %w", err)
 	}
 	return lgr, q, nil
 }
