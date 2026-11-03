@@ -2,7 +2,7 @@
 //
 // This is a security boundary, and for a webhook-style trigger it is the only
 // one. There is no session and no handshake: the sole evidence that a POST
-// came from Slack or GitHub, rather than from anyone on the internet who
+// came from Slack, GitHub or Meta, rather than from anyone on the internet who
 // learned the URL, is a MAC over the raw request body computed with a shared
 // secret. A run, the agent's tools, and whatever those tools are allowed to do
 // all hang off this check returning nil, so it fails closed on every
@@ -123,6 +123,11 @@ const (
 	// ignores and never falls back to: a fallback would let a caller who can
 	// suppress one header downgrade the whole check.
 	HeaderGitHubSignature = "X-Hub-Signature-256"
+
+	// HeaderMetaSignature is the header Meta signs a WhatsApp Cloud API (and
+	// any other Graph API) webhook with. It has GitHub's name and format; the
+	// key is the Meta app secret.
+	HeaderMetaSignature = "X-Hub-Signature-256"
 )
 
 // Algorithm prefixes each provider puts in front of the hex digest.
@@ -157,6 +162,7 @@ type Verifier interface {
 var (
 	_ Verifier = (*Slack)(nil)
 	_ Verifier = (*GitHub)(nil)
+	_ Verifier = (*Meta)(nil)
 )
 
 // Slack verifies Slack Events API request signing:
@@ -294,27 +300,61 @@ func NewGitHub(secret string) *GitHub { return &GitHub{Secret: []byte(secret)} }
 
 // Verify authenticates body against the GitHub signature header.
 func (g *GitHub) Verify(header http.Header, body []byte) error {
-	if len(g.Secret) == 0 {
-		return fmt.Errorf("%w: github verifier has an empty webhook secret", ErrNoSecret)
+	return verifyHub(g.Secret, "github webhook secret", HeaderGitHubSignature, header, body)
+}
+
+// Meta verifies Meta's Graph API webhook signing, which is what the WhatsApp
+// Cloud API sends:
+//
+//	X-Hub-Signature-256 = "sha256=" + hex(HMAC_SHA256(app secret, body))
+//
+// The scheme is GitHub's, byte for byte, and has the same property: no
+// timestamp, so no replay window. A redelivered or replayed notification
+// carries the same message id (wamid...), which is the idempotency key
+// downstream.
+//
+// The GET subscription handshake (hub.mode, hub.verify_token,
+// hub.challenge) is not signed and is not this verifier's business: the
+// WhatsApp connector answers it by comparing the verify token in constant
+// time.
+type Meta struct {
+	// AppSecret is the Meta app's secret (App settings, Basic). A verifier
+	// with no secret refuses every request with ErrNoSecret.
+	AppSecret []byte
+}
+
+// NewMeta returns a verifier for a Meta app secret.
+func NewMeta(appSecret string) *Meta { return &Meta{AppSecret: []byte(appSecret)} }
+
+// Verify authenticates body against the Meta signature header.
+func (m *Meta) Verify(header http.Header, body []byte) error {
+	return verifyHub(m.AppSecret, "meta app secret", HeaderMetaSignature, header, body)
+}
+
+// verifyHub checks a "sha256=" + hex HMAC of the body alone, the scheme
+// GitHub and Meta share. what names the secret in errors.
+func verifyHub(secret []byte, what, key string, header http.Header, body []byte) error {
+	if len(secret) == 0 {
+		return fmt.Errorf("%w: verifier has an empty %s", ErrNoSecret, what)
 	}
 
-	signature, err := single(header, HeaderGitHubSignature)
+	signature, err := single(header, key)
 	if err != nil {
 		return err
 	}
-	want, err := digest(signature, githubPrefix, HeaderGitHubSignature)
+	want, err := digest(signature, githubPrefix, key)
 	if err != nil {
 		return err
 	}
 
-	mac := hmac.New(sha256.New, g.Secret)
+	mac := hmac.New(sha256.New, secret)
 	_, _ = mac.Write(body)
 
 	// hmac.Equal for the same reason as in Slack.Verify: a comparison that
 	// short-circuits leaks, through timing, how much of the digest was right,
 	// and a public endpoint can be probed as many times as an attacker likes.
 	if !hmac.Equal(mac.Sum(nil), want) {
-		return fmt.Errorf("%w: %s does not match the body under the github webhook secret", ErrSignatureMismatch, HeaderGitHubSignature)
+		return fmt.Errorf("%w: %s does not match the body under the %s", ErrSignatureMismatch, key, what)
 	}
 	return nil
 }
