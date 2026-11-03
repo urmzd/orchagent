@@ -1,0 +1,29 @@
+
+!.env.example
+# Build artifacts
+# Built example binary
+# Coverage
+# Git worktrees
+# OS noise
+# Runtime state
+# Secrets and local environment
+# direnv
+*.key
+*.out
+*.pem
+*.test
+.DS_Store
+.direnv/
+.env
+.env.*
+.envrc.local
+.flow/
+.sandbox/
+.worktrees/
+bin/
+build/
+coverage.html
+dist/
+sandbox/examples/saige/saige
+go.work
+go.work.sum
