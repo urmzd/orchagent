@@ -40,7 +40,7 @@ retry never runs a newer prompt.
 | **Definition** | A saige `.agent.md` file plus a flow `Policy` sidecar, stored insert only. A run pins its name, version, saige digest, sub-agent versions and policy hash, and fails terminally if any of them moved. |
 | **Membership** | Which agents a channel's events wake, and for which types. Default deny, and by default only for events that name the agent. An agent's own output never wakes it, and a hop limit stops two agents answering each other forever. |
 | **Runtime** | `turn.Runtime`, the one seam that runs a turn: a pinned definition and an input event in, catalog events out. saige is the default; bring your own with `flow.WithTurnRuntime`. |
-| **Adapters** | Ingress adapters (Slack, GitHub, Jira, cron) publish typed events and choose no agent. Egress adapters (Slack, GitHub, Jira, webhook) subscribe by channel and type. |
+| **Adapters** | Ingress adapters (Slack, GitHub, Jira, WhatsApp, iMessage, cron) publish typed events and choose no agent. Egress adapters (Slack, GitHub, Jira, WhatsApp, iMessage, webhook) subscribe by channel and type. |
 
 ## Features
 
@@ -497,8 +497,8 @@ Model providers read their own credentials when an agent is built:
 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` and `OPENAI_BASE_URL`, and the variable an `OpenAICompatible.KeyEnv` names. An MCP provider's
 `env:NAME` credential reference resolves the same way, as does a reference a
 `WithPersonCredentials` resolver returns for a person. Set up connectors with
-the [GitHub](docs/architecture/github.md) and [Slack](docs/architecture/slack.md)
-guides.
+the [GitHub](docs/architecture/github.md), [Slack](docs/architecture/slack.md)
+and [WhatsApp and iMessage](docs/architecture/messaging.md) guides.
 
 ## API
 
@@ -533,6 +533,7 @@ Full reference: [pkg.go.dev/github.com/urmzd/orchagent/flow](https://pkg.go.dev/
 | [docs/architecture/overview.md](docs/architecture/overview.md) | Channels, membership, delivery, durability, stopping, usage, parking, credentials, limitations |
 | [docs/architecture/github.md](docs/architecture/github.md) | GitHub connector setup |
 | [docs/architecture/slack.md](docs/architecture/slack.md) | Slack connector setup |
+| [docs/architecture/messaging.md](docs/architecture/messaging.md) | WhatsApp (Cloud API) and iMessage (BlueBubbles) connectors: addresses, voice notes, setup |
 | [docs/guides/renaming.md](../docs/guides/renaming.md#flow) | Upgrading persisted data across the rename |
 | [examples/README.md](examples/README.md) | Runnable example index |
 | [AGENTS.md](AGENTS.md) | AI-facing conventions, commands, rules, extension guide |

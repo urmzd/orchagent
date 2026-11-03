@@ -10,6 +10,8 @@
 //	           slack.session.stopped.v1
 //	github     github.<event>.<action>.v1   comments, checks  yes
 //	jira       jira.*.v1                    comments          yes
+//	whatsapp   message.posted.v1            sent once         yes
+//	imessage   message.posted.v1            sent once         yes
 //	cron       cron.tick.v1                 no                no
 //	webhook    no                           envelope POST v2  no
 //	author     no                           no                yes
@@ -44,6 +46,12 @@
 // internal/render files each event under its Envelope.Seq, so a late low-Seq
 // text delta lands in its correct position instead of appending stale text
 // after fresh text, and a Seq already applied is dropped.
+//
+// A surface that cannot edit (WhatsApp has no edit, an iMessage edit through
+// BlueBubbles is unreliable and shows the reader its history) cannot take an
+// edited message, so it takes none while the run works: internal/sink's Once
+// sends one message per moment a person is owed (a question, the end), and
+// keys each moment so a redelivery sends nothing.
 //
 // The exception proves the rule: the webhook sink posts every event, because
 // its receiver is a program that dedupes on the delivery key rather than a

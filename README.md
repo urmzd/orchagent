@@ -28,7 +28,7 @@ compose it in Go.
 
 - **Durable runs** ([`durable`](durable/README.md)): a ledger of runs, a queue with leases and fencing, a worker that resumes after a crash, and replay, with Postgres and Redis adapters.
 - **Sandboxes** ([`sandbox`](sandbox/README.md)): sandboxed tools on a shared workspace, NGAC access control, isolated instances (Docker, gVisor), and local and Kubernetes runners.
-- **Event flow** ([`flow`](flow/README.md)): the event union, the channel bus, connectors (Slack, GitHub, Jira, cron, webhooks), agent definitions with policy, the durable turn, threads and knowledge.
+- **Event flow** ([`flow`](flow/README.md)): the event union, the channel bus, connectors (Slack, GitHub, Jira, WhatsApp, iMessage, cron, webhooks), agent definitions with policy, the durable turn, threads and knowledge.
 - **No service to run**: no listener, no config files, no environment variables. Backends are chosen in code.
 - **Validation CLIs**: each component ships a command that exercises it on its own.
 

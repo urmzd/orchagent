@@ -220,6 +220,8 @@ slack://T01/C02
 slack://T01/C02?thread=1699.001
 github://acme/handbook/issues/42
 jira://acme.atlassian.net/PROJ-7
+whatsapp://106540352242922/15551234567
+imessage://home/iMessage%3B-%3B+15551234567
 cron://default/nightly-report
 ```
 
@@ -424,7 +426,9 @@ Implemented in `pkg/connector` (`Trigger.Ingest(ctx, publish)`,
   `slack.command.invoked.v1` and `slack.session.stopped.v1`. GitHub publishes
   `github.*.v1`, with `head_sha` pinned before publish when checks are on; a
   bot sender is dropped except for `synchronize`, whose id is
-  `github:commit:<repo>:<number>:<sha>`. Jira publishes `jira.*.v1`. Cron
+  `github:commit:<repo>:<number>:<sha>`. Jira publishes `jira.*.v1`.
+  WhatsApp and iMessage publish `message.posted.v1` with the message id as
+  the event id and `whatsapp` or `imessage` set. Cron
   publishes `cron.tick.v1` with id `<name>@<unix>` on `cron://<tenant>/<name>`,
   and joins the schedule's agent to that channel. A `Prepare` hook takes
   `*event.Envelope`.

@@ -111,6 +111,8 @@ Surfaces are adapters on either side of the bus:
 | slack | yes | yes | yes |
 | github | yes | yes | yes |
 | jira | yes | yes | yes |
+| whatsapp | yes | yes, send once | yes |
+| imessage | yes | yes, send once | yes |
 | cron | yes | no | no |
 | webhook | no | yes | no |
 | author | no | no | yes |
@@ -842,7 +844,7 @@ composition
   pkg/runtime        the durable durable turn: accept, pin, stop, usage, parking
   pkg/dispatch       wakes channel members for ingress events
   pkg/egress         delivery to sinks by channel and type prefix
-  pkg/connectors     slack, github, jira, cron, webhook, author, mention
+  pkg/connectors     slack, github, jira, whatsapp, imessage, cron, webhook, author, mention
   flow (root)       the composition root, composed in Go
 ```
 
