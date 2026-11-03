@@ -1,0 +1,27 @@
+# Build artifacts
+bin/
+build/
+
+# Runtime state
+.fiber/
+
+# Coverage
+*.out
+coverage.html
+
+# OS noise
+.DS_Store
+
+# direnv
+.direnv/
+
+# Git worktrees
+.worktrees/
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+.envrc.local
+*.pem
+*.key
