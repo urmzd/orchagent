@@ -1,0 +1,26 @@
+# orchagent
+
+> Go library for running agent work durably: durable runs that finish once despite crashes, sandboxed tools with NGAC access control, and an event flow that connects agents to Slack, GitHub, Jira, cron and webhooks. It starts no server and reads no configuration; you compose it in Go.
+
+Install with `go get github.com/urmzd/orchagent`. The Kubernetes runner is a separate module: `go get github.com/urmzd/orchagent/sandbox/runner/k8s`.
+
+## Docs
+
+- [README](https://github.com/urmzd/orchagent/blob/main/README.md): features, install, quick start, examples
+- [durable](https://github.com/urmzd/orchagent/blob/main/durable/README.md): ledger, queue with leases and fencing, worker, replay, Postgres and Redis adapters
+- [sandbox](https://github.com/urmzd/orchagent/blob/main/sandbox/README.md): workspace, tool registry, control plane, NGAC policy, Docker and gVisor isolation
+- [flow](https://github.com/urmzd/orchagent/blob/main/flow/README.md): event union, channel bus, connectors, agent definitions, durable turn
+- [Go reference](https://pkg.go.dev/github.com/urmzd/orchagent): API documentation
+
+## Architecture
+
+- [durable architecture](https://github.com/urmzd/orchagent/blob/main/durable/docs/architecture/overview.md): how ledger, queue and worker fit together
+- [replay spec](https://github.com/urmzd/orchagent/blob/main/durable/docs/architecture/replay.md): record identity, claim protocol, failure modes
+- [sandbox architecture](https://github.com/urmzd/orchagent/blob/main/sandbox/docs/architecture/overview.md): sandbox design
+- [flow architecture](https://github.com/urmzd/orchagent/blob/main/flow/docs/architecture/overview.md): bus, events and connectors
+
+## Optional
+
+- [Agent skill](https://github.com/urmzd/orchagent/blob/main/skills/orchagent/SKILL.md): conventions for agents using orchagent
+- [AGENTS.md](https://github.com/urmzd/orchagent/blob/main/AGENTS.md): repo rules for contributors and AI agents
+- [Contributing](https://github.com/urmzd/orchagent/blob/main/CONTRIBUTING.md)

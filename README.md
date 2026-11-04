@@ -205,10 +205,12 @@ make test-integration   # Postgres and Redis adapters (uses compose.yaml)
 
 ## Documentation
 
-- [durable docs](durable/docs/README.md)
-- [sandbox docs](sandbox/docs/README.md)
-- [flow architecture](flow/docs/architecture/overview.md)
+- [Documentation index](docs/README.md)
 - [Contributing](CONTRIBUTING.md)
+
+## Agent Skill
+
+This repo's conventions are available as portable agent skills in [`skills/`](skills/).
 
 ## License
 
