@@ -318,6 +318,7 @@ its hash (`Policy.Hash`, domain `fiber/policy/v1`) is part of every pin.
 | `self_approval` | Whether the person who asked may approve |
 | `answerers` | Who may answer a parked question |
 | `tagged_only` | Keep the agent out of messages that do not name it |
+| `choices` | Models (`provider/model`) and reasoning efforts a person may pick for one message. Absent offers none; the host applies a pick to its copy of the turn's spec (`turn.Spec.Provider`, `Model`, `Effort`) |
 
 **Validation.** A definition passes saige's own checks, then flow's, which
 fail closed: a model is required and is `provider/model` (no presets); the

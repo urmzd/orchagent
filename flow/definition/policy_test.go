@@ -73,3 +73,42 @@ func TestPolicyValidateRefusesBadEntries(t *testing.T) {
 		t.Errorf("zero policy: %v", err)
 	}
 }
+
+// Choices offer nothing by default, normalize to a set, and refuse entries
+// a host could not apply.
+func TestPolicyChoices(t *testing.T) {
+	var zero definition.Policy
+	if zero.Choices.AllowsModel("anthropic/claude") || zero.Choices.AllowsEffort("high") {
+		t.Error("the zero policy offers a choice")
+	}
+	empty := definition.Policy{Choices: &definition.Choices{}}
+	if empty.Normalize().Choices != nil || empty.Hash() != zero.Hash() {
+		t.Error("choices that offer nothing differ from none")
+	}
+	p := definition.Policy{Choices: &definition.Choices{
+		Models:  []string{" openai/gpt ", "anthropic/claude"},
+		Efforts: []string{"High", "low"},
+	}}.Normalize()
+	if !p.Choices.AllowsModel("openai/gpt") || !p.Choices.AllowsEffort("high") || p.Choices.AllowsEffort("medium") {
+		t.Errorf("normalized choices %+v", p.Choices)
+	}
+	if p.Hash() == zero.Hash() {
+		t.Error("choices kept the hash")
+	}
+	for name, c := range map[string]definition.Choices{
+		"bare model":     {Models: []string{"claude"}},
+		"repeated model": {Models: []string{"a/b", "a/b"}},
+		"odd effort":     {Efforts: []string{"very-high"}},
+	} {
+		if err := (definition.Policy{Choices: &c}).Validate(); err == nil {
+			t.Errorf("%s: Validate accepted %+v", name, c)
+		}
+	}
+	content := "---\napiVersion: saige/v1\nname: docs-bot\nversion: 1.0.0\nmodel: offline/echo\n---\nAnswer.\n"
+	if _, err := definition.Parse(content, definition.Policy{Choices: &definition.Choices{Models: []string{"nowhere/x"}}}, definition.Checks{}); err == nil {
+		t.Error("Parse accepted a model choice behind an unknown provider")
+	}
+	if _, err := definition.Parse(content, p, definition.Checks{Providers: []string{"anthropic", "openai", "offline"}}); err != nil {
+		t.Errorf("Parse refused valid choices: %v", err)
+	}
+}

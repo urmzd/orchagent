@@ -208,6 +208,13 @@ fallback is built with the agent, so one whose provider is not configured
 call is priced on the rate card of the model that answered it. Order is part
 of the definition, so reordering fallbacks is a new version.
 
+A turn's spec may also carry `effort`, the reasoning effort the primary model
+is asked for (`low`, `high`, and so on). Hosts set it, with `provider` and
+`model`, on their copy of the pinned spec for one turn: the Policy's
+`choices` lists what a person may pick for a message. An effort the model
+does not take fails the build with the efforts it does take, and a fallback
+always runs at its own default.
+
 ### Grant MCP tools
 
 A definition is granted an MCP provider's tools by naming the server:
