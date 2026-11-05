@@ -201,6 +201,25 @@ func (l *Ledger) createdExpr() string {
 // Accept durably registers a run. Idempotent per the ledger contract: an
 // existing run ID is left untouched and Accept returns nil.
 func (l *Ledger) Accept(ctx context.Context, r run.Run) error {
+	return l.accept(ctx, l.pool, r)
+}
+
+// AcceptTx registers a run as Accept does, in tx, the caller's transaction,
+// so the run commits together with whatever else tx writes: the event that
+// announces it, for an outbox. tx must be on this ledger's database.
+func (l *Ledger) AcceptTx(ctx context.Context, tx pgx.Tx, r run.Run) error {
+	if tx == nil {
+		return fmt.Errorf("pgledger: accept %s: no transaction", r.ID)
+	}
+	return l.accept(ctx, tx, r)
+}
+
+// execer is what a write runs on: the pool, or a caller's transaction.
+type execer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+func (l *Ledger) accept(ctx context.Context, db execer, r run.Run) error {
 	env, err := json.Marshal(r)
 	if err != nil {
 		return fmt.Errorf("pgledger: accept %s: marshal envelope: %w", r.ID, err)
@@ -225,7 +244,7 @@ func (l *Ledger) Accept(ctx context.Context, r run.Run) error {
 
 	q := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO NOTHING",
 		l.qRunsTable, strings.Join(cols, ", "), placeholders(len(args)), l.qRunsID)
-	if _, err := l.pool.Exec(ctx, q, args...); err != nil {
+	if _, err := db.Exec(ctx, q, args...); err != nil {
 		return fmt.Errorf("pgledger: accept %s: %w", r.ID, err)
 	}
 	return nil

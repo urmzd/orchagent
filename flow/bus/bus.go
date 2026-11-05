@@ -81,6 +81,13 @@
 // Commit takes one. A group seen for the first time starts at the oldest
 // event retained, exactly as a plain subscription does.
 //
+// # The outbox
+//
+// A producer whose state lives on the bus's database publishes the event
+// that announces a change in the same transaction as the change
+// (TxPublisher), so the two commit together. fiber_events is the outbox:
+// Postgres consumers read it directly, with no relay.
+//
 // # Backends
 //
 // Memory serves one process. Postgres (fiber_events and its index tables,
@@ -94,6 +101,8 @@ import (
 	"fmt"
 	"slices"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/urmzd/orchagent/flow/event"
 )
@@ -135,6 +144,19 @@ type Bus interface {
 	// ends the stream without releasing the lease, as a crash would, so it
 	// expires (WithLease); Close releases it at once.
 	Consume(ctx context.Context, group string, sub Subscription) (GroupStream, error)
+}
+
+// TxPublisher is a bus that can publish inside a caller's database
+// transaction: the outbox. The event row is written in tx, so a state change
+// and the event that announces it commit together or not at all, and a crash
+// can never leave one without the other. Postgres implements it; Memory has
+// no transaction to join and does not.
+//
+// Everything Publish promises holds: an event the bus has already seen is an
+// idempotent no-op, and the event reaches subscribers and consumer groups
+// once tx commits.
+type TxPublisher interface {
+	PublishTx(ctx context.Context, tx pgx.Tx, e event.Envelope) error
 }
 
 // Delivery is one event read through a consumer group, with its position in
