@@ -73,6 +73,7 @@ import (
 	"github.com/urmzd/orchagent/flow/connectors/internal/render"
 	"github.com/urmzd/orchagent/flow/connectors/internal/sink"
 	"github.com/urmzd/orchagent/flow/connectors/mention"
+	"github.com/urmzd/orchagent/flow/deliverystate"
 	"github.com/urmzd/orchagent/flow/event"
 )
 
@@ -96,6 +97,13 @@ type Verifier interface {
 // Config is everything the Slack connector needs. The zero value is not usable:
 // New validates.
 type Config struct {
+	// DeliveryState persists the run's message handle and rendering across
+	// replica changes. Nil keeps local state only. Migrate before construction.
+	DeliveryState deliverystate.Store
+	// DeliveryScope is a stable identity for this connector instance, such as
+	// a client ID. Empty uses the connector name. Do not reuse it across clients.
+	DeliveryScope string
+
 	// API talks to Slack. Required. Use NewHTTPAPI in production and NewFake in
 	// tests, examples and local runs.
 	API API
@@ -175,6 +183,9 @@ var (
 
 // New returns a Slack connector.
 func New(cfg Config) (*Connector, error) {
+	if cfg.DeliveryState != nil && cfg.Tenant == "" {
+		return nil, fmt.Errorf("slack: delivery state requires tenant")
+	}
 	if cfg.API == nil {
 		return nil, fmt.Errorf("slack: config needs an API")
 	}
@@ -201,7 +212,7 @@ func New(cfg Config) (*Connector, error) {
 	c.gate = inbound.Gate{Verifier: cfg.Verifier, MaxBody: cfg.MaxBody}
 	c.engine = sink.New(surface{c: c}, c.body,
 		sink.WithInterval(intervalOr(cfg.Interval)),
-		sink.WithClock(cfg.Clock),
+		sink.WithClock(cfg.Clock), sink.WithState(cfg.DeliveryState, deliveryScope(cfg.Tenant, cfg.DeliveryScope)),
 	)
 	return c, nil
 }
@@ -291,6 +302,9 @@ func (c *Connector) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Deliver implements connector.Sink.
 func (c *Connector) Deliver(ctx context.Context, target address.Address, e event.Envelope) error {
+	if c.cfg.DeliveryState != nil && e.Tenant != c.cfg.Tenant {
+		return fmt.Errorf("%w: delivery tenant does not match connector", connector.ErrUndeliverable)
+	}
 	if err := c.reachable(target); err != nil {
 		return err
 	}
@@ -479,4 +493,12 @@ func (c *Connector) resolve(target address.Address, channel string) (string, str
 		channel = target.Path[0]
 	}
 	return channel, target.Workspace, nil
+}
+
+func deliveryScope(tenant, scope string) string {
+	if scope == "" {
+		scope = Name
+	}
+	key, _ := json.Marshal([]string{Name, tenant, scope})
+	return string(key)
 }

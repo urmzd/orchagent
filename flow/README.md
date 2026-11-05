@@ -548,3 +548,19 @@ Full reference: [pkg.go.dev/github.com/urmzd/orchagent/flow](https://pkg.go.dev/
 ## License
 
 Apache 2.0. See [LICENSE](../LICENSE).
+
+### Connector delivery after replica changes
+
+Slack, GitHub and Jira configurations accept `DeliveryState` and a stable
+`DeliveryScope` identifying the client. Pass a migrated
+`deliverystate.NewPostgres(pool)` to every connector replica, with
+`Config.Tenant` set, to retain native message handles, accumulated text and
+pending edits across handoffs. Schedule `Flush` with a bounded context to
+recover pending edits without waiting for another event. `NewMemory` implements
+the same contract for in-process hosts.
+
+Creation on an external API cannot commit atomically with the database. A crash
+between those two writes can still duplicate the initial message. Records are
+retained until explicitly removed by the host. See the
+[delivery architecture](docs/architecture/overview.md) for scope, recovery and
+retention requirements.

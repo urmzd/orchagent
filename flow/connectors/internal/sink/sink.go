@@ -35,27 +35,27 @@
 // a lifecycle, a shutdown ordering and a leak; egress already has a loop,
 // and tests get determinism for free.
 //
-// # What is deliberately not solved here
+// # Durable state
 //
-// The map from run to native message handle is in memory. A process restart
-// forgets which message a run owned, and the next event posts a second message
-// that the run then edits. Making that survive a restart needs a durable handle
-// store, which is a decision about the deployment's storage rather than about
-// rendering; it is left to the integrator. Nothing else about correctness
-// depends on it: within a process the invariant holds absolutely.
+// WithState persists both the message handle and the complete document before
+// delivery returns. A new replica continues the same message and redelivered
+// deltas retain their sequence deduplication. External creation and a storage
+// commit are not atomic: a crash between them can still duplicate a message.
+// Without WithState, state is local to this engine and its bounded cache.
 package sink
 
 import (
 	"container/list"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/urmzd/orchagent/flow/address"
 	"github.com/urmzd/orchagent/flow/connectors/internal/render"
+	"github.com/urmzd/orchagent/flow/deliverystate"
 	"github.com/urmzd/orchagent/flow/event"
 )
 
@@ -100,6 +100,8 @@ type Engine struct {
 	interval time.Duration
 	maxRuns  int
 	now      func() time.Time
+	store    deliverystate.Store
+	scope    string
 
 	mu    sync.Mutex
 	byKey map[string]*list.Element
@@ -134,6 +136,12 @@ func WithClock(now func() time.Time) Option {
 	}
 }
 
+// WithState uses shared state scoped to one stable connector instance. The
+// store serializes surface calls across replicas. Nil retains the local cache.
+func WithState(store deliverystate.Store, scope string) Option {
+	return func(e *Engine) { e.store, e.scope = store, scope }
+}
+
 // New returns an engine that draws with r onto s.
 func New(s Surface, r Renderer, opts ...Option) *Engine {
 	e := &Engine{
@@ -153,8 +161,9 @@ func New(s Surface, r Renderer, opts ...Option) *Engine {
 
 // state is one run's rendering on one target.
 type state struct {
-	key    string
-	target address.Address
+	key        string
+	durableKey deliverystate.Key
+	target     address.Address
 
 	// mu serializes rendering and writing for this one message, so two
 	// concurrent deliveries cannot both decide to create it. It is separate
@@ -175,25 +184,53 @@ func (eng *Engine) Deliver(ctx context.Context, target address.Address, e event.
 	if eng.render == nil || eng.surface == nil {
 		return fmt.Errorf("sink: engine is not configured with a surface and a renderer")
 	}
-	st := eng.state(key(e.Run, e.Channel), target)
+	k := deliverystate.Key{Tenant: e.Tenant, Scope: eng.scope, Run: e.Run, Channel: e.Channel, Target: target.String()}
+	st := eng.state(messageKey(e.Tenant, e.Run, e.Channel, target.String()), target, k)
+	if eng.store != nil {
+		// Commit the event before touching the external API. If that call
+		// reaches its deadline, its transaction can roll back without losing
+		// the dirty document that a fresh replica must recover.
+		due := false
+		if err := eng.persist(ctx, st, func(current *state) error {
+			due = eng.apply(current, e)
+			return nil
+		}); err != nil {
+			return err
+		}
+		if !due {
+			return nil
+		}
+		return eng.persist(ctx, st, func(current *state) error {
+			// Another replica may have flushed or advanced this document
+			// between the two transactions. Always use the latest state.
+			if current.dirty && eng.due(current, current.doc.View()) {
+				return eng.write(ctx, current, current.doc.View())
+			}
+			return nil
+		})
+	}
 
 	st.mu.Lock()
 	defer st.mu.Unlock()
 
+	return eng.deliver(ctx, st, e)
+}
+
+func (eng *Engine) deliver(ctx context.Context, st *state, e event.Envelope) error {
+	if !eng.apply(st, e) {
+		return nil
+	}
+	return eng.write(ctx, st, st.doc.View())
+}
+
+// apply records the event and reports whether the document is due for writing.
+func (eng *Engine) apply(st *state, e event.Envelope) bool {
 	changed := st.doc.Apply(e)
 	if !changed && !st.dirty {
-		// The event is a redelivery, or a kind this surface does not render,
-		// and nothing is owed to the surface. This is the cheapest possible
-		// path and the one a resubscribing consumer takes most often.
-		return nil
+		return false
 	}
 	st.dirty = true
-
-	view := st.doc.View()
-	if !eng.due(st, view) {
-		return nil
-	}
-	return eng.write(ctx, st, view)
+	return eng.due(st, st.doc.View())
 }
 
 // Flush writes every run whose events have not reached its surface yet. A
@@ -201,6 +238,30 @@ func (eng *Engine) Deliver(ctx context.Context, target address.Address, e event.
 // without it, a run that stops emitting is written no later than its terminal
 // event, which is the case that matters.
 func (eng *Engine) Flush(ctx context.Context) error {
+	if eng.store != nil {
+		keys, err := eng.store.Pending(ctx, eng.scope, 256)
+		if err != nil {
+			return err
+		}
+		var errs []error
+		for _, k := range keys {
+			target, err := address.Parse(k.Target)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			st := eng.state(messageKey(k.Tenant, k.Run, k.Channel, k.Target), target, k)
+			if err := eng.persist(ctx, st, func(current *state) error {
+				if current.dirty {
+					return eng.write(ctx, current, current.doc.View())
+				}
+				return nil
+			}); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		return errors.Join(errs...)
+	}
 	eng.mu.Lock()
 	states := make([]*state, 0, len(eng.byKey))
 	for _, el := range eng.byKey {
@@ -245,6 +306,7 @@ func (eng *Engine) due(st *state, v render.View) bool {
 func (eng *Engine) write(ctx context.Context, st *state, v render.View) error {
 	body := eng.render(v)
 	if body == "" {
+		st.dirty = false
 		return nil
 	}
 	if st.handle != "" && body == st.written {
@@ -270,7 +332,7 @@ func (eng *Engine) write(ctx context.Context, st *state, v render.View) error {
 
 // state returns the run's rendering state, creating it if this is the first
 // event, and evicting the least recently used one when the bound is reached.
-func (eng *Engine) state(k string, target address.Address) *state {
+func (eng *Engine) state(k string, target address.Address, durableKey deliverystate.Key) *state {
 	eng.mu.Lock()
 	defer eng.mu.Unlock()
 
@@ -278,7 +340,7 @@ func (eng *Engine) state(k string, target address.Address) *state {
 		eng.order.MoveToFront(el)
 		return el.Value.(*state)
 	}
-	st := &state{key: k, target: target, doc: render.New()}
+	st := &state{key: k, target: target, durableKey: durableKey, doc: render.New()}
 	eng.byKey[k] = eng.order.PushFront(st)
 	for eng.order.Len() > eng.maxRuns {
 		oldest := eng.order.Back()
@@ -293,25 +355,64 @@ func (eng *Engine) state(k string, target address.Address) *state {
 // "which message is this run writing to"; the delivery path does not use it.
 func (eng *Engine) Handle(runID, channel string) (string, bool) {
 	eng.mu.Lock()
-	el, ok := eng.byKey[key(runID, channel)]
+	var st *state
+	for _, el := range eng.byKey {
+		candidate := el.Value.(*state)
+		if candidate.durableKey.Run == runID && candidate.durableKey.Channel == channel {
+			if st != nil {
+				eng.mu.Unlock()
+				return "", false
+			}
+			st = candidate
+		}
+	}
 	eng.mu.Unlock()
-	if !ok {
+	if st == nil {
 		return "", false
 	}
-	st := el.Value.(*state)
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	return st.handle, st.handle != ""
 }
 
-// key identifies one message: a run on a channel. Both halves are needed:
-// two runs in the same thread own one message each, and the key never
-// depends on how a target address is spelled.
-func key(runID, channel string) string {
-	var b strings.Builder
-	b.Grow(len(runID) + 1 + len(channel))
-	b.WriteString(runID)
-	b.WriteByte(0)
-	b.WriteString(channel)
-	return b.String()
+// messageKey includes tenant and destination even for the local cache.
+func messageKey(tenant, runID, channel, target string) string {
+	data, _ := json.Marshal([]string{tenant, runID, channel, target})
+	return string(data)
+}
+
+type savedState struct {
+	Format          int
+	Doc             *render.Doc
+	Handle, Written string
+	Dirty           bool
+	LastFlush       time.Time
+}
+
+// persist always reloads under the store's cross-replica lock. The cache is
+// only a local Handle lookup, never an authority after a handoff.
+func (eng *Engine) persist(ctx context.Context, st *state, apply func(*state) error) error {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	var deliveryErr error
+	err := eng.store.Update(ctx, st.durableKey, func(data []byte) ([]byte, bool, error) {
+		saved := savedState{Format: 1, Doc: render.New()}
+		if len(data) > 0 {
+			if err := json.Unmarshal(data, &saved); err != nil {
+				return nil, false, fmt.Errorf("sink: restore state: %w", err)
+			}
+			if saved.Format != 1 || saved.Doc == nil {
+				return nil, false, fmt.Errorf("sink: unsupported state format %d", saved.Format)
+			}
+		}
+		current := &state{key: st.key, target: st.target, durableKey: st.durableKey, doc: saved.Doc, handle: saved.Handle, written: saved.Written, dirty: saved.Dirty, lastFlush: saved.LastFlush}
+		deliveryErr = apply(current)
+		data, err := json.Marshal(savedState{Format: 1, Doc: current.doc, Handle: current.handle, Written: current.written, Dirty: current.dirty, LastFlush: current.lastFlush})
+		if err != nil {
+			return nil, false, err
+		}
+		st.doc, st.handle, st.written, st.dirty, st.lastFlush = current.doc, current.handle, current.written, current.dirty, current.lastFlush
+		return data, current.dirty, nil
+	})
+	return errors.Join(err, deliveryErr)
 }
