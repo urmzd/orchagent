@@ -79,10 +79,15 @@ func (p Pinned) Validate() error {
 // tools it may call, the sources it may retrieve from, and what it may do
 // beyond talking. It is immutable: editing an agent makes a new version.
 type Spec struct {
-	Name         string   `json:"name"`
-	Description  string   `json:"description,omitempty"`
-	Model        string   `json:"model"`
-	Provider     string   `json:"provider"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Model       string `json:"model"`
+	Provider    string `json:"provider"`
+	// Effort is the reasoning effort the primary model is asked for, such
+	// as "low" or "high". Empty is the model's default. A host sets it on
+	// its copy of a pinned spec for one turn, as it may set Provider and
+	// Model; it is never applied to a fallback, which may not take it.
+	Effort       string   `json:"effort,omitempty"`
 	SystemPrompt string   `json:"system_prompt,omitempty"`
 	Tools        []string `json:"tools,omitempty"`
 	Sources      []Source `json:"sources,omitempty"`

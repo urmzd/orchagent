@@ -128,3 +128,55 @@ func TestRequestsCarryNoCacheMarkersWhenCachingIsOff(t *testing.T) {
 		t.Errorf("request did not carry the conversation: %s", raw)
 	}
 }
+
+// A reasoning effort the model takes is sent with every request; one it does
+// not take is refused before any request, naming what the model takes.
+func TestAnthropicEffortIsSentOrRefused(t *testing.T) {
+	t.Parallel()
+
+	var body []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ = io.ReadAll(r.Body)
+		http.Error(w, `{"type":"error","error":{"type":"invalid_request_error","message":"stop here"}}`, http.StatusBadRequest)
+	}))
+	t.Cleanup(srv.Close)
+
+	const model = "claude-opus-4-6"
+	a, err := newAnthropic("test-key", model, PromptCacheOff, anthropic.WithBaseURL(srv.URL), anthropic.WithReasoningEffort("low"))
+	if err != nil {
+		t.Fatalf("newAnthropic: %v", err)
+	}
+	caps := a.Capabilities()
+	if len(caps.ReasoningEfforts) == 0 {
+		t.Skipf("saige's catalog lists no efforts for %s", model)
+	}
+	if err := checkEffort(Spec{Name: "a", Provider: "anthropic", Model: model, Effort: "low"}, caps); err != nil {
+		t.Fatalf("checkEffort refused an effort the model takes: %v", err)
+	}
+	ch, err := a.Stream(context.Background(), saigetypes.Request{
+		Messages: []saigetypes.Message{saigetypes.UserMsg(saigetypes.Text("hi"))},
+	})
+	if err == nil {
+		for range ch {
+		}
+	}
+	var out struct {
+		OutputConfig struct {
+			Effort string `json:"effort"`
+		} `json:"output_config"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		t.Fatalf("request body is not JSON: %v\n%s", err, body)
+	}
+	if out.OutputConfig.Effort != "low" {
+		t.Errorf("request sent effort %q, want low\n%s", out.OutputConfig.Effort, body)
+	}
+
+	err = checkEffort(Spec{Name: "a", Provider: "anthropic", Model: model, Effort: "ludicrous"}, caps)
+	if err == nil || !strings.Contains(err.Error(), "ludicrous") {
+		t.Errorf("checkEffort accepted an effort the model does not take: %v", err)
+	}
+	if err := checkEffort(Spec{Name: "a", Effort: "low"}, saigetypes.ModelCapabilities{}); err == nil {
+		t.Error("checkEffort accepted an effort for a model that takes none")
+	}
+}

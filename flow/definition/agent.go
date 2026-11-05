@@ -148,6 +148,14 @@ func check(def *sdef.Definition, policy Policy, checks Checks) (Agent, error) {
 		seen[m] = i
 		models = append(models, m)
 	}
+	if c := policy.Choices; c != nil {
+		for _, m := range c.Models {
+			prov, _, _ := strings.Cut(m, "/")
+			if !slices.Contains(providers, prov) {
+				return fail("model choice %q names provider %q; this deployment knows %s", m, prov, strings.Join(sorted(providers), ", "))
+			}
+		}
+	}
 	if len(policy.FallbackOn) > 0 && len(models) == 1 {
 		return fail("the policy says when to fall back but the definition names no fallback models")
 	}

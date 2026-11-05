@@ -28,6 +28,7 @@ type AgentSpec struct {
 	SelfApproval bool             `json:"self_approval,omitempty"`
 	Answerers    []string         `json:"answerers,omitempty"`
 	TaggedOnly   bool             `json:"tagged_only,omitempty"`
+	Choices      *Choices         `json:"choices,omitempty"`
 }
 
 // AgentSpecAccess is the old access block.
@@ -160,6 +161,7 @@ func FromAgentSpec(spec AgentSpec, rev int) (Record, error) {
 		SelfApproval:   spec.SelfApproval,
 		Answerers:      spec.Answerers,
 		TaggedOnly:     spec.TaggedOnly,
+		Choices:        spec.Choices,
 	}
 	for _, s := range spec.Sources {
 		policy.Knowledge = append(policy.Knowledge, Corpus{Name: s.Name, URI: s.URI, Options: maps.Clone(s.Options)})

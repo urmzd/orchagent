@@ -58,6 +58,61 @@ type Policy struct {
 	Answerers []string `json:"answerers,omitempty"`
 	// TaggedOnly keeps it out of messages that do not name it.
 	TaggedOnly bool `json:"tagged_only,omitempty"`
+	// Choices are what a person may pick for one message in place of its
+	// model and reasoning effort. Nil allows nothing.
+	Choices *Choices `json:"choices,omitempty"`
+}
+
+// Choices is what a person may pick, for one message, in place of an
+// agent's model and reasoning effort. The host applies a choice to its copy
+// of the pinned spec for that turn (turn.Spec.Provider, Model, Effort); the
+// definition is never changed. Both lists are allowlists: a model or effort
+// not listed is not offered, and an empty list offers none of that kind.
+type Choices struct {
+	// Models are the models offered, each "provider/model". The agent's
+	// own model needs no listing: choosing nothing runs it.
+	Models []string `json:"models,omitempty"`
+	// Efforts are the reasoning efforts offered, such as "low" and
+	// "high". Whether a model takes one is checked when the turn builds
+	// it, against the model's capabilities.
+	Efforts []string `json:"efforts,omitempty"`
+}
+
+// normalize returns c with both lists trimmed and sorted, efforts in lower
+// case, and nil for choices that offer nothing.
+func (c *Choices) normalize() *Choices {
+	if c == nil {
+		return nil
+	}
+	out := &Choices{Models: set(c.Models, false), Efforts: set(c.Efforts, true)}
+	if len(out.Models) == 0 && len(out.Efforts) == 0 {
+		return nil
+	}
+	return out
+}
+
+// AllowsModel reports whether the choices offer ref, "provider/model".
+func (c *Choices) AllowsModel(ref string) bool {
+	return c != nil && slices.Contains(c.Models, ref)
+}
+
+// AllowsEffort reports whether the choices offer effort.
+func (c *Choices) AllowsEffort(effort string) bool {
+	return c != nil && slices.Contains(c.Efforts, effort)
+}
+
+// validEffort is the shape of a reasoning effort: a lowercase word, as
+// every provider spells them.
+func validEffort(e string) bool {
+	if e == "" || len(e) > 32 {
+		return false
+	}
+	for _, r := range e {
+		if r < 'a' || r > 'z' {
+			return false
+		}
+	}
+	return true
 }
 
 // Subscription is one channel prefix and the type prefixes taken from it.
@@ -84,6 +139,7 @@ func (p Policy) Normalize() Policy {
 		SelfApproval:   p.SelfApproval,
 		Answerers:      set(p.Answerers, false),
 		TaggedOnly:     p.TaggedOnly,
+		Choices:        p.Choices.normalize(),
 	}
 	for _, s := range p.Subscriptions {
 		out.Subscriptions = append(out.Subscriptions, Subscription{
@@ -139,6 +195,24 @@ func (p Policy) Validate() error {
 		}
 		if cond == FallbackOnAny && len(n.FallbackOn) > 1 {
 			return fmt.Errorf("%w: policy falls back on %q together with other conditions; %q already covers them", ErrInvalid, FallbackOnAny, FallbackOnAny)
+		}
+	}
+	if c := n.Choices; c != nil {
+		if err := uniqueNonEmpty("model choice", c.Models); err != nil {
+			return err
+		}
+		if err := uniqueNonEmpty("effort choice", c.Efforts); err != nil {
+			return err
+		}
+		for _, m := range c.Models {
+			if prov, model, ok := strings.Cut(m, "/"); !ok || prov == "" || model == "" {
+				return fmt.Errorf("%w: model choice %q must be provider/model", ErrInvalid, m)
+			}
+		}
+		for _, e := range c.Efforts {
+			if !validEffort(e) {
+				return fmt.Errorf("%w: effort choice %q must be a lowercase word, such as \"low\" or \"high\"", ErrInvalid, e)
+			}
 		}
 	}
 	for i, s := range n.Subscriptions {

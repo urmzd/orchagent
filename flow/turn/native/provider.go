@@ -83,12 +83,39 @@ func anthropicProvider(cacheTTL string) ProviderFunc {
 		if spec.Model == "" {
 			return nil, fmt.Errorf("%w: agent %q asks for the %s provider with no model", ErrInvalid, spec.Name, ProviderAnthropic)
 		}
-		a, err := newAnthropic(key, spec.Model, cacheTTL)
+		var opts []anthropic.Option
+		if spec.Effort != "" {
+			opts = append(opts, anthropic.WithReasoningEffort(spec.Effort))
+		}
+		a, err := newAnthropic(key, spec.Model, cacheTTL, opts...)
 		if err != nil {
 			return nil, fmt.Errorf("%w: agent %q: %v", ErrInvalid, spec.Name, err)
 		}
+		if err := checkEffort(spec, a.Capabilities()); err != nil {
+			return nil, err
+		}
 		return withRetry(a)
 	}
+}
+
+// checkEffort refuses a reasoning effort the model does not take. The
+// adapters check it per request and fail the request, so an effort a model
+// cannot honor would build cleanly and fail every call; refusing it here
+// fails the turn before any model call, with a message that lists what the
+// model takes.
+func checkEffort(spec Spec, caps saigetypes.ModelCapabilities) error {
+	if spec.Effort == "" {
+		return nil
+	}
+	if !caps.Supports(saigetypes.CapReasoningEffort) || len(caps.ReasoningEfforts) == 0 {
+		return fmt.Errorf("%w: agent %q asks %s %q for reasoning effort %q; the model takes no effort",
+			ErrInvalid, spec.Name, spec.Provider, spec.Model, spec.Effort)
+	}
+	if !slices.Contains(caps.ReasoningEfforts, spec.Effort) {
+		return fmt.Errorf("%w: agent %q asks %s %q for reasoning effort %q; the model takes %s",
+			ErrInvalid, spec.Name, spec.Provider, spec.Model, spec.Effort, strings.Join(caps.ReasoningEfforts, ", "))
+	}
+	return nil
 }
 
 // newAnthropic builds the adapter, with cache breakpoints when the model
@@ -191,9 +218,16 @@ func (e OpenAICompatible) Provider() ProviderFunc {
 		if key == "" && base == DefaultOpenAIBaseURL {
 			return nil, fmt.Errorf("%w: agent %q asks for the %s provider, which is OpenAI, with no key", ErrInvalid, spec.Name, e.Name)
 		}
-		a, err := openai.New(openai.Config{APIKey: key, Model: saigetypes.ModelID(spec.Model)}, openai.WithBaseURL(base))
+		opts := []openai.Option{openai.WithBaseURL(base)}
+		if spec.Effort != "" {
+			opts = append(opts, openai.WithReasoningEffort(spec.Effort))
+		}
+		a, err := openai.New(openai.Config{APIKey: key, Model: saigetypes.ModelID(spec.Model)}, opts...)
 		if err != nil {
 			return nil, fmt.Errorf("%w: agent %q: %v", ErrInvalid, spec.Name, err)
+		}
+		if err := checkEffort(spec, a.Capabilities()); err != nil {
+			return nil, err
 		}
 		return withRetry(a)
 	}
@@ -335,6 +369,11 @@ func (c *config) modelChain(rev Revision) (saigetypes.Provider, []saigetypes.Pro
 		}
 		spec := rev.Spec
 		spec.Provider, spec.Model, spec.Fallbacks, spec.FallbackOn = ref.Provider, ref.Model, nil, nil
+		if i > 0 {
+			// The effort was chosen for the primary; a fallback runs at
+			// its own default rather than fail on a value it may not take.
+			spec.Effort = ""
+		}
 		p, err := newProvider(spec)
 		if err != nil {
 			if i == 0 {
