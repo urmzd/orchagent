@@ -124,45 +124,36 @@ func Run(t *testing.T, factory func(t *testing.T) queue.Queue) {
 		q := factory(t)
 		mustEnqueue(t, q, "r1", 0)
 
-		ttl := 120 * time.Millisecond
-		it, _ := mustClaim(t, q, waitLong, ttl)
-
-		competitor := make(chan claimResult, 1)
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), waitLong)
-			defer cancel()
-			cit, _, err := q.Claim(ctx, time.Minute)
-			competitor <- claimResult{cit, err}
-		}()
-
-		// Heartbeat well inside the ttl for ~300ms; the competitor must
-		// stay starved the whole time.
-		stop := time.Now().Add(300 * time.Millisecond)
-		tick := time.NewTicker(30 * time.Millisecond)
-		defer tick.Stop()
-		for time.Now().Before(stop) {
-			select {
-			case r := <-competitor:
-				t.Fatalf("competitor claimed %+v (err=%v) while lease was heartbeaten", r.it, r.err)
-			case <-tick.C:
-				if _, err := q.Heartbeat(context.Background(), it, ttl); err != nil {
-					t.Fatalf("Heartbeat: %v", err)
-				}
-			}
+		// Renew immediately with ample scheduling margin. A repeated ticker
+		// against a 120ms lease tests runner scheduling rather than renewal:
+		// one delayed tick can legitimately lose ownership on loaded CI.
+		it, originalDeadline := mustClaim(t, q, waitLong, 2*time.Second)
+		renewed, err := q.Heartbeat(context.Background(), it, 30*time.Second)
+		if err != nil {
+			t.Fatalf("Heartbeat: %v", err)
+		}
+		if !renewed.After(originalDeadline) {
+			t.Fatalf("renewed deadline %v did not extend %v", renewed, originalDeadline)
 		}
 
-		// Stop heartbeating: the lease lapses and the competitor wins the
-		// same run at the next attempt.
-		select {
-		case r := <-competitor:
-			if r.err != nil {
-				t.Fatalf("competitor Claim: %v", r.err)
-			}
-			if r.it.RunID != "r1" || r.it.Attempt != it.Attempt+1 {
-				t.Fatalf("competitor = %+v, want {r1 %d}", r.it, it.Attempt+1)
-			}
-		case <-time.After(waitLong):
-			t.Fatal("competitor never claimed after heartbeats stopped")
+		// The competing claim runs past the ORIGINAL expiry. Checking only
+		// the returned deadline would miss an adapter that failed to persist it.
+		probe, cancel := context.WithDeadline(context.Background(), originalDeadline.Add(waitShort))
+		defer cancel()
+		competitor, _, err := q.Claim(probe, time.Minute)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("competitor claimed %+v (err=%v) before renewed expiry", competitor, err)
+		}
+
+		// Shorten the still-owned lease for the expiry half of the contract.
+		// A fresh Claim observes this deadline even for an in-memory backend
+		// whose earlier waiting claim had already scheduled a longer timer.
+		if _, err := q.Heartbeat(context.Background(), it, 30*time.Millisecond); err != nil {
+			t.Fatalf("final Heartbeat: %v", err)
+		}
+		next, _ := mustClaim(t, q, waitLong, time.Minute)
+		if next.RunID != "r1" || next.Attempt != it.Attempt+1 {
+			t.Fatalf("competitor = %+v, want {r1 %d}", next, it.Attempt+1)
 		}
 	})
 
