@@ -61,6 +61,7 @@ import (
 	"github.com/urmzd/orchagent/flow/connectors/internal/render"
 	"github.com/urmzd/orchagent/flow/connectors/internal/sink"
 	"github.com/urmzd/orchagent/flow/connectors/mention"
+	"github.com/urmzd/orchagent/flow/deliverystate"
 	"github.com/urmzd/orchagent/flow/event"
 )
 
@@ -81,6 +82,13 @@ type Verifier interface {
 
 // Config is everything the GitHub connector needs.
 type Config struct {
+	// DeliveryState persists the run's message handle and rendering across
+	// replica changes. Nil keeps local state only. Migrate before construction.
+	DeliveryState deliverystate.Store
+	// DeliveryScope is a stable identity for this connector instance, such as
+	// a client ID. Empty uses the connector name. Do not reuse it across clients.
+	DeliveryScope string
+
 	// API talks to GitHub. Required.
 	API API
 
@@ -189,6 +197,9 @@ var (
 
 // New returns a GitHub connector.
 func New(cfg Config) (*Connector, error) {
+	if cfg.DeliveryState != nil && cfg.Tenant == "" {
+		return nil, fmt.Errorf("github: delivery state requires tenant")
+	}
 	if cfg.API == nil {
 		return nil, fmt.Errorf("github: config needs an API")
 	}
@@ -243,13 +254,13 @@ func New(cfg Config) (*Connector, error) {
 	if interval == 0 {
 		interval = sink.DefaultInterval
 	}
-	c.engine = sink.New(surface{c: c}, c.body, sink.WithInterval(interval), sink.WithClock(cfg.Clock))
+	c.engine = sink.New(surface{c: c}, c.body, sink.WithInterval(interval), sink.WithClock(cfg.Clock), sink.WithState(cfg.DeliveryState, "comments:"+deliveryScope(cfg.Tenant, cfg.DeliveryScope)))
 	if cfg.Checks {
 		api, ok := cfg.API.(CheckAPI)
 		if !ok {
 			return nil, fmt.Errorf("github: checks need CheckAPI")
 		}
-		c.checks = sink.New(checkSurface{c: c, api: api}, c.checkBody, sink.WithInterval(interval), sink.WithClock(cfg.Clock))
+		c.checks = sink.New(checkSurface{c: c, api: api}, c.checkBody, sink.WithInterval(interval), sink.WithClock(cfg.Clock), sink.WithState(cfg.DeliveryState, "checks:"+deliveryScope(cfg.Tenant, cfg.DeliveryScope)))
 	}
 	return c, nil
 }
@@ -403,6 +414,9 @@ func (s agentSet) Lookup(token string) (string, bool) {
 
 // Deliver implements connector.Sink.
 func (c *Connector) Deliver(ctx context.Context, target address.Address, e event.Envelope) error {
+	if c.cfg.DeliveryState != nil && e.Tenant != c.cfg.Tenant {
+		return fmt.Errorf("%w: delivery tenant does not match connector", connector.ErrUndeliverable)
+	}
 	if _, err := c.ref(target); err != nil {
 		return err
 	}
@@ -686,4 +700,12 @@ func refAddress(ref Ref, kind string) address.Address {
 		Workspace: ref.Owner,
 		Path:      []string{ref.Repo, kind, strconv.Itoa(ref.Number)},
 	}
+}
+
+func deliveryScope(tenant, scope string) string {
+	if scope == "" {
+		scope = Name
+	}
+	key, _ := json.Marshal([]string{Name, tenant, scope})
+	return string(key)
 }

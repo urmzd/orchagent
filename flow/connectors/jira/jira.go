@@ -77,6 +77,7 @@ import (
 	"github.com/urmzd/orchagent/flow/connectors/internal/render"
 	"github.com/urmzd/orchagent/flow/connectors/internal/sink"
 	"github.com/urmzd/orchagent/flow/connectors/mention"
+	"github.com/urmzd/orchagent/flow/deliverystate"
 	"github.com/urmzd/orchagent/flow/event"
 )
 
@@ -99,6 +100,13 @@ type Verifier interface {
 
 // Config is everything the Jira connector needs.
 type Config struct {
+	// DeliveryState persists the run's message handle and rendering across
+	// replica changes. Nil keeps local state only. Migrate before construction.
+	DeliveryState deliverystate.Store
+	// DeliveryScope is a stable identity for this connector instance, such as
+	// a client ID. Empty uses the connector name. Do not reuse it across clients.
+	DeliveryScope string
+
 	// API talks to Jira. Required. Use NewHTTPAPI in production and NewFake in
 	// tests, examples and local runs.
 	API API
@@ -178,6 +186,9 @@ var (
 
 // New returns a Jira connector.
 func New(cfg Config) (*Connector, error) {
+	if cfg.DeliveryState != nil && cfg.Tenant == "" {
+		return nil, fmt.Errorf("jira: delivery state requires tenant")
+	}
 	if cfg.API == nil {
 		return nil, fmt.Errorf("jira: config needs an API")
 	}
@@ -223,7 +234,7 @@ func New(cfg Config) (*Connector, error) {
 	if interval == 0 {
 		interval = sink.DefaultInterval
 	}
-	c.engine = sink.New(surface{c: c}, c.body, sink.WithInterval(interval), sink.WithClock(cfg.Clock))
+	c.engine = sink.New(surface{c: c}, c.body, sink.WithInterval(interval), sink.WithClock(cfg.Clock), sink.WithState(cfg.DeliveryState, deliveryScope(cfg.Tenant, cfg.DeliveryScope)))
 	return c, nil
 }
 
@@ -296,6 +307,9 @@ func (s agentSet) Lookup(token string) (string, bool) {
 
 // Deliver implements connector.Sink.
 func (c *Connector) Deliver(ctx context.Context, target address.Address, e event.Envelope) error {
+	if c.cfg.DeliveryState != nil && e.Tenant != c.cfg.Tenant {
+		return fmt.Errorf("%w: delivery tenant does not match connector", connector.ErrUndeliverable)
+	}
 	if _, err := c.ref(target); err != nil {
 		return err
 	}
@@ -359,4 +373,12 @@ func (s surface) Update(ctx context.Context, target address.Address, handle, bod
 // neutralized. See escape in wiki.go for what is deliberately left alone.
 func (c *Connector) body(v render.View) string {
 	return sink.Clamp(sink.Layout(wiki{}, sink.MapText(v, escape)), MaxBodyChars)
+}
+
+func deliveryScope(tenant, scope string) string {
+	if scope == "" {
+		scope = Name
+	}
+	key, _ := json.Marshal([]string{Name, tenant, scope})
+	return string(key)
 }
