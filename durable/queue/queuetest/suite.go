@@ -95,11 +95,17 @@ func Run(t *testing.T, factory func(t *testing.T) queue.Queue) {
 
 	t.Run("DelayedEnqueue", func(t *testing.T) {
 		q := factory(t)
-		mustEnqueue(t, q, "r1", 250*time.Millisecond)
+		delay := 250 * time.Millisecond
+		notBefore := time.Now().Add(delay)
+		mustEnqueue(t, q, "r1", delay)
 
-		claimNothing(t, q, 50*time.Millisecond)
-
+		// Scheduling may resume after the delay has already elapsed. Check
+		// when the successful claim returns instead of assuming a short
+		// negative probe always runs before the queue's ready time.
 		it, _ := mustClaim(t, q, waitLong, time.Minute)
+		if claimedAt := time.Now(); claimedAt.Before(notBefore) {
+			t.Fatalf("claimed at %v before enqueue delay ended at %v", claimedAt, notBefore)
+		}
 		if it.RunID != "r1" || it.Attempt != 1 {
 			t.Fatalf("Claim after delay = %+v, want {r1 1}", it)
 		}
@@ -184,13 +190,16 @@ func Run(t *testing.T, factory func(t *testing.T) queue.Queue) {
 		mustEnqueue(t, q, "r1", 0)
 
 		it, _ := mustClaim(t, q, waitLong, time.Minute)
-		if err := q.Release(context.Background(), it, 250*time.Millisecond, true); err != nil {
+		delay := 250 * time.Millisecond
+		notBefore := time.Now().Add(delay)
+		if err := q.Release(context.Background(), it, delay, true); err != nil {
 			t.Fatalf("Release: %v", err)
 		}
 
-		claimNothing(t, q, 50*time.Millisecond) // delay honored
-
 		next, _ := mustClaim(t, q, waitLong, time.Minute)
+		if claimedAt := time.Now(); claimedAt.Before(notBefore) {
+			t.Fatalf("claimed at %v before release delay ended at %v", claimedAt, notBefore)
+		}
 		if next.RunID != "r1" || next.Attempt != it.Attempt+1 {
 			t.Fatalf("claim after release = %+v, want {r1 %d}", next, it.Attempt+1)
 		}
