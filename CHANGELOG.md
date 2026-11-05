@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 (2026-11-05)
+
+### Features
+
+- persist connector messages across replica handoffs (#3) ([b02842a](https://github.com/urmzd/orchagent/commit/b02842af0a4b0aa8764cf4ecf88732d30e347a7b))
+
+### Misc
+
+- assert queue delays without scheduling-sensitive probes (#4) ([96940bc](https://github.com/urmzd/orchagent/commit/96940bc793158f2672c5fabf5aa0b729955d564f))
+
+[Full Changelog](https://github.com/urmzd/orchagent/compare/v0.2.0...v0.3.0)
+
+
 ## 0.2.0 (2026-11-05)
 
 ### .
