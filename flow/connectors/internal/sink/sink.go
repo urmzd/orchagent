@@ -187,7 +187,27 @@ func (eng *Engine) Deliver(ctx context.Context, target address.Address, e event.
 	k := deliverystate.Key{Tenant: e.Tenant, Scope: eng.scope, Run: e.Run, Channel: e.Channel, Target: target.String()}
 	st := eng.state(messageKey(e.Tenant, e.Run, e.Channel, target.String()), target, k)
 	if eng.store != nil {
-		return eng.persist(ctx, st, func(current *state) error { return eng.deliver(ctx, current, e) })
+		// Commit the event before touching the external API. If that call
+		// reaches its deadline, its transaction can roll back without losing
+		// the dirty document that a fresh replica must recover.
+		due := false
+		if err := eng.persist(ctx, st, func(current *state) error {
+			due = eng.apply(current, e)
+			return nil
+		}); err != nil {
+			return err
+		}
+		if !due {
+			return nil
+		}
+		return eng.persist(ctx, st, func(current *state) error {
+			// Another replica may have flushed or advanced this document
+			// between the two transactions. Always use the latest state.
+			if current.dirty && eng.due(current, current.doc.View()) {
+				return eng.write(ctx, current, current.doc.View())
+			}
+			return nil
+		})
 	}
 
 	st.mu.Lock()
@@ -197,20 +217,20 @@ func (eng *Engine) Deliver(ctx context.Context, target address.Address, e event.
 }
 
 func (eng *Engine) deliver(ctx context.Context, st *state, e event.Envelope) error {
+	if !eng.apply(st, e) {
+		return nil
+	}
+	return eng.write(ctx, st, st.doc.View())
+}
+
+// apply records the event and reports whether the document is due for writing.
+func (eng *Engine) apply(st *state, e event.Envelope) bool {
 	changed := st.doc.Apply(e)
 	if !changed && !st.dirty {
-		// The event is a redelivery, or a kind this surface does not render,
-		// and nothing is owed to the surface. This is the cheapest possible
-		// path and the one a resubscribing consumer takes most often.
-		return nil
+		return false
 	}
 	st.dirty = true
-
-	view := st.doc.View()
-	if !eng.due(st, view) {
-		return nil
-	}
-	return eng.write(ctx, st, view)
+	return eng.due(st, st.doc.View())
 }
 
 // Flush writes every run whose events have not reached its surface yet. A

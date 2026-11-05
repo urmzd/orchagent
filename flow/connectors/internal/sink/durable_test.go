@@ -3,6 +3,10 @@ package sink_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -199,4 +203,73 @@ func TestFreshReplicaFlushRecoversCoalescedEventWithoutNewEvent(t *testing.T) {
 	if surface.count() != 1 || !strings.Contains(surface.body("m1"), "hello world") {
 		t.Fatal(surface.bodies)
 	}
+}
+
+type timedOutSurface struct{ *fakeSurface }
+
+func (s timedOutSurface) Update(ctx context.Context, _ address.Address, _, _ string) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func TestTimedOutSurfaceKeepsDirtyDocumentForFreshReplica(t *testing.T) {
+	for _, backend := range []string{"memory", "postgres"} {
+		t.Run(backend, func(t *testing.T) {
+			var store deliverystate.Store = deliverystate.NewMemory()
+			if backend == "postgres" {
+				store = postgresSinkStore(t)
+			}
+			ctx := context.Background()
+			surface := newFakeSurface()
+			eng := sink.New(surface, layout, sink.WithState(store, "scope"), sink.WithInterval(0))
+			if err := eng.Deliver(ctx, target, text(1, "hello ")); err != nil {
+				t.Fatal(err)
+			}
+			blocked := sink.New(timedOutSurface{surface}, layout, sink.WithState(store, "scope"), sink.WithInterval(0))
+			deadline, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+			defer cancel()
+			if err := blocked.Deliver(deadline, target, text(2, "world")); !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("error=%v", err)
+			}
+			// No redelivery and no new run event: recover only from committed state.
+			fresh := sink.New(surface, layout, sink.WithState(store, "scope"))
+			if err := fresh.Flush(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if surface.count() != 1 || !strings.Contains(surface.body("m1"), "hello world") {
+				t.Fatalf("lost timed-out delta: %v", surface.bodies)
+			}
+		})
+	}
+}
+
+func postgresSinkStore(t *testing.T) deliverystate.Store {
+	t.Helper()
+	url := os.Getenv("FLOW_POSTGRES_TEST_URL")
+	if url == "" {
+		t.Skip("set FLOW_POSTGRES_TEST_URL")
+	}
+	ctx := context.Background()
+	schema := fmt.Sprintf("sink_timeout_%d", time.Now().UnixNano())
+	cfg, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.MaxConns = 4
+	cfg.ConnConfig.RuntimeParams["search_path"] = schema
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ident := pgx.Identifier{schema}.Sanitize()
+	if _, err := pool.Exec(ctx, "CREATE SCHEMA "+ident); err != nil {
+		pool.Close()
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), "DROP SCHEMA "+ident+" CASCADE"); pool.Close() })
+	store := deliverystate.NewPostgres(pool)
+	if err := store.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	return store
 }

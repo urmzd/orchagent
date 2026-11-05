@@ -161,9 +161,11 @@ Use one stable scope per connector client; the connector adds its tenant and
 surface name. Configuring shared state requires `Config.Tenant`, and delivery
 refuses a different event tenant. GitHub comments and checks have distinct scopes.
 
-State updates hold one row lock across each surface write, so a delayed old
-replica reloads the current document before editing. Coalesced or failed edits
-are saved dirty before the event is acknowledged. Schedule connector `Flush`
+The event and dirty document commit before any external API call. A second
+transaction holds one row lock across the surface write and reloads the current
+document, so a delayed old replica cannot overwrite a newer render. If the API
+call times out and aborts that transaction, the earlier dirty snapshot remains
+available for recovery. Coalesced or failed edits are saved before acknowledgement. Schedule connector `Flush`
 with a bounded context: it recovers up to 256 dirty rows per call, including
 rows a previous replica left behind even when no further run event arrives.
 `WithPostgres` does not configure connectors constructed outside the app; hosts
