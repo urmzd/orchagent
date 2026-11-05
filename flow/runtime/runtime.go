@@ -458,6 +458,9 @@ type Runtime struct {
 	roles       Roles
 	reader      RecordReader
 	childRuns   bool
+	// outbox commits a run's ledger row with its accepted event. Nil
+	// publishes the event, then registers the run.
+	outbox Outbox
 
 	registry *run.Registry
 	turn     *durable.ActivityFn[Input, Output]
@@ -703,15 +706,27 @@ func (r *Runtime) start(ctx context.Context, in Input, version string) (Acceptan
 	acc := Acceptance{RunID: runID, Version: pin.Version, Tenant: tenant, Channel: in.Trigger.Channel, AcceptedAt: r.now().UTC()}
 
 	e := r.event(in, SeqAccepted, event.Accepted{})
-	if err := r.bus.Publish(ctx, e); err != nil {
+	startOpts := []durable.StartOption{durable.WithRunID(runID)}
+	if r.outbox != nil {
+		// The accepted event and the ledger row commit together: an
+		// outbox write, not a publish followed by a separate insert.
+		startOpts = append(startOpts, durable.WithAcceptor(func(ctx context.Context, dr run.Run) error {
+			if err := r.outbox.Accept(ctx, e, dr); err != nil {
+				return fmt.Errorf("publish accepted: %w", err)
+			}
+			return nil
+		}))
+	} else if err := r.bus.Publish(ctx, e); err != nil {
 		return Acceptance{}, fmt.Errorf("runtime: accept %s: publish accepted: %w", id, err)
 	}
-
-	startOpts := []durable.StartOption{durable.WithRunID(runID)}
 	if in.Parent != nil {
 		startOpts = append(startOpts, durable.WithParent(in.Parent.RunID))
 	}
-	if _, err := durable.Start(ctx, r.client, r.turn, in, startOpts...); err != nil {
+	if h, err := durable.Start(ctx, r.client, r.turn, in, startOpts...); err != nil {
+		if h == nil && r.outbox != nil {
+			// Nothing committed: no run and no accepted event.
+			return Acceptance{}, fmt.Errorf("runtime: accept %s: %w", id, err)
+		}
 		// Start returns a handle alongside an enqueue failure: the run is
 		// durable and the janitor will drive it anyway. Report the error,
 		// since the caller asked for an acknowledgement it did not fully get,

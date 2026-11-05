@@ -182,7 +182,10 @@ type Postgres struct {
 	swept time.Time
 }
 
-var _ Bus = (*Postgres)(nil)
+var (
+	_ Bus         = (*Postgres)(nil)
+	_ TxPublisher = (*Postgres)(nil)
+)
 
 // NewPostgres returns a bus on pool. It honours WithRetention, WithBacklog,
 // WithPollInterval, WithIndexTTL, WithMaxHops and WithLease, and does not
@@ -220,6 +223,38 @@ func (p *Postgres) Migrate(ctx context.Context) error {
 
 // Publish implements Bus.
 func (p *Postgres) Publish(ctx context.Context, e event.Envelope) error {
+	if err := p.publish(ctx, p.pool, e); err != nil {
+		return err
+	}
+	p.sweep(ctx)
+	return nil
+}
+
+// PublishTx implements TxPublisher: it writes e in tx, the caller's
+// transaction, so the state change tx makes and the event announcing it
+// commit together or not at all. Readers see the event once tx commits;
+// a rollback leaves no event and hands out no position.
+//
+// The tenant's publish lock is taken in tx and held until tx ends, which is
+// what keeps positions committing in order: every other publish to the same
+// tenant, from any process, waits for tx. Keep tx short.
+//
+// tx must be on the database and schema this bus was migrated in. The
+// retention sweep is left to the next Publish.
+func (p *Postgres) PublishTx(ctx context.Context, tx pgx.Tx, e event.Envelope) error {
+	if tx == nil {
+		return fmt.Errorf("%w: no transaction to publish %q in", ErrInvalid, e.ID)
+	}
+	return p.publish(ctx, tx, e)
+}
+
+// querier is what a publish runs on: the pool, or a caller's transaction.
+type querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// publish validates e and runs the publish function on q.
+func (p *Postgres) publish(ctx context.Context, q querier, e event.Envelope) error {
 	if err := normalize(&e, p.opts); err != nil {
 		return err
 	}
@@ -231,12 +266,11 @@ func (p *Postgres) Publish(ctx context.Context, e event.Envelope) error {
 		return fmt.Errorf("bus: encode %s %q: %w", e.Type, e.ID, err)
 	}
 	var stored bool
-	err = p.pool.QueryRow(ctx, `SELECT fiber_event_publish($1, $2, $3, $4, $5, $6, $7, $8)`,
+	err = q.QueryRow(ctx, `SELECT fiber_event_publish($1, $2, $3, $4, $5, $6, $7, $8)`,
 		e.Tenant, e.Channel, e.Type, e.Run, int64(e.Seq), e.ID, string(body), p.retention).Scan(&stored)
 	if err != nil {
 		return fmt.Errorf("bus: publish %s %q on %s: %w", e.Type, e.ID, e.Channel, err)
 	}
-	p.sweep(ctx)
 	return nil
 }
 

@@ -47,6 +47,7 @@ type startCfg struct {
 	runID       string
 	maxAttempts int
 	parent      string
+	accept      func(context.Context, run.Run) error
 }
 
 // StartOption configures one submission.
@@ -66,6 +67,16 @@ func WithMaxAttempts(n int) StartOption { return func(c *startCfg) { c.maxAttemp
 // WithParent records lineage (forks and child runs read it; informational
 // in v1).
 func WithParent(runID string) StartOption { return func(c *startCfg) { c.parent = runID } }
+
+// WithAcceptor registers the run through accept instead of the client's
+// ledger. accept must write the run to that same ledger, idempotently by its
+// ID, as Ledger.Accept does: it is the seam an outbox uses to commit the run
+// together with the event that announces it, in one database transaction.
+// Enqueue still follows a nil return, and a run accepted but never enqueued
+// is recovered by the janitor as always.
+func WithAcceptor(accept func(ctx context.Context, r run.Run) error) StartOption {
+	return func(c *startCfg) { c.accept = accept }
+}
 
 // Start durably submits a run of a: ledger Accept, then queue Enqueue.
 // A nil error means accepted-and-queued — "acknowledged means durable".
@@ -93,7 +104,11 @@ func Start[I, O any](ctx context.Context, c *Client, a *ActivityFn[I, O], in I, 
 		ParentRunID: cfg.parent,
 		CreatedAt:   time.Now(),
 	}
-	if err := c.lgr.Accept(ctx, r); err != nil {
+	accept := c.lgr.Accept
+	if cfg.accept != nil {
+		accept = cfg.accept
+	}
+	if err := accept(ctx, r); err != nil {
 		return nil, fmt.Errorf("durable: accept %s: %w", id, err)
 	}
 	if err := c.q.Enqueue(ctx, id, 0); err != nil {
