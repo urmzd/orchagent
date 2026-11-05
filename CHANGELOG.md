@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.0 (2026-11-05)
+
+### .
+
+#### Features
+
+- **flow/bus**: add PublishTx outbox and accept runs through it (#2) ([47f5c27](https://github.com/urmzd/orchagent/commit/47f5c27a32cd5e0f24a0c98e89ba26f316be58ff))
+- **flow**: per-turn reasoning effort and message model choices (#1) ([a6b7205](https://github.com/urmzd/orchagent/commit/a6b7205b9625ac7b7f942f4d1dc0635cde5dacb8))
+
+### sandbox/runner/k8s
+
+#### Misc
+
+- add missing scaffold files ([28725e6](https://github.com/urmzd/orchagent/commit/28725e6ea2e737a99bd952cdddb067f00ccf551c))
+
+[Full Changelog](https://github.com/urmzd/orchagent/compare/v0.1.0...v0.2.0)
+
+
 ## 0.1.0 (2026-11-03)
 
 ### .
