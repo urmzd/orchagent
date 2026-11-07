@@ -11,7 +11,7 @@
 //     model.use field, with its key read from $FIREWORKS_API_KEY at run time.
 //   - a tool, "lookup_runbook", that any agent can be granted by name.
 //
-// It stores the agent agents/oncall.agent.md defines, on the house provider, raises one tag in process and
+// It stores the agent agents/oncall.agent.md defines, on the house provider, asks it one question in process and
 // prints the answer:
 //
 //	go run ./examples/downstream
@@ -24,15 +24,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"time"
 
-	"github.com/urmzd/orchagent/flow"
-	"github.com/urmzd/orchagent/flow/bus"
-	"github.com/urmzd/orchagent/flow/definition"
-	"github.com/urmzd/orchagent/flow/event"
-	"github.com/urmzd/orchagent/flow/turn/native"
+	"github.com/urmzd/orchagent"
 	"github.com/urmzd/orchagent/flow/turn/native/agenttest"
-	saigetypes "github.com/urmzd/orchagent/flow/turn/native/saigetypes"
 )
 
 // oncall is the agent, as a saige definition file.
@@ -52,17 +46,16 @@ func run() error {
 	defer cancel()
 
 	// Everything is in memory unless an option says otherwise: a program
-	// on Postgres adds flow.WithPostgres(pool) and flow.WithBus(...).
-	const tenant = "acme"
-	app, err := flow.New(ctx,
-		flow.WithTenant(tenant),
-		flow.WithModelProvider("house", houseProvider),
-		flow.WithOpenAICompatible(native.OpenAICompatible{
+	// on Postgres adds orchagent.WithPostgres(pool) and orchagent.WithBus(...).
+	app, err := orchagent.New(ctx,
+		orchagent.WithTenant("acme"),
+		orchagent.WithModelProvider("house", houseProvider),
+		orchagent.WithOpenAICompatible(orchagent.OpenAICompatible{
 			Name:    "fireworks",
 			BaseURL: "https://api.fireworks.ai/inference/v1",
 			KeyEnv:  "FIREWORKS_API_KEY",
 		}),
-		flow.WithTools(runbookTool{}),
+		orchagent.WithTools(runbookTool{}),
 	)
 	if err != nil {
 		return err
@@ -73,74 +66,48 @@ func run() error {
 	done := make(chan error, 1)
 	go func() { done <- app.Run(ctx) }()
 
-	// Put is insert-only: storing the same file again is a no-op.
-	if _, err := app.Definitions().Put(ctx, definition.Record{
-		Tenant: tenant, Content: oncall, CreatedBy: "downstream",
-	}); err != nil && !errors.Is(err, definition.ErrExists) {
+	// Define is insert-only: storing the same file again is a no-op.
+	if _, err := app.Define(ctx, oncall); err != nil {
 		return err
 	}
 
-	// Watch the channel the request is posted on, then accept the run the
-	// way the dispatcher would for a member of that channel.
-	trigger := event.Envelope{
-		ID:      fmt.Sprintf("downstream-%d", time.Now().UnixNano()),
-		Source:  "downstream:" + tenant,
-		Type:    event.TypeMessagePosted,
-		Channel: "downstream://" + tenant + "/oncall",
-		Time:    time.Now().UTC(),
-		Tenant:  tenant,
-		Data:    event.MessagePosted{Request: event.Request{Text: "api is down", Mentions: []string{"oncall"}}},
-	}
-	stream, err := app.Bus().Subscribe(ctx, bus.Subscription{
-		Tenant:   trigger.Tenant,
-		Channels: []string{trigger.Channel},
-		Types:    []string{"run"},
-	})
+	// Ask runs the agent once and streams its reply.
+	reply, err := app.Ask(ctx, "oncall", "api is down")
 	if err != nil {
 		return err
 	}
-	defer func() { _ = stream.Close() }()
-	acc, err := app.Runtime().Accept(ctx, trigger, "oncall")
+	defer func() { _ = reply.Close() }()
+	answer, err := reply.Text(ctx)
 	if err != nil {
 		return err
 	}
-	for {
-		e, err := stream.Recv(ctx)
-		if err != nil {
-			return err
-		}
-		if e.Run != acc.RunID {
-			continue
-		}
-		switch b := e.Data.(type) {
-		case event.Text:
-			fmt.Print(b.Text)
-		case event.Completed, event.Failed, event.Stopped:
-			fmt.Printf("\nrun %s: %s\n", acc.RunID, e.Type)
-			cancel()
-			return <-done
-		}
+	fmt.Printf("%s\nrun %s: completed\n", answer, reply.RunID)
+	cancel()
+	if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
+		return err
 	}
+	return nil
 }
 
 // houseProvider builds the model client for one agent version. It receives
 // the whole spec, so it can key on the model name or the agent.
-func houseProvider(spec native.Spec) (saigetypes.Provider, error) {
-	return &agenttest.ScriptedProvider{Responses: [][]saigetypes.Delta{
-		agenttest.TextResponse(spec.Name + " answered on the house model (" + spec.Model + ")."),
-	}}, nil
+func houseProvider(spec orchagent.Spec) (orchagent.Provider, error) {
+	p := &agenttest.ScriptedProvider{}
+	p.Responses = append(p.Responses,
+		agenttest.TextResponse(spec.Name+" answered on the house model ("+spec.Model+")."))
+	return p, nil
 }
 
-// runbookTool is a tool the team owns. Any saige Tool works.
+// runbookTool is a tool the team owns. Any orchagent.Tool works.
 type runbookTool struct{}
 
-func (runbookTool) Definition() saigetypes.ToolDef {
-	return saigetypes.ToolDef{
+func (runbookTool) Definition() orchagent.ToolDef {
+	return orchagent.ToolDef{
 		Name:        "lookup_runbook",
 		Description: "Look up the on-call runbook for a service.",
-		Parameters: saigetypes.ParameterSchema{
+		Parameters: orchagent.ParameterSchema{
 			Type:       "object",
-			Properties: map[string]saigetypes.PropertyDef{"service": {Type: "string"}},
+			Properties: map[string]orchagent.PropertyDef{"service": {Type: "string"}},
 			Required:   []string{"service"},
 		},
 	}

@@ -7,6 +7,7 @@ module so importers do not inherit client-go.
 
 ## Rules
 
+- The root package `orchagent` is a thin facade over `flow`: `New`, `Ask`'s types and the common options as aliases. Behaviour lives in `flow`; the root only names it.
 - `flow` may import `durable` and `sandbox`. `durable` and `sandbox` never import `flow`, and never each other.
 - Nothing here is a service: no listener, no config files, no environment variables read to decide what to build. Backends are chosen in code. Humagen owns configuration.
 - Names stored in databases or on the wire keep their old spelling (`fiber_*`, `fiber://`, `fiber.*` kinds). Do not rename them without a migration.
