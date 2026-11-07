@@ -167,6 +167,9 @@ type Config struct {
 	// redirects to. The app needs the files:read scope; without it Slack
 	// serves a sign-in page, which is detected and reported as unread.
 	FileToken string
+	// FileTokenSource, when set, supplies each download's current token.
+	// A failed refresh never falls back to FileToken.
+	FileTokenSource func(context.Context) (string, error)
 
 	// AppID is this deployment's Slack app id ("A0123..."). A message in a
 	// listed thread posted by this app is the deployment's own (see
@@ -222,11 +225,11 @@ func New(cfg Config) (*Connector, error) {
 		c.feedbackState = deliverystate.NewMemory()
 	}
 	if cfg.Files.Enabled() {
-		if cfg.Tenant == "" || cfg.FileToken == "" {
+		if cfg.Tenant == "" || (cfg.FileToken == "" && cfg.FileTokenSource == nil) {
 			return nil, fmt.Errorf("slack: file intake needs a tenant to store files under and a bot token to download them with")
 		}
 		c.fetcher = intake.NewFetcher(cfg.Files.Store, fileHosts(),
-			intake.WithHeaders(fileHeaders(cfg.FileToken)),
+			intake.WithRequestHeaders(fileRequestHeaders(cfg.FileToken, cfg.FileTokenSource)),
 			intake.WithMaxBytes(cfg.Files.Caps.MaxFileBytes))
 	}
 	c.gate = inbound.Gate{Verifier: cfg.Verifier, MaxBody: cfg.MaxBody}

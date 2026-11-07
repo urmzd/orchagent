@@ -401,6 +401,41 @@ func TestCredentialsAreChosenPerHopAndNeverFollowARedirect(t *testing.T) {
 	}
 }
 
+func TestRequestHeadersRotateAndFailBeforeDownload(t *testing.T) {
+	var hits atomic.Int64
+	token := "first"
+	api := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		if r.Header.Get("Authorization") != "Bearer "+token {
+			t.Error("stale token")
+		}
+		_, _ = io.WriteString(w, png)
+	})
+	fail := false
+	f := local(blob.NewMemory(), intake.AnyPublicHost, intake.WithRequestHeaders(func(ctx context.Context, u *url.URL) (http.Header, error) {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if fail {
+			return nil, errors.New("refresh secret")
+		}
+		return http.Header{"Authorization": {"Bearer " + token}}, nil
+	}))
+	for _, next := range []string{"first", "second"} {
+		token = next
+		if _, err := f.Fetch(ctx, "acme", api.URL, intake.Meta{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fail = true
+	if _, err := f.Fetch(ctx, "acme", api.URL, intake.Meta{}); err == nil || strings.Contains(err.Error(), "refresh secret") {
+		t.Fatal("refresh error leaked or was ignored")
+	}
+	if hits.Load() != 2 {
+		t.Fatal("request sent after refresh failure")
+	}
+}
+
 func TestFetchHoldsTheSizeCapWhetherOrNotTheServerDeclaresALength(t *testing.T) {
 	big := strings.Repeat("z", 50_000)
 	var sent atomic.Int64
