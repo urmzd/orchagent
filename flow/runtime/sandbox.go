@@ -125,8 +125,9 @@ type Sandbox struct {
 	groups ToolGroupSource
 	// delegator, when set, carries out a delegation for a turn that is a
 	// durable run, in place of the in-turn sub-task.
-	delegator Delegator
-	callTool  string
+	delegator      Delegator
+	callTool       string
+	sessionRuntime func() *Runtime
 	// instances gives each turn its claim on an isolated instance; nil
 	// gives none, and tools that need one refuse.
 	instances RunInstances
@@ -767,7 +768,7 @@ func (s *Sandbox) call(ctx context.Context, rt tool.Runtime, input []byte) ([]by
 		Text: req.Text, Meta: req.Meta, History: req.History, Instructions: req.Instructions,
 		Attachments: req.Attachments, Tenant: req.Tenant,
 		Stop: stop, Compact: compact, Holds: holds, Accounting: req.Accounting,
-		Park: req.Park, QuestionTTL: req.QuestionTTL, Resume: req.Resume,
+		Park: req.Park, QuestionTTL: req.QuestionTTL, Resume: req.Resume, Budget: req.Budget,
 	}, func(_ context.Context, c event.Body) error {
 		return send(c)
 	})
@@ -885,6 +886,17 @@ func (s *Sandbox) turnTools(ctx context.Context, rt tool.Runtime, req Request, s
 		add(s.callTool)
 	}
 
+	sessionTools := map[string]saigetypes.Tool{}
+	if s.sessionRuntime != nil && req.Session != nil {
+		if r := s.sessionRuntime(); r != nil {
+			sessionTools = r.sessionTools(req, send)
+			for _, name := range sessionToolNames {
+				if name != "session_call" || len(req.Definition.Spec.Access.Spawn) > 0 {
+					add(name)
+				}
+			}
+		}
+	}
 	var base native.Tools
 	if s.catalog != nil {
 		b, err := s.catalog(req, report)
@@ -895,6 +907,9 @@ func (s *Sandbox) turnTools(ctx context.Context, rt tool.Runtime, req Request, s
 	}
 
 	return turnCatalog{ctx: ctx, tenant: req.Tenant, groups: s.groups, base: base, lookup: func(name string) (saigetypes.Tool, error) {
+		if t, ok := sessionTools[name]; ok {
+			return t, nil
+		}
 		if t, ok := delegates[name]; ok {
 			return t, nil
 		}

@@ -407,6 +407,9 @@ func (r *Runtime) recordStop(ctx context.Context, tenant, runID string, body []b
 		if errors.Is(err, run.ErrAlreadyRecorded) {
 			body = stored.Output
 		}
+		if err := r.stopSessionChildren(ctx, in, body); err != nil {
+			return true, err
+		}
 		if err := r.stopParked(ctx, tenant, runID, body); err != nil {
 			return true, err
 		}

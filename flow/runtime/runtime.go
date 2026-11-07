@@ -136,6 +136,7 @@ import (
 	"github.com/urmzd/orchagent/flow/event"
 	"github.com/urmzd/orchagent/flow/event/legacy"
 	oldnames "github.com/urmzd/orchagent/flow/internal/legacy"
+	"github.com/urmzd/orchagent/flow/session"
 	"github.com/urmzd/orchagent/flow/thread"
 	turnrt "github.com/urmzd/orchagent/flow/turn"
 	"github.com/urmzd/orchagent/flow/turn/native"
@@ -202,6 +203,10 @@ type Definitions interface {
 // sequence number. The attempt-varying values a turn needs are read from the
 // replay frame instead (see durable.FromContext).
 type Input struct {
+	Budget        *session.Budget `json:"budget,omitempty"`
+	RequireBudget bool            `json:"require_budget,omitempty"`
+	// Session pins the continuing conversation independently of delivery.
+	Session *session.Record `json:"session,omitempty"`
 	// Trigger is the event the run answers, tenant set by the host.
 	Trigger event.Envelope `json:"trigger"`
 	// Subscriber is the agent the run is for.
@@ -272,6 +277,8 @@ type Output struct {
 // process, or on another machine, and "the definition to run" is not a question
 // it is allowed to answer.
 type Request struct {
+	Budget  *turnrt.Budget  `json:"budget,omitempty"`
+	Session *session.Record `json:"session,omitempty"`
 	// Instructions is a trusted host-generated return contract for this run.
 	Instructions string `json:"instructions,omitempty"`
 
@@ -453,11 +460,14 @@ type Runtime struct {
 
 	// waker wakes a parked run once its question is answered or it is
 	// stopped. Nil leaves it to the worker's janitor.
-	waker       Waker
-	questionTTL time.Duration
-	roles       Roles
-	reader      RecordReader
-	childRuns   bool
+	waker        Waker
+	questionTTL  time.Duration
+	roles        Roles
+	reader       RecordReader
+	childRuns    bool
+	sessions     session.Store
+	childStarter ChildStarter
+	childRunID   func(Input, SessionCall) string
 	// outbox commits a run's ledger row with its accepted event. Nil
 	// publishes the event, then registers the run.
 	outbox Outbox
@@ -695,6 +705,14 @@ func (r *Runtime) start(ctx context.Context, in Input, version string) (Acceptan
 		return Acceptance{}, fmt.Errorf("runtime: accept %s: resolve agent %q: %w", id, in.Subscriber, err)
 	}
 	in.Pin = pin
+	if err := r.openRunBudget(ctx, &in); err != nil {
+		return Acceptance{}, err
+	}
+	if r.sessions != nil {
+		if err = r.bindSession(ctx, &in); err != nil {
+			return Acceptance{}, err
+		}
+	}
 
 	// The second pin. It is taken here, next to the definition's, because it
 	// is the same kind of fact: something that keeps moving, read once.
@@ -732,6 +750,11 @@ func (r *Runtime) start(ctx context.Context, in Input, version string) (Acceptan
 		// since the caller asked for an acknowledgement it did not fully get,
 		// but return the acceptance too, so it can observe the run it now owns.
 		return acc, fmt.Errorf("runtime: accept %s: %w", id, err)
+	}
+	if r.sessions != nil && in.Session != nil {
+		if err := r.sessions.BindRun(ctx, in.Trigger.Tenant, in.Session.ID, runID); err != nil {
+			return acc, err
+		}
 	}
 	return acc, nil
 }
@@ -812,8 +835,14 @@ func (r *Runtime) runTurn(ctx context.Context, in Input) (Output, error) {
 		terminal := run.IsNonRetryable(err) || errors.Is(err, run.ErrNonDeterministic)
 		at.report(ctx, event.Failed{Attempt: attempt, Error: err.Error(), Terminal: terminal})
 		if terminal {
+			if e := r.closeRunBudget(ctx, in); e != nil {
+				return Output{}, e
+			}
 			r.answerParent(ctx, in, "", nil, err)
 		}
+		return Output{}, err
+	}
+	if err := r.closeRunBudget(ctx, in); err != nil {
 		return Output{}, err
 	}
 	// The run's answer is everything it said, across every park.
@@ -997,6 +1026,7 @@ func (r *Runtime) executeAgent(ctx context.Context, in Input, resume *native.Par
 		Text:       text,
 		Meta:       meta,
 		History:    history,
+		Session:    in.Session,
 		Definition: rev,
 		Pin:        in.Pin,
 		Policy:     loaded.Agent.Policy,
@@ -1009,6 +1039,11 @@ func (r *Runtime) executeAgent(ctx context.Context, in Input, resume *native.Par
 		QuestionTTL: r.questionTTL,
 		Resume:      resume,
 		ChildRuns:   r.childRuns && r.stops != nil,
+	}
+
+	req.Budget, err = r.reserveTurnBudget(ctx, in, attempt)
+	if err != nil {
+		return Outcome{}, err
 	}
 
 	// What earlier attempts spent and failed is read here, inside the
@@ -1032,6 +1067,13 @@ func (r *Runtime) executeAgent(ctx context.Context, in Input, resume *native.Par
 		// A call is counted when it is reported, before it is published:
 		// the tokens were spent whether or not the bus takes the event.
 		meter.observe(body)
+		if c, ok := body.(event.UsageCall); ok && in.Session != nil {
+			if store, ok := r.sessions.(session.UsageStore); ok {
+				if err := store.RecordUsage(ctx, in.Trigger.Tenant, in.Session.ID, c); err != nil {
+					return err
+				}
+			}
+		}
 		seq, err := b.delta()
 		if err != nil {
 			// The band is spent. Retrying would produce the same flood, so
@@ -1052,6 +1094,12 @@ func (r *Runtime) executeAgent(ctx context.Context, in Input, resume *native.Par
 	// worker dies before it) is executed again too. Either way the attempt
 	// that finally records an outcome reads these calls and counts them.
 	recorded := r.recordSpent(ctx, req.RunID, mine)
+	if settleErr := r.settleTurnBudget(context.WithoutCancel(ctx), in, attempt, mine, req.Budget, err != nil); settleErr != nil {
+		return out, settleErr
+	}
+	if err != nil && req.Budget != nil {
+		err = durable.NonRetryable(err)
+	}
 	if err != nil {
 		return out, fmt.Errorf("runtime: run %s: agent %q version %s: %w", req.RunID, rev.Spec.Name, rev.Version, err)
 	}
@@ -1105,7 +1153,7 @@ func (r *Runtime) pinHistory(ctx context.Context, in Input, runID string) (uint6
 	if r.threads == nil {
 		return 0, nil
 	}
-	key := thread.KeyOf(in.Trigger, in.Subscriber)
+	key := in.threadKey()
 	if err := key.Validate(); err != nil {
 		return 0, err
 	}
@@ -1141,7 +1189,7 @@ func (r *Runtime) pinnedHistory(ctx context.Context, in Input) ([]native.Message
 	if in.HistorySeq == 0 {
 		return nil, nil
 	}
-	key := thread.KeyOf(in.Trigger, in.Subscriber)
+	key := in.threadKey()
 	if r.threads == nil {
 		return nil, durable.NonRetryable(fmt.Errorf(
 			"%w: run pinned %d entries of thread %s but this runtime has no thread store",
@@ -1233,7 +1281,7 @@ func (r *Runtime) remember(ctx context.Context, in Input, out Outcome) error {
 	if len(entries) == 0 {
 		return nil
 	}
-	key := thread.KeyOf(in.Trigger, in.Subscriber)
+	key := in.threadKey()
 	if _, err := r.threads.Append(ctx, key, entries...); err != nil {
 		return fmt.Errorf("runtime: run %s: record the exchange in thread %s: %w", runID, key, err)
 	}
@@ -1285,7 +1333,7 @@ func (r *Runtime) publish(ctx context.Context, in Input, seq uint64, body event.
 // pinned version and digest. It is one hop from the trigger.
 func (r *Runtime) event(in Input, seq uint64, body event.Body) event.Envelope {
 	runID := in.runID()
-	return event.Envelope{
+	e := event.Envelope{
 		ID:      runID + ":" + strconv.FormatUint(seq, 10),
 		Source:  "fiber://run/" + runID,
 		Type:    body.Type(),
@@ -1300,6 +1348,13 @@ func (r *Runtime) event(in Input, seq uint64, body event.Body) event.Envelope {
 		Digest:  in.Pin.Digest,
 		Data:    body,
 	}
+	if in.Session != nil {
+		e.Session = in.Session.ID
+		if in.Session.Depth > 0 {
+			e.ParentSession = in.Session.Key.Parent
+		}
+	}
+	return e
 }
 
 // attemptOf reports the execution attempt, from 1.

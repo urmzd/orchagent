@@ -29,6 +29,7 @@ func ValidateJSON(schema ParameterSchema, value any) error { return types.Valida
 // Providers and the deltas they stream.
 type (
 	Delta      = types.Delta
+	UsageDelta = types.UsageDelta
 	ErrorDelta = types.ErrorDelta
 	PartDelta  = types.PartDelta
 	PartEnd    = types.PartEnd

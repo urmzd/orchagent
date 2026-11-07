@@ -47,7 +47,7 @@ func TestExtensionsReachEveryLayerOfTheCore(t *testing.T) {
 		}),
 		WithConnector(box),
 	)
-	start(t, c.Run)
+	start(t, func(ctx context.Context) error { return c.Run(ctx) })
 	ctx := context.Background()
 
 	spec := definition.AgentSpec{Name: "oncall", Model: "house-1", Provider: "house", SystemPrompt: "Help.", Tools: []string{"lookup_runbook"}}

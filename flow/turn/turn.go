@@ -133,7 +133,14 @@ type Policy struct {
 
 // Input is one turn's input. It must be the same on every attempt: nothing
 // derived from the moment of execution belongs here.
+type Budget struct {
+	CostMicros int64 `json:"cost_micros"`
+	Tokens     int64 `json:"tokens"`
+	Requests   int64 `json:"requests"`
+}
+
 type Input struct {
+	Budget *Budget `json:"budget,omitempty"`
 	// Trigger is the event the turn answers. The prompt is its catalog
 	// rendering, and so is the retrieval query.
 	Trigger event.Envelope `json:"trigger"`

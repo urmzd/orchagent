@@ -40,6 +40,7 @@ import (
 	"github.com/urmzd/orchagent/flow/membership"
 	"github.com/urmzd/orchagent/flow/runschema"
 	"github.com/urmzd/orchagent/flow/runtime"
+	"github.com/urmzd/orchagent/flow/session"
 	"github.com/urmzd/orchagent/flow/thread"
 	"github.com/urmzd/orchagent/flow/toolprovider"
 	"github.com/urmzd/orchagent/flow/turn"
@@ -64,21 +65,22 @@ type App struct {
 	opt options
 	log *slog.Logger
 
-	store   definition.Source
-	defs    *definition.Resolver
-	docs    knowledge.Store
-	threads thread.Store
-	members membership.Store
-	tools   toolprovider.Store
-	blobs   blob.Store
-	broker  bus.Bus
-	sinks   *connector.Registry
-	out     *egress.Engine
-	rt      *runtime.Runtime
-	disp    *dispatch.Dispatcher
-	exec    turn.Runtime
-	ledger  Ledger
-	queue   dqueue.Queue
+	store    definition.Source
+	defs     *definition.Resolver
+	docs     knowledge.Store
+	threads  thread.Store
+	sessions session.Store
+	members  membership.Store
+	tools    toolprovider.Store
+	blobs    blob.Store
+	broker   bus.Bus
+	sinks    *connector.Registry
+	out      *egress.Engine
+	rt       *runtime.Runtime
+	disp     *dispatch.Dispatcher
+	exec     turn.Runtime
+	ledger   Ledger
+	queue    dqueue.Queue
 
 	webhooks map[string]http.Handler
 
@@ -156,6 +158,18 @@ func New(ctx context.Context, opts ...Option) (*App, error) {
 	if a.threads, err = newThreads(ctx, pool, o); err != nil {
 		return fail(err)
 	}
+	a.sessions = o.Sessions
+	if a.sessions == nil {
+		if pool == nil {
+			a.sessions = session.NewMemory()
+		} else {
+			store := session.NewPostgres(pool)
+			if err := store.Migrate(ctx); err != nil {
+				return fail(err)
+			}
+			a.sessions = store
+		}
+	}
 	// Who is a member of which channel: what decides who an event wakes.
 	if a.members, err = newMemberships(ctx, pool, o); err != nil {
 		return fail(err)
@@ -212,6 +226,8 @@ func New(ctx context.Context, opts ...Option) (*App, error) {
 	rtOpts := []runtime.Option{
 		runtime.WithLogger(a.log),
 		runtime.WithThreads(a.threads),
+		runtime.WithSessions(a.sessions),
+		runtime.WithChildRuns(),
 		// Before a run's history is pinned, its thread catches up with what
 		// people said on the surface without tagging the agent.
 		runtime.WithReconciler(listers(a.sinks)),
@@ -440,6 +456,7 @@ func (a *App) newSandbox(groups runtime.ToolGroupSource) (turn.Runtime, error) {
 	}
 	exec, err := runtime.NewSandbox(plane, tools, a.defs,
 		runtime.WithAgentOptions(agentOpts...),
+		runtime.WithSessionRuntime(func() *runtime.Runtime { return a.rt }),
 		// A spec's tool names resolve against the actions every registered
 		// connector advertises, then against the tool sources options added.
 		runtime.WithCatalog(catalog(runtime.Connectors(a.sinks), a.opt.Catalogs)),
@@ -619,45 +636,70 @@ func (a *App) Answer(ctx context.Context, req runtime.AnswerRequest) (answer eve
 // them fails, then stops both. A cancelled ctx is not a failure. Dispatch and
 // egress run for the deployment's tenant (WithTenant); a program serving more
 // tenants runs Dispatcher and Egress once per tenant.
-func (a *App) Run(ctx context.Context) error {
-	return a.run(ctx, true, true)
+func (a *App) Run(ctx context.Context, roles ...Role) error {
+	selected := map[Role]bool{}
+	if len(roles) == 0 {
+		roles = []Role{RoleIngress, RoleDispatch, RoleExecution, RoleDelivery}
+	}
+	for _, role := range roles {
+		switch role {
+		case RoleIngress, RoleDispatch, RoleExecution, RoleDelivery:
+			selected[role] = true
+		default:
+			return configf("run: unknown role %q", role)
+		}
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	g := &group{cancel: cancel}
+	if selected[RoleDelivery] && a.opt.Tenant != "" {
+		g.run("egress", func() error { return a.out.Run(ctx, a.opt.Tenant) })
+	}
+	if selected[RoleExecution] {
+		a.startWorker(ctx, g)
+	}
+	if selected[RoleDispatch] && a.opt.Tenant != "" {
+		g.run("dispatch", func() error { return a.disp.Run(ctx, a.opt.Tenant) })
+	}
+	if selected[RoleIngress] {
+		a.startIngress(ctx, g)
+	}
+	<-ctx.Done()
+	return g.wait(runGrace)
 }
+
+// Role selects a process responsibility. Shared backends let these run in
+// separate replicas without introducing multiple application constructors.
+type Role string
+
+const (
+	RoleIngress   Role = "ingress"
+	RoleDispatch  Role = "dispatch"
+	RoleExecution Role = "execution"
+	RoleDelivery  Role = "delivery"
+)
 
 // RunDelivery runs only egress: it reads the bus and renders events onto
 // connector sinks, accepting and executing nothing, so delivery can scale
 // apart from execution. It needs a shared bus to be useful.
+// Deprecated: use Run(ctx, RoleDelivery).
 func (a *App) RunDelivery(ctx context.Context) error {
-	return a.run(ctx, true, false)
+	return a.Run(ctx, RoleDelivery)
 }
 
 // RunExecution runs only the durable worker, dispatch and the triggers: it
 // executes runs and accepts what connectors publish, and delivers nothing.
+// Deprecated: use Run with RoleIngress, RoleDispatch and RoleExecution.
 func (a *App) RunExecution(ctx context.Context) error {
-	return a.run(ctx, false, true)
+	return a.Run(ctx, RoleIngress, RoleDispatch, RoleExecution)
 }
 
 // runGrace bounds how long Run waits for its loops after ctx ends. A
 // connector's flush can outlive the context that told it to stop.
 const runGrace = 20 * time.Second
 
-func (a *App) run(ctx context.Context, delivery, execution bool) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	g := &group{cancel: cancel}
-	if delivery && a.opt.Tenant != "" {
-		g.run("egress", func() error { return a.out.Run(ctx, a.opt.Tenant) })
-	}
-	if execution {
-		a.startExecution(ctx, g)
-	}
-	<-ctx.Done()
-	return g.wait(runGrace)
-}
-
-// startExecution runs the durable worker, dispatch and every trigger. Each
-// trigger publishes straight to the bus, so a connector never learns what a
-// runtime is.
-func (a *App) startExecution(ctx context.Context, g *group) {
+// startWorker executes durable runs without accepting surface traffic.
+func (a *App) startWorker(ctx context.Context, g *group) {
 	wopts := []worker.Option{
 		worker.WithRegistry(a.rt.Registry()),
 		worker.WithConcurrency(max(a.opt.Concurrency, 1)),
@@ -665,9 +707,9 @@ func (a *App) startExecution(ctx context.Context, g *group) {
 	}
 	wopts = append(wopts, a.opt.WorkerOpts...)
 	g.run("worker", func() error { return worker.New(a.ledger, a.queue, wopts...).Run(ctx) })
-	if a.opt.Tenant != "" {
-		g.run("dispatch", func() error { return a.disp.Run(ctx, a.opt.Tenant) })
-	}
+}
+
+func (a *App) startIngress(ctx context.Context, g *group) {
 	for _, t := range a.sinks.Triggers() {
 		g.run("trigger "+t.Name(), func() error {
 			if err := t.Ingest(ctx, a.Publish); err != nil && !errors.Is(err, context.Canceled) {
@@ -686,7 +728,11 @@ func (a *App) Webhooks() map[string]http.Handler { return maps.Clone(a.webhooks)
 
 // WebhookHandler serves every webhook connector under /connectors/{name},
 // for a program that wants one mount point.
-func (a *App) WebhookHandler() http.Handler {
+// Deprecated: use Handler.
+func (a *App) WebhookHandler() http.Handler { return a.Handler() }
+
+// Handler serves all webhook connectors under /connectors/{name}.
+func (a *App) Handler() http.Handler {
 	mux := http.NewServeMux()
 	for name, h := range a.webhooks {
 		mux.Handle("/connectors/"+name+"/", http.StripPrefix("/connectors/"+name, h))

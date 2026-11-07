@@ -206,7 +206,7 @@ var offline = definition.AgentSpec{Name: "docs-bot", Model: "m", Provider: defin
 func TestATenantReusingAnotherTenantsEventIDCannotJoinOrReceiveItsRun(t *testing.T) {
 	box := &inbox{}
 	app := newApp(t, WithTenant("acme"), WithConnector(box))
-	start(t, app.Run)
+	start(t, func(ctx context.Context) error { return app.Run(ctx) })
 	start(t, func(ctx context.Context) error { return app.Egress().Run(ctx, "globex") })
 	ctx := context.Background()
 
@@ -307,7 +307,7 @@ func TestAStopEndsTheRunAndIsDeliveredAsStopped(t *testing.T) {
 func TestStatusReadsTheUsageTheRunRecorded(t *testing.T) {
 	box := &inbox{types: []string{"run.usage", "run.accepted", "run.started", "run.completed", "run.failed", "run.stopped"}}
 	app := newApp(t, WithTenant("acme"), WithConnector(box))
-	start(t, app.Run)
+	start(t, func(ctx context.Context) error { return app.Run(ctx) })
 	ctx := context.Background()
 	if _, err := createAgent(app.Definitions(), ctx, "acme", offline, "test"); err != nil {
 		t.Fatal(err)
@@ -375,7 +375,7 @@ func TestEveryBackendIsMemoryUnlessGivenAndPostgresFillsEveryStore(t *testing.T)
 			}
 		}
 		// And a run goes end to end on it.
-		start(t, app.Run)
+		start(t, func(ctx context.Context) error { return app.Run(ctx) })
 		ctx := context.Background()
 		if _, err := createAgent(app.Definitions(), ctx, "acme", offline, "test"); err != nil {
 			t.Fatal(err)
@@ -480,7 +480,7 @@ func TestIndexGroundsAgentsInFiles(t *testing.T) {
 func TestRedeliveredEventJoinsItsRun(t *testing.T) {
 	box := &inbox{channels: []string{"slack://T1/C1"}, target: address.MustParse("inbox://acme/out")}
 	app := newApp(t, WithTenant("acme"), WithConnector(box))
-	start(t, app.Run)
+	start(t, func(ctx context.Context) error { return app.Run(ctx) })
 	ctx := context.Background()
 	if _, err := createAgent(app.Definitions(), ctx, "acme", offline, "test"); err != nil {
 		t.Fatal(err)

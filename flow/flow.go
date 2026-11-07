@@ -58,6 +58,7 @@ import (
 	"github.com/urmzd/orchagent/flow/mcptools"
 	"github.com/urmzd/orchagent/flow/membership"
 	"github.com/urmzd/orchagent/flow/runtime"
+	"github.com/urmzd/orchagent/flow/session"
 	"github.com/urmzd/orchagent/flow/thread"
 	"github.com/urmzd/orchagent/flow/toolprovider"
 	"github.com/urmzd/orchagent/flow/turn"
@@ -147,6 +148,9 @@ func WithMemberships(s membership.Store) Option { return func(o *options) { o.Me
 
 // WithThreads sets the conversation journal.
 func WithThreads(s thread.Store) Option { return func(o *options) { o.Threads = s } }
+
+// WithSessions sets the continuing conversation index.
+func WithSessions(s session.Store) Option { return func(o *options) { o.Sessions = s } }
 
 // WithKnowledge sets the knowledge store agents are grounded in.
 func WithKnowledge(s knowledge.Store) Option { return func(o *options) { o.Knowledge = s } }

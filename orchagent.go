@@ -30,6 +30,7 @@ import (
 	"github.com/urmzd/orchagent/flow"
 	"github.com/urmzd/orchagent/flow/definition"
 	"github.com/urmzd/orchagent/flow/event"
+	"github.com/urmzd/orchagent/flow/session"
 	"github.com/urmzd/orchagent/flow/turn/native"
 	saigetypes "github.com/urmzd/orchagent/flow/turn/native/saigetypes"
 )
@@ -40,7 +41,20 @@ type App = flow.App
 // Option is one choice New is given. Every flow.With* option is an Option.
 type Option = flow.Option
 
+// Session is one continuing conversation with an agent.
+type Session = flow.Session
+type SessionOptions = session.Open
+type Role = flow.Role
+
+const (
+	RoleIngress   = flow.RoleIngress
+	RoleDispatch  = flow.RoleDispatch
+	RoleExecution = flow.RoleExecution
+	RoleDelivery  = flow.RoleDelivery
+)
+
 // Reply is one run started by App.Ask.
+// Deprecated: use App.Session and Session.Post.
 type Reply = flow.Reply
 
 // Event is one event on the bus.
@@ -78,6 +92,7 @@ func New(ctx context.Context, opts ...Option) (*App, error) { return flow.New(ct
 // The options most programs need. The rest are in package flow.
 var (
 	WithTenant           = flow.WithTenant
+	WithSessions         = flow.WithSessions
 	WithLogger           = flow.WithLogger
 	WithPostgres         = flow.WithPostgres
 	WithBus              = flow.WithBus

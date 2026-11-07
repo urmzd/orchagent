@@ -36,6 +36,10 @@ func FallbackConditions() []string {
 // Policy is what flow decides about an agent that saige does not. Every
 // field is an allowlist or a narrowing: the zero Policy grants nothing.
 type Policy struct {
+	// SessionDepth bounds child session depth for granted subagents; zero uses three.
+	SessionDepth int `json:"session_depth,omitempty"`
+	// OpenChildren bounds outstanding child calls; zero uses eight.
+	OpenChildren int `json:"open_children,omitempty"`
 	// Subscriptions are the channels and type prefixes the agent listens
 	// on. None means it is woken by nothing.
 	Subscriptions []Subscription `json:"subscriptions,omitempty"`
@@ -132,6 +136,8 @@ type Corpus struct {
 // differ only in order hash the same.
 func (p Policy) Normalize() Policy {
 	out := Policy{
+		SessionDepth:   p.SessionDepth,
+		OpenChildren:   p.OpenChildren,
 		WorkspaceAreas: set(p.WorkspaceAreas, false),
 		MCPWrite:       set(p.MCPWrite, false),
 		FallbackOn:     set(p.FallbackOn, true),
@@ -181,6 +187,12 @@ func (p Policy) Hash() string {
 // Validate checks what a policy can prove on its own.
 func (p Policy) Validate() error {
 	n := p.Normalize()
+	if n.OpenChildren < 0 || n.OpenChildren > 64 {
+		return fmt.Errorf("%w: open_children must be between 0 and 64", ErrInvalid)
+	}
+	if n.SessionDepth < 0 || n.SessionDepth > 32 {
+		return fmt.Errorf("%w: session_depth must be between 0 and 32", ErrInvalid)
+	}
 	for what, list := range map[string][]string{
 		"workspace area": n.WorkspaceAreas, "mcp write grant": n.MCPWrite, "fallback condition": n.FallbackOn,
 		"approver": n.Approvers, "answerer": n.Answerers,

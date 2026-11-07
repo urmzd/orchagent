@@ -24,6 +24,7 @@ import (
 	"github.com/urmzd/orchagent/flow/mcptools"
 	"github.com/urmzd/orchagent/flow/membership"
 	"github.com/urmzd/orchagent/flow/runtime"
+	"github.com/urmzd/orchagent/flow/session"
 	"github.com/urmzd/orchagent/flow/thread"
 	"github.com/urmzd/orchagent/flow/toolprovider"
 	"github.com/urmzd/orchagent/flow/turn"
@@ -58,6 +59,7 @@ type options struct {
 	Ledger      Ledger
 	Queue       dqueue.Queue
 	Threads     thread.Store
+	Sessions    session.Store
 	Memberships membership.Store
 	Knowledge   knowledge.Store
 	Embedder    knowledge.Embedder
