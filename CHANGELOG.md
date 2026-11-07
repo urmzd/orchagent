@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 (2026-11-07)
+
+### Features
+
+- add root orchagent package with App.Define and App.Ask (#5) ([72dd867](https://github.com/urmzd/orchagent/commit/72dd86765d7164afa97484fb7e6d7e481b0568fb))
+
+[Full Changelog](https://github.com/urmzd/orchagent/compare/v0.3.0...v0.4.0)
+
+
 ## 0.3.0 (2026-11-05)
 
 ### Features
