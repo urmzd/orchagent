@@ -176,12 +176,13 @@ func (c *Connector) eventFrom(name, delivery string, h hook) (event.Envelope, bo
 	}
 
 	var (
-		subj      subject
-		text      string
-		mentions  []string
-		reviewer  string
-		commentID int64
-		ok        bool
+		subj       subject
+		text       string
+		mentions   []string
+		reviewer   string
+		commentID  int64
+		reviewRoot int64
+		ok         bool
 	)
 
 	switch name {
@@ -204,8 +205,16 @@ func (c *Connector) eventFrom(name, delivery string, h hook) (event.Envelope, bo
 		}
 		subj = subjectOf(h)
 		commentID = h.Comment.ID
+		reviewRoot = h.Comment.ID
+		if h.Comment.InReplyToID != 0 {
+			reviewRoot = h.Comment.InReplyToID
+		}
+		if reviewRoot <= 0 || subj.number <= 0 {
+			return event.Envelope{}, false
+		}
+		reviewTarget := sourceOf(h.Repository, subj).WithParam("review_comment", strconv.FormatInt(reviewRoot, 10))
 		if mentions, text, ok = c.asked(h.Comment.Body); !ok {
-			if c.cfg.ContinueThread == nil || !c.cfg.ContinueThread(sourceOf(h.Repository, subj)) {
+			if c.cfg.ContinueThread == nil || !c.cfg.ContinueThread(reviewTarget) {
 				return event.Envelope{}, false
 			}
 			text = h.Comment.Body
@@ -314,13 +323,7 @@ func (c *Connector) eventFrom(name, delivery string, h hook) (event.Envelope, bo
 	channel := sourceOf(h.Repository, subj)
 	var root int64
 	if name == "pull_request_review_comment" {
-		root = h.Comment.ID
-		if h.Comment.InReplyToID != 0 {
-			root = h.Comment.InReplyToID
-		}
-		if root <= 0 {
-			return event.Envelope{}, false
-		}
+		root = reviewRoot
 		channel = channel.WithParam("review_comment", strconv.FormatInt(root, 10))
 	}
 
