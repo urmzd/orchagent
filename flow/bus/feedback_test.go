@@ -30,7 +30,7 @@ func feedbackIdentity(t *testing.T, b bus.Bus) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sub.Close()
+	defer func() { _ = sub.Close() }()
 	env := event.Envelope{Tenant: "t", ID: "start", Source: "fiber://run/r", Channel: "slack://T/C", Run: "r", Seq: 1, Type: event.TypeStarted, Data: event.Started{}}
 	if err := b.Publish(ctx, env); err != nil {
 		t.Fatal(err)

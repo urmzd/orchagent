@@ -85,7 +85,7 @@ func (c *Connector) eventFrom(env eventEnvelope) (event.Envelope, bool) {
 		// else in the conversation. In a channel, a plain message is not:
 		// answering every message in a channel we are in is not what joining a
 		// channel means.
-		if ev.ChannelType != "im" && !(ev.ThreadTS != "" && c.cfg.ContinueThread != nil && c.cfg.ContinueThread(env.TeamID, ev.Channel, ev.ThreadTS)) {
+		if ev.ChannelType != "im" && (ev.ThreadTS == "" || c.cfg.ContinueThread == nil || !c.cfg.ContinueThread(env.TeamID, ev.Channel, ev.ThreadTS)) {
 			return event.Envelope{}, false
 		}
 		if ev.Subtype != "" && ev.Subtype != "file_share" {

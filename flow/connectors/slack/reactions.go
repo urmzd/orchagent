@@ -124,7 +124,7 @@ func nativeText(text string) string {
 		if len(bare) > 2 && (strings.HasPrefix(bare, "@U") || strings.HasPrefix(bare, "@W") || strings.HasPrefix(bare, "#C") || strings.HasPrefix(bare, "#G")) {
 			valid = true
 			for _, r := range bare[2:] {
-				if !(r >= 'A' && r <= 'Z' || r >= '0' && r <= '9') {
+				if (r < 'A' || r > 'Z') && (r < '0' || r > '9') {
 					valid = false
 					break
 				}
