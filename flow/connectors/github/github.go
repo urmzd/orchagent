@@ -97,6 +97,11 @@ type Config struct {
 
 	// Review converts a completed answer into a validated native review. Nil disables it.
 	Review func(View, []ContextFile) (Review, bool, error)
+	// RecoverReview reconstructs an already-submitted payload after its remote
+	// digest is verified. event is its historical approval disposition. This
+	// callback grants no new write and must preserve the host's evidence checks.
+	// Nil reuses Review, which must then reproduce the same historical payload.
+	RecoverReview func(View, []ContextFile, string) (Review, bool, error)
 
 	// ActionRepositories grants native writes from other surfaces to exact owner/repo names.
 	ActionRepositories []string

@@ -22,6 +22,7 @@ type ReviewRecord struct {
 	ReviewResult
 	Body     string `json:"body"`
 	CommitID string `json:"commit_id"`
+	State    string `json:"state"`
 	User     struct {
 		Login string `json:"login"`
 	} `json:"user"`
@@ -53,6 +54,7 @@ func (f *Fake) ListReviews(_ context.Context, ref Ref, page int) ([]ReviewRecord
 	for _, entry := range f.submitted {
 		if entry.Ref == ref {
 			v := ReviewRecord{ReviewResult: entry.Result, Body: entry.Review.Body, CommitID: entry.Review.CommitID}
+			v.State = map[string]string{"COMMENT": "COMMENTED", "APPROVE": "APPROVED", "REQUEST_CHANGES": "CHANGES_REQUESTED"}[entry.Review.Event]
 			v.User.Login = "humagen[bot]"
 			all = append(all, v)
 		}
@@ -99,6 +101,24 @@ func (s reviewSurface) Create(ctx context.Context, target address.Address, body 
 	if pinned == "" {
 		return "", fmt.Errorf("github: native review needs a pinned PR head")
 	}
+	marker := reviewMarker(view, pinned)
+	for page := 1; page <= 10; page++ {
+		rows, err := s.history.ListReviews(ctx, ref, page)
+		if err != nil {
+			return "", err
+		}
+		for _, row := range rows {
+			if row.CommitID == pinned && strings.EqualFold(row.User.Login, s.c.cfg.Login) && strings.Contains(row.Body, marker) {
+				return s.recoverReview(ctx, ref, row, marker, view)
+			}
+		}
+		if len(rows) < 100 {
+			break
+		}
+		if page == 10 {
+			return "", fmt.Errorf("github: review recovery exceeds 1000 reviews")
+		}
+	}
 	var files []ContextFile
 	for page := 1; page <= 10; page++ {
 		got, err := s.context.ReadContext(ctx, ref, page)
@@ -131,31 +151,8 @@ func (s reviewSurface) Create(ctx context.Context, target address.Address, body 
 	if err != nil {
 		return "", err
 	}
-	for i := range review.Comments {
-		if id := review.Comments[i].FindingID; id != "" {
-			review.Comments[i].Body += "\n\n" + findingMarker(id)
-		}
-	}
-	sum := sha256.Sum256([]byte(view.Tenant + "\x00" + view.RunID + "\x00" + pinned))
-	marker := "<!-- humagen-review:" + hex.EncodeToString(sum[:]) + " -->"
-	for page := 1; page <= 10; page++ {
-		rows, err := s.history.ListReviews(ctx, ref, page)
-		if err != nil {
-			return "", err
-		}
-		for _, row := range rows {
-			if row.CommitID == pinned && strings.EqualFold(row.User.Login, s.c.cfg.Login) && strings.Contains(row.Body, marker) {
-				return reviewReceipt(row.ID, review, view)
-			}
-		}
-		if len(rows) < 100 {
-			break
-		}
-		if page == 10 {
-			return "", fmt.Errorf("github: review recovery exceeds 1000 reviews")
-		}
-	}
-	review.Body += "\n\n" + marker
+	review = markFindings(review)
+	review.Body += "\n\n" + marker + "\n\n" + reviewPayloadMarker(view, review)
 	result, err := s.api.CreateReview(ctx, ref, review)
 	if err != nil {
 		return "", err

@@ -7,8 +7,21 @@ import (
 )
 
 type ReviewCommentRecord struct {
-	ID   int64  `json:"id"`
-	Body string `json:"body"`
+	ID                int64  `json:"id"`
+	Body              string `json:"body"`
+	Path              string `json:"path"`
+	DiffHunk          string `json:"diff_hunk"`
+	CommitID          string `json:"commit_id"`
+	OriginalCommitID  string `json:"original_commit_id"`
+	Line              int    `json:"line"`
+	OriginalLine      int    `json:"original_line"`
+	Side              string `json:"side"`
+	StartLine         int    `json:"start_line"`
+	OriginalStartLine int    `json:"original_start_line"`
+	StartSide         string `json:"start_side"`
+	User              struct {
+		Login string `json:"login"`
+	} `json:"user"`
 }
 
 // ReviewCommentsAPI recovers the actual native handles created by a review.
@@ -41,7 +54,15 @@ func (f *Fake) ListReviewComments(_ context.Context, ref Ref, review int64, page
 			var out []ReviewCommentRecord
 			for i, c := range r.Review.Comments {
 				if i/100+1 == page {
-					out = append(out, ReviewCommentRecord{ID: review*1000 + int64(i) + 1, Body: c.Body})
+					comment := ReviewCommentRecord{ID: review*1000 + int64(i) + 1, Body: c.Body, Path: c.Path, CommitID: r.Review.CommitID, OriginalCommitID: r.Review.CommitID, Line: c.Line, OriginalLine: c.Line, Side: c.Side, StartLine: c.StartLine, OriginalStartLine: c.StartLine, StartSide: c.StartSide}
+					comment.User.Login = "humagen[bot]"
+					for _, file := range r.Files {
+						if file.Filename == c.Path {
+							comment.DiffHunk = file.Patch
+							break
+						}
+					}
+					out = append(out, comment)
 				}
 			}
 			return out, nil
