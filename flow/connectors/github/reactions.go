@@ -9,7 +9,6 @@ import (
 
 	"github.com/urmzd/orchagent/flow/address"
 	"github.com/urmzd/orchagent/flow/connectors/internal/render"
-	"github.com/urmzd/orchagent/flow/event"
 )
 
 // NativeReaction is a reaction with a stable GitHub identity for polling.
@@ -88,59 +87,6 @@ func (a *HTTPAPI) RemoveReaction(ctx context.Context, target address.Address, id
 		return fmt.Errorf("github: invalid reaction id")
 	}
 	return a.client.Do(ctx, http.MethodDelete, fmt.Sprintf("%s/%d", path, id), nil, nil)
-}
-
-// PollFeedback reads one page of reactions on a known delivered answer. Stable
-// IDs let Record deduplicate repeated polls. The returned next page is zero at
-// the end. No worker or goroutine is held between polls.
-func (c *Connector) PollFeedback(ctx context.Context, target address.Address, page int) (int, error) {
-	if _, err := c.ref(target); err != nil {
-		return 0, err
-	}
-	handler := c.cfg.Feedback
-	if handler.Resolve == nil || handler.Record == nil {
-		return 0, fmt.Errorf("github: feedback handler is not configured")
-	}
-	resolved, err := handler.Resolve(ctx, c.cfg.Tenant, target)
-	if err != nil {
-		return 0, err
-	}
-	if !resolved.Found {
-		return 0, nil
-	}
-	api, ok := c.cfg.API.(ReactionAPI)
-	if !ok {
-		return 0, fmt.Errorf("github: API cannot read reactions")
-	}
-	reactions, err := api.ListReactions(ctx, target, page)
-	if err != nil {
-		return 0, err
-	}
-	for _, reaction := range reactions {
-		if reaction.User.Type == "Bot" || reaction.User.Login == "" || strings.HasSuffix(reaction.User.Login, "[bot]") {
-			continue
-		}
-		rating := ""
-		switch reaction.Content {
-		case "+1":
-			rating = "up"
-		case "-1":
-			rating = "down"
-		default:
-			continue
-		}
-		feedback := event.Feedback{RunID: resolved.Run, SessionID: resolved.Session, MessageID: resolved.Message, FindingID: resolved.Finding, Actor: event.Actor{ID: reaction.User.Login}, Rating: rating, Surface: Name}
-		if err := handler.Record(ctx, c.cfg.Tenant, fmt.Sprintf("github:reaction:%d", reaction.ID), feedback); err != nil {
-			return 0, err
-		}
-	}
-	if len(reactions) == 100 {
-		if page >= 100 {
-			return 0, fmt.Errorf("github: feedback exceeds 100 reaction pages")
-		}
-		return page + 1, nil
-	}
-	return 0, nil
 }
 
 type reactionSurface struct {
