@@ -28,6 +28,7 @@ import (
 	"github.com/urmzd/orchagent"
 	"github.com/urmzd/orchagent/flow/event"
 	"github.com/urmzd/orchagent/flow/turn/native/agenttest"
+	"github.com/urmzd/orchagent/flow/turn/native/saigetypes"
 )
 
 // oncall is the agent, as a saige definition file.
@@ -95,7 +96,11 @@ func run() error {
 			continue
 		}
 		if e.Type == event.TypeFailed || e.Type == event.TypeStopped {
-			return fmt.Errorf("run %s: %s", e.Run, e.Type)
+			detail, renderErr := event.Render(e)
+			if renderErr != nil {
+				return renderErr
+			}
+			return fmt.Errorf("run %s: %s", e.Run, detail)
 		}
 		if e.Type == event.TypeCompleted {
 			break
@@ -123,8 +128,21 @@ func run() error {
 func houseProvider(spec orchagent.Spec) (orchagent.Provider, error) {
 	p := &agenttest.ScriptedProvider{}
 	p.Responses = append(p.Responses,
-		agenttest.TextResponse(spec.Name+" answered on the house model ("+spec.Model+")."))
-	return p, nil
+		append(agenttest.TextResponse(spec.Name+" answered on the house model ("+spec.Model+")."),
+			saigetypes.UsageDelta{PromptTokens: 20, CompletionTokens: 10, TotalTokens: 30}))
+	return &houseModel{ScriptedProvider: p, model: spec.Model}, nil
+}
+
+// The example declares an illustrative rate card so session admission can
+// enforce its explicit budget. A real provider returns its actual capabilities.
+type houseModel struct {
+	*agenttest.ScriptedProvider
+	model string
+}
+
+func (p *houseModel) Capabilities() saigetypes.ModelCapabilities {
+	return saigetypes.ModelCapabilities{Model: p.model, Known: true, ContextWindow: 8192,
+		Pricing: saigetypes.Pricing{InputPerMTok: 1, OutputPerMTok: 1, Source: "offline example"}}
 }
 
 // runbookTool is a tool the team owns. Any orchagent.Tool works.
