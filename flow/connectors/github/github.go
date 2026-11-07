@@ -82,7 +82,10 @@ type Verifier interface {
 
 // Config is everything the GitHub connector needs.
 type Config struct {
-	ObserveDelivery connectors.DeliveryObserver
+	// FixPullRequests exposes separately approved fix branches and draft PRs.
+	FixPullRequests  bool
+	AuthorizeFixPull func(context.Context, Ref) error
+	ObserveDelivery  connectors.DeliveryObserver
 
 	// Feedback persists authenticated feedback and stops through the host.
 	Feedback connectors.FeedbackHandler
@@ -224,6 +227,11 @@ func New(cfg Config) (*Connector, error) {
 	}
 	if cfg.API == nil {
 		return nil, fmt.Errorf("github: config needs an API")
+	}
+	if cfg.FixPullRequests {
+		if _, ok := cfg.API.(FixPullAPI); !ok || cfg.AuthorizeFixPull == nil {
+			return nil, fmt.Errorf("github: fix PRs require FixPullAPI and host authorization")
+		}
 	}
 	c := &Connector{cfg: cfg}
 	c.readRepos = make(map[string]bool, len(cfg.ReadRepositories))
@@ -659,6 +667,9 @@ func (c *Connector) Actions() []connector.Action {
 		},
 	}
 	actions = append(actions, c.fileAction(), c.workflowStatusAction(), c.reviewAction())
+	if c.cfg.FixPullRequests {
+		actions = append(actions, c.fixBaseAction(), c.fixPullAction())
+	}
 	return actions
 }
 
