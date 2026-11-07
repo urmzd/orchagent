@@ -26,6 +26,7 @@ import (
 	"os/signal"
 
 	"github.com/urmzd/orchagent"
+	"github.com/urmzd/orchagent/flow/event"
 	"github.com/urmzd/orchagent/flow/turn/native/agenttest"
 )
 
@@ -71,17 +72,45 @@ func run() error {
 		return err
 	}
 
-	// Ask runs the agent once and streams its reply.
-	reply, err := app.Ask(ctx, "oncall", "api is down")
+	// The session can be reopened to continue this agent's conversation.
+	conversation, err := app.Session(ctx, orchagent.SessionOptions{Agent: "oncall", Parent: "console://downstream"})
 	if err != nil {
 		return err
 	}
-	defer func() { _ = reply.Close() }()
-	answer, err := reply.Text(ctx)
+	stream, err := conversation.Stream(ctx, nil)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s\nrun %s: completed\n", answer, reply.RunID)
+	defer func() { _ = stream.Close() }()
+	accepted, err := conversation.Post(ctx, "api is down")
+	if err != nil {
+		return err
+	}
+	for {
+		e, err := stream.Recv(ctx)
+		if err != nil {
+			return err
+		}
+		if e.Run != accepted.RunID {
+			continue
+		}
+		if e.Type == event.TypeFailed || e.Type == event.TypeStopped {
+			return fmt.Errorf("run %s: %s", e.Run, e.Type)
+		}
+		if e.Type == event.TypeCompleted {
+			break
+		}
+	}
+	entries, err := conversation.Read(ctx, 0)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.RunID == accepted.RunID && string(entry.Role) == "assistant" {
+			fmt.Println(entry.Text)
+		}
+	}
+	fmt.Printf("run %s: completed\n", accepted.RunID)
 	cancel()
 	if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
 		return err

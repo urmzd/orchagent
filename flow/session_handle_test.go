@@ -27,14 +27,19 @@ func TestSessionContinuesHistoryAndFreshKeepsItSeparate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer app.Close()
+	defer func() { _ = app.Close() }()
 	_, err = app.Define(ctx, "---\napiVersion: saige/v1\nname: helper\nversion: 1.0.0\nmodel: offline/echo\nlimits:\n  budget:\n    max_requests: 20\n---\nHelp.")
 	if err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
 	go func() { done <- app.RunExecution(ctx) }()
-	defer func() { cancel(); <-done }()
+	defer func() {
+		cancel()
+		if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
+			t.Errorf("Run: %v", err)
+		}
+	}()
 	s, err := app.Session(ctx, session.Open{Parent: "console://tenant/chat", Agent: "helper"})
 	if err != nil {
 		t.Fatal(err)
@@ -101,7 +106,7 @@ func TestSessionFanOutAndListenFreeTheOnlyWorker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer app.Close()
+	defer func() { _ = app.Close() }()
 	for _, doc := range []string{
 		"---\napiVersion: saige/v1\nname: helper\nversion: 1.0.0\nmodel: test/model\nlimits:\n  budget:\n    max_requests: 20\n---\nHelp.",
 		"---\napiVersion: saige/v1\nname: lead\nversion: 1.0.0\nmodel: test/model\nlimits:\n  budget:\n    max_requests: 6\nsubagents:\n  - ref: helper\n    budget:\n      max_requests: 1\n---\nLead.",
@@ -112,7 +117,12 @@ func TestSessionFanOutAndListenFreeTheOnlyWorker(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() { done <- app.RunExecution(ctx) }()
-	defer func() { cancel(); <-done }()
+	defer func() {
+		cancel()
+		if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
+			t.Errorf("Run: %v", err)
+		}
+	}()
 	s, err := app.Session(ctx, session.Open{Parent: parentKey.Parent, Agent: "lead"})
 	if err != nil {
 		t.Fatal(err)
@@ -147,7 +157,7 @@ func TestSessionPostDeniesMissingBudgetBeforeStartingRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer app.Close()
+	defer func() { _ = app.Close() }()
 	if _, err := app.Define(ctx, "---\napiVersion: saige/v1\nname: helper\nversion: 1.0.0\nmodel: offline/echo\n---\nHelp."); err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +187,7 @@ func TestSessionMessageListenPinsCursorAndReleasesWorker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer app.Close()
+	defer func() { _ = app.Close() }()
 	for _, name := range []string{"lead", "helper"} {
 		if _, err := app.Define(ctx, "---\napiVersion: saige/v1\nname: "+name+"\nversion: 1.0.0\nmodel: test/model\nlimits:\n  budget:\n    max_requests: 5\n---\nHelp."); err != nil {
 			t.Fatal(err)
@@ -198,10 +208,15 @@ func TestSessionMessageListenPinsCursorAndReleasesWorker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 	done := make(chan error, 1)
 	go func() { done <- app.Run(ctx, RoleExecution) }()
-	defer func() { cancel(); <-done }()
+	defer func() {
+		cancel()
+		if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
+			t.Errorf("Run: %v", err)
+		}
+	}()
 	acc, err := parent.Post(ctx, "wait for news")
 	if err != nil {
 		t.Fatal(err)
@@ -239,7 +254,7 @@ func TestSessionRedeliveryRetainsAcceptedBudgetAfterDefinitionChanges(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer app.Close()
+	defer func() { _ = app.Close() }()
 	define := func(version, cap int) {
 		budget := ""
 		if cap > 0 {
