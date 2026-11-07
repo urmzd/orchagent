@@ -73,7 +73,7 @@ dependencies, the demo needs no API key or external services:
 ```sh
 git clone https://github.com/urmzd/orchagent.git
 cd orchagent
-go run ./fiber/examples/local
+go run ./flow/examples/local
 ```
 
 It stores an agent, stores a second version, answers a simulated GitHub event
