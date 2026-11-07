@@ -1,6 +1,6 @@
 # orchagent
 
-> Go library for running agent work durably: durable runs that finish once despite crashes, sandboxed tools with NGAC access control, and an event flow that connects agents to Slack, GitHub, Jira, cron and webhooks. It starts no server and reads no configuration; you compose it in Go.
+> The orchestration stack for all your agent needs. Go library for running agent work: durable runs that finish once despite crashes, sandboxed tools with NGAC access control, and an event flow that connects agents to Slack, GitHub, Jira, cron and webhooks. It starts no server and reads no configuration; you compose it in Go.
 
 Install with `go get github.com/urmzd/orchagent`. The Kubernetes runner is a separate module: `go get github.com/urmzd/orchagent/sandbox/runner/k8s`.
 

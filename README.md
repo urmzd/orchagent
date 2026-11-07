@@ -1,7 +1,7 @@
 <p align="center">
   <h1 align="center">orchagent</h1>
   <p align="center">
-    The durable stack for agents in Go: durable runs, sandboxes, and the event flow that connects them.
+    The orchestration stack for all your agent needs.
     <br /><br />
     <a href="#installation">Install</a>
     &middot;
@@ -19,18 +19,35 @@
   <a href="LICENSE"><img src="https://img.shields.io/github/license/urmzd/orchagent" alt="License"></a>
 </p>
 
-orchagent is a library. It runs agent work so that it finishes once despite
-crashes, touches only what its policy grants, and streams its events to
-wherever they need to go. It starts no server and reads no configuration: you
-compose it in Go.
+## Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Examples](#examples)
+- [Usage](#usage)
+- [Stored names](#stored-names)
+- [Development](#development)
+- [Documentation](#documentation)
+- [Agent Skill](#agent-skill)
+- [License](#license)
+
+Define an agent in a `.agent.md` file, connect it to Slack, GitHub, Jira,
+cron or a webhook, and orchagent runs it: each run finishes exactly once
+despite crashes, touches only what its policy grants, and streams its events to
+every subscriber. It is a Go library. It starts no server and reads no
+configuration: you compose it with `orchagent.New`, and anything you do not
+pass is a complete in-memory implementation.
 
 ## Features
 
-- **Durable runs** ([`durable`](durable/README.md)): a ledger of runs, a queue with leases and fencing, a worker that resumes after a crash, and replay, with Postgres and Redis adapters.
-- **Sandboxes** ([`sandbox`](sandbox/README.md)): sandboxed tools on a shared workspace, NGAC access control, isolated instances (Docker, gVisor), and local and Kubernetes runners.
-- **Event flow** ([`flow`](flow/README.md)): the event union, the channel bus, connectors (Slack, GitHub, Jira, cron, webhooks), agent definitions with policy, the durable turn, threads and knowledge.
-- **No service to run**: no listener, no config files, no environment variables. Backends are chosen in code.
-- **Validation CLIs**: each component ships a command that exercises it on its own.
+- **One entry point**: `orchagent.New(ctx, opts...)` returns an `App` with the bus, definitions, durable runtime, sandbox and connectors wired. `app.Define` stores an agent, `app.Ask` runs it and streams the reply.
+- **Agents are documents**: store a saige `.agent.md` and it runs, with no redeploy. A run pins its definition's version, so a retry never runs a newer prompt.
+- **Durable runs**: a ledger, a queue with leases and fencing, and a worker that resumes after a crash without re-executing recorded steps.
+- **Sandboxed tools**: tools see only the workspace their NGAC policy grants, in process or isolated with Docker, gVisor or Kubernetes.
+- **Connectors in and out**: an event can arrive from GitHub and its answer stream to Slack, while a webhook receives only the completion.
+- **Backends are values**: `orchagent.WithPostgres(pool)` and `orchagent.WithBus(...)` move every store to Postgres. No config files, no environment variables.
+- **Each layer stands alone**: import `durable` or `sandbox` without `flow` when you need only durable execution or sandboxing.
 
 ## Installation
 
@@ -53,123 +70,167 @@ go get github.com/urmzd/orchagent/sandbox/runner/k8s
 
 ## Quick Start
 
-A sandboxed tool on a bounded pool, with no external services:
+An agent with its own model provider and tool, answering one message, with no
+API key and no external services:
 
-<!-- fsrc src="sandbox/examples/basic/main.go" fence="auto" -->
+<!-- fsrc src="flow/examples/downstream/main.go" fence="auto" -->
 ```go
-// Basic example: compose a control plane from the orthogonal pieces
-// (a local workspace, a sandboxed tool, an in-process node factory, and an
-// in-memory metrics recorder), then deploy a service, size its pool, submit
-// tasks, and print the resulting metrics.
+// Command downstream is what a team building on flow ships instead of a fork:
+// its own program, composing flow in Go, plus what it registers.
 //
-// Prerequisites: none. Run with:
+// It adds three things in Go:
 //
-//	go run ./examples/basic/
+//   - a model provider named "house", standing in for an in-house model
+//     client. Here it is saige's scripted provider, so the example runs with
+//     no key and no network; a real one returns the team's own
+//     saige Provider.
+//   - an OpenAI-compatible endpoint named "fireworks", selected by the same
+//     model.use field, with its key read from $FIREWORKS_API_KEY at run time.
+//   - a tool, "lookup_runbook", that any agent can be granted by name.
+//
+// It stores the agent agents/oncall.agent.md defines, on the house provider, asks it one question in process and
+// prints the answer:
+//
+//	go run ./examples/downstream
 package main
 
 import (
-	"bytes"
 	"context"
+	_ "embed"
+	"errors"
 	"fmt"
-	"log"
 	"os"
-	"sort"
+	"os/signal"
 
-	"github.com/urmzd/orchagent/sandbox/controlplane"
-	"github.com/urmzd/orchagent/sandbox/metrics"
-	"github.com/urmzd/orchagent/sandbox/node/inproc"
-	"github.com/urmzd/orchagent/sandbox/sandbox"
-	"github.com/urmzd/orchagent/sandbox/task"
-	"github.com/urmzd/orchagent/sandbox/tool"
-	"github.com/urmzd/orchagent/sandbox/workspace"
+	"github.com/urmzd/orchagent"
+	"github.com/urmzd/orchagent/flow/turn/native/agenttest"
 )
 
+// oncall is the agent, as a saige definition file.
+//
+//go:embed agents/oncall.agent.md
+var oncall string
+
 func main() {
-	ctx := context.Background()
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, "downstream:", err)
+		os.Exit(1)
+	}
+}
 
-	// Shared workspace: every node reads and writes the same backend.
-	dir, err := os.MkdirTemp("", "playscape-example-*")
+func run() error {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	// Everything is in memory unless an option says otherwise: a program
+	// on Postgres adds orchagent.WithPostgres(pool) and orchagent.WithBus(...).
+	app, err := orchagent.New(ctx,
+		orchagent.WithTenant("acme"),
+		orchagent.WithModelProvider("house", houseProvider),
+		orchagent.WithOpenAICompatible(orchagent.OpenAICompatible{
+			Name:    "fireworks",
+			BaseURL: "https://api.fireworks.ai/inference/v1",
+			KeyEnv:  "FIREWORKS_API_KEY",
+		}),
+		orchagent.WithTools(runbookTool{}),
+	)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	defer os.RemoveAll(dir)
-	ws, err := workspace.NewLocal(dir)
+	defer func() { _ = app.Close() }()
+
+	// Delivery and execution, in this process, until ctx ends.
+	done := make(chan error, 1)
+	go func() { done <- app.Run(ctx) }()
+
+	// Define is insert-only: storing the same file again is a no-op.
+	if _, err := app.Define(ctx, oncall); err != nil {
+		return err
+	}
+
+	// Ask runs the agent once and streams its reply.
+	reply, err := app.Ask(ctx, "oncall", "api is down")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-
-	// One tool. It sees only the workspace view its policy grants below.
-	registry := tool.NewRegistry()
-	err = registry.Register(tool.Func("greet", func(ctx context.Context, rt tool.Runtime, in []byte) ([]byte, error) {
-		out := []byte("hello, " + string(in))
-		// Allowed: "greetings/..." is inside this tool's area.
-		if err := rt.Workspace().Write(ctx, "greetings/last", bytes.NewReader(out)); err != nil {
-			return nil, err
-		}
-		// Denied by the sandbox: "secrets/..." is outside the area.
-		if err := rt.Workspace().Write(ctx, "secrets/steal", bytes.NewReader(out)); err != nil {
-			fmt.Printf("sandbox blocked the leak: %v\n", err)
-		}
-		return out, nil
-	}))
+	defer func() { _ = reply.Close() }()
+	answer, err := reply.Text(ctx)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+	fmt.Printf("%s\nrun %s: completed\n", answer, reply.RunID)
+	cancel()
+	if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
+		return err
+	}
+	return nil
+}
 
-	// Compose the control plane and deploy one service.
-	rec := metrics.NewMemory()
-	plane := controlplane.NewMemory(inproc.NewFactory(registry, ws), rec)
-	err = plane.Deploy(ctx, controlplane.ServiceSpec{
-		Name:     "greeter",
-		Replicas: 1,
-		Policies: []sandbox.Policy{{Tool: "greet", Areas: []sandbox.Area{{Prefix: "greetings"}}}},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+// houseProvider builds the model client for one agent version. It receives
+// the whole spec, so it can key on the model name or the agent.
+func houseProvider(spec orchagent.Spec) (orchagent.Provider, error) {
+	p := &agenttest.ScriptedProvider{}
+	p.Responses = append(p.Responses,
+		agenttest.TextResponse(spec.Name+" answered on the house model ("+spec.Model+")."))
+	return p, nil
+}
 
-	// Grow the pool to three nodes; each runs one task at a time.
-	if err := plane.Scale(ctx, "greeter", 3); err != nil {
-		log.Fatal(err)
-	}
-	for _, name := range []string{"ada", "grace", "alan"} {
-		res, err := plane.Submit(ctx, "greeter", task.Task{Tool: "greet", Input: []byte(name)})
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("%s ran on %s: %s\n", name, res.NodeID, res.Output)
-	}
+// runbookTool is a tool the team owns. Any orchagent.Tool works.
+type runbookTool struct{}
 
-	// Metrics accumulated along the way.
-	fmt.Println("\nmetrics:")
-	snap := rec.Snapshot()
-	keys := make([]string, 0, len(snap))
-	for k := range snap {
-		keys = append(keys, k)
+func (runbookTool) Definition() orchagent.ToolDef {
+	return orchagent.ToolDef{
+		Name:        "lookup_runbook",
+		Description: "Look up the on-call runbook for a service.",
+		Parameters: orchagent.ParameterSchema{
+			Type:       "object",
+			Properties: map[string]orchagent.PropertyDef{"service": {Type: "string"}},
+			Required:   []string{"service"},
+		},
 	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		fmt.Printf("  %s %g\n", k, snap[k])
-	}
+}
+
+func (runbookTool) Execute(_ context.Context, args map[string]any) (string, error) {
+	service, _ := args["service"].(string)
+	return "Restart " + service + " with `make restart`, then page the owner.", nil
 }
 ```
 <!-- /fsrc -->
 
 ```sh
-go run ./sandbox/examples/basic
+go run ./flow/examples/downstream
 ```
+
+The agent it runs is a definition file:
+
+<!-- fsrc src="flow/examples/downstream/agents/oncall.agent.md" fence="auto" -->
+```markdown
+---
+apiVersion: saige/v1
+name: oncall
+version: 1.0.0
+description: helps the on-call engineer
+model:
+  use: house/house-1
+tools:
+  registry:
+    - lookup_runbook
+---
+Help the on-call engineer.
+```
+<!-- /fsrc -->
 
 ## Examples
 
 | Example | Description |
 |---------|-------------|
+| [`flow/examples/downstream`](flow/examples/downstream/) | Your own program on orchagent: a model provider, an OpenAI-compatible endpoint and a tool |
+| [`flow/examples/local`](flow/examples/local/) | The full stack offline: versioned agents, one run to two sinks, citations, replay |
+| [`durable/examples/quickstart`](durable/examples/quickstart/) | An order workflow on Postgres and Redis that survives a killed worker |
+| [`durable/examples/chaos`](durable/examples/chaos/) | Cross-process chaos test that SIGKILLs a worker mid-activity |
 | [`sandbox/examples/basic`](sandbox/examples/basic/) | A sandboxed tool on a bounded pool, with metrics |
 | [`sandbox/examples/ngac`](sandbox/examples/ngac/) | Access defined as an NGAC policy graph, including agent spawn |
 | [`sandbox/examples/saige`](sandbox/examples/saige/) | Saige agents run as sandbox workloads |
-| [`flow/examples/local`](flow/examples/local/) | An agent on the bus, offline, with fake connectors |
-| [`flow/examples/downstream`](flow/examples/downstream/) | A program that composes flow and registers its own provider |
-| [`durable/examples/quickstart`](durable/examples/quickstart/) | An order workflow on Postgres and Redis that survives a killed worker |
-| [`durable/examples/chaos`](durable/examples/chaos/) | Cross-process chaos test that SIGKILLs a worker mid-activity |
 
 The durable examples need Postgres and Redis:
 
@@ -180,12 +241,21 @@ go run ./durable/examples/quickstart
 
 ## Usage
 
+Pick the import that matches the job:
+
+| You need | Import | Start with |
+|----------|--------|------------|
+| Run an agent and read its reply | `orchagent` | `orchagent.New`, `app.Define`, `app.Ask` |
+| Every option and store: connectors, memberships, knowledge | `orchagent/flow` | `flow.With*`, `app.Publish`, `app.Memberships` |
+| Work that finishes once despite crashes | `orchagent/durable` | `durable.New`, `durable.Start`, `durable.Exec` |
+| Tools confined by policy | `orchagent/sandbox/...` | `controlplane.NewMemory`, `sandbox.Policy` |
+
 Each component ships a CLI that validates it on its own:
 
 | Command | Validates |
 |---------|-----------|
-| `go run ./sandbox/cmd/sandbox run "go test ./..."` | a command under a sandbox policy |
 | `go run ./flow/cmd/flow run` | an `.agent.md` against a message, printing its events |
+| `go run ./sandbox/cmd/sandbox run "go test ./..."` | a command under a sandbox policy |
 | `go run ./durable/adapters/postgres/cmd/durable` | a Postgres ledger: list, show, replay |
 
 ## Stored names
