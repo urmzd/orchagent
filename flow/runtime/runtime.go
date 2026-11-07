@@ -784,6 +784,12 @@ func (r *Runtime) runTurn(ctx context.Context, in Input) (Output, error) {
 	ctx = context.WithValue(ctx, openerKey{}, at.open)
 
 	out, err := r.agent.Call(ctx, in)
+	if usageErr := r.reconcileSessionUsage(ctx, in); usageErr != nil {
+		if errors.Is(usageErr, run.ErrParked) {
+			return Output{}, usageErr
+		}
+		err = usageErr
+	}
 	claimed := map[int]bool{}
 	var said strings.Builder
 	parks := 0
@@ -818,6 +824,12 @@ func (r *Runtime) runTurn(ctx context.Context, in Input) (Output, error) {
 		}
 		next.Answers[out.Parked.CallID] = *res.Answer
 		out, err = r.resume.Call(ctx, Continue{Input: in, Seq: parks, Parked: next})
+		if usageErr := r.reconcileSessionUsage(ctx, in); usageErr != nil {
+			if errors.Is(usageErr, run.ErrParked) {
+				return Output{}, usageErr
+			}
+			err = usageErr
+		}
 	}
 	switch {
 	case errors.Is(err, run.ErrParked):
@@ -1070,7 +1082,9 @@ func (r *Runtime) executeAgent(ctx context.Context, in Input, resume *native.Par
 		if c, ok := body.(event.UsageCall); ok && in.Session != nil {
 			if store, ok := r.sessions.(session.UsageStore); ok {
 				if err := store.RecordUsage(ctx, in.Trigger.Tenant, in.Session.ID, c); err != nil {
-					return err
+					// The durable usage receipt repairs this projection after
+					// the activity. A projection outage must not repeat paid work.
+					r.logger.Warn("flow/runtime: session usage projection deferred", "run_id", req.RunID, "error", err)
 				}
 			}
 		}

@@ -211,6 +211,11 @@ var (
 func (r *Runtime) awaitAnswer(ctx context.Context, at *attemptLog, out Outcome) (resolution, error) {
 	q := out.Parked.Question
 	runID := at.in.runID()
+	// A completed model activity can ask for delegation just as a stop is
+	// recorded. Fence that work before creating a child or registering a wait.
+	if res, stopped, err := r.stoppedSessionWait(ctx, at.in, q); stopped || err != nil {
+		return res, err
+	}
 	var waits []sessionWait
 	isListen := q.Kind == event.QuestionDelegation && q.Tool != nil && q.Tool.Name == "session_listen"
 	if isListen {
@@ -228,6 +233,9 @@ func (r *Runtime) awaitAnswer(ctx context.Context, at *attemptLog, out Outcome) 
 			return r.startChild(ctx, at.in, q)
 		})
 		if err != nil {
+			if res, stopped, stopErr := r.stoppedSessionWait(ctx, at.in, q); stopped || stopErr != nil {
+				return res, stopErr
+			}
 			return resolution{}, err
 		}
 		q.ChildRunID = child
@@ -1042,6 +1050,11 @@ func WithChildRuns() Option {
 
 // startChild accepts the child run a delegation waits on and returns its id.
 func (r *Runtime) startChild(ctx context.Context, parent Input, q event.Question) (string, error) {
+	if stop, err := r.sessionStop(ctx, parent); err != nil {
+		return "", err
+	} else if stop != nil {
+		return "", durable.NonRetryable(ErrStopped)
+	}
 	if q.Tool == nil {
 		return "", durable.NonRetryable(fmt.Errorf("%w: delegation %s names no tool call", ErrInvalid, q.ID))
 	}
@@ -1108,7 +1121,25 @@ func (r *Runtime) startChild(ctx context.Context, parent Input, q event.Question
 				}
 			}
 		}
+		if id != "" {
+			// Stop may have scanned the reservation before admission existed.
+			// Once accepted, reconcile it before acknowledging the child call.
+			stop, stopErr := r.sessionStop(context.WithoutCancel(ctx), parent)
+			if stopErr != nil {
+				return id, stopErr
+			}
+			if stop != nil {
+				if stopErr := r.Stop(context.WithoutCancel(ctx), StopRequest{Tenant: parent.Trigger.Tenant, RunID: id, Reason: stop.Reason, By: stop.By}); stopErr != nil {
+					return id, stopErr
+				}
+			}
+		}
 		return id, err
+	}
+	if stop, err := r.sessionStop(ctx, parent); err != nil {
+		return finish("", err)
+	} else if stop != nil {
+		return finish("", durable.NonRetryable(ErrStopped))
 	}
 	if r.childStarter != nil {
 		if in.Session == nil {

@@ -31,6 +31,10 @@ parent's pinned `Access.Spawn`. The pinned policy's `session_depth` defaults to
 replicas. Retrying a call reuses its reservation; only failed admission or a
 terminal ledger result releases it.
 
+A recorded parent stop fences child admission before and after reservation.
+If acceptance races the stop, the runtime records the child's stop before
+acknowledging the call, including calls started with `wait: false`.
+
 `session_call` continues a child by default. `label` and `fresh` isolate contexts.
 `wait: false` returns its session and run IDs. `session_listen` snapshots up to
 eight sessions' current runs and parks on their terminal results. With
@@ -86,6 +90,12 @@ or grandchild receipts settle through closed ancestors, once, after restart.
 `Session.Usage` reads live tree totals from `UsageStore`: actual model call IDs
 are deduplicated at every ancestor, so child totals are never added a second
 time. Completed run outputs and events remain immutable snapshots.
+
+The live usage index is repaired from retained per-call receipts before a turn
+finishes or starts its next wait. Temporary index failures park a memoized
+reconciliation step. The janitor resumes it after recovery or worker restart,
+without repeating completed model work or consuming its retry budget. Replayed
+AccountingIDs remain idempotent; uncertain provider spend is never invented.
 
 Hosts with `WithChildStarter` own budget admission and native request caps; flow
 does not reserve the same money again. Legacy `Accept` and `AcceptOwn` inputs
