@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
+	"sync"
 )
 
 // Redacted is what a Secret prints as, everywhere.
@@ -78,14 +80,54 @@ func EnvResolver() Resolver {
 // package: errors, tool results and log records. It exists because the
 // server is not trusted to keep the secret out of what it sends back, and
 // neither is the HTTP stack to keep it out of what it reports.
-type redactor struct{ secret Secret }
+type redactor struct {
+	secret   Secret
+	rotating *secretSet
+}
+
+// secretSet shares the redaction history across a session's logger and tools.
+type secretSet struct {
+	mu     sync.RWMutex
+	values []Secret
+}
+
+func (s *secretSet) add(v Secret) {
+	if s == nil || v.Empty() {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, old := range s.values {
+		if old.Reveal() == v.Reveal() {
+			return
+		}
+	}
+	s.values = append(s.values, v)
+}
+
+// valuesWith returns longest first so one token cannot partially mask a
+// rotated token before that longer value has been removed.
+func (s *secretSet) valuesWith(initial Secret) []string {
+	values := []string{}
+	if !initial.Empty() {
+		values = append(values, initial.Reveal())
+	}
+	if s != nil {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		for _, v := range s.values {
+			values = append(values, v.Reveal())
+		}
+	}
+	slices.SortFunc(values, func(a, b string) int { return len(b) - len(a) })
+	return values
+}
 
 func (r redactor) text(s string) string {
-	v := r.secret.Reveal()
-	if v == "" {
-		return s
+	for _, v := range r.rotating.valuesWith(r.secret) {
+		s = strings.ReplaceAll(s, v, Redacted)
 	}
-	return strings.ReplaceAll(s, v, Redacted)
+	return s
 }
 
 // err returns an error whose message is redacted. It does not unwrap to the

@@ -215,6 +215,19 @@ is asked for (`low`, `high`, and so on). Hosts set it, with `provider` and
 does not take fails the build with the efforts it does take, and a fallback
 always runs at its own default.
 
+### Refresh OAuth credentials
+
+HTTP MCP connections can use `mcptools.NewTokenSource` with a host callback
+that returns the current access token. Use `mcptools.WithTokenSource` for a
+shared provider, or `PersonCredential{Source: source}` for a person-scoped
+provider. Keep one source per authorized connection so cached sessions retain
+person identity. The host owns discovery, consent, encrypted storage and refresh.
+
+The source is consulted before every same-origin HTTP request. Failed refreshes
+stop the request, redirects never receive another origin's bearer token, and
+all issued token values remain redacted for the session's lifetime. A shared
+source cannot stand in for a missing person's credential.
+
 ### Grant MCP tools
 
 A definition is granted an MCP provider's tools by naming the server:
