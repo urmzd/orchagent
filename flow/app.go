@@ -144,7 +144,10 @@ func New(ctx context.Context, opts ...Option) (*App, error) {
 	if a.store, err = newDefinitions(ctx, pool, o); err != nil {
 		return fail(err)
 	}
-	a.defs = definition.NewResolver(a.store, o.checks())
+	a.defs = o.DefinitionResolver
+	if a.defs == nil {
+		a.defs = definition.NewResolver(a.store, o.checks())
+	}
 	// What agents know: the corpus a revision's sources are retrieved from.
 	if a.docs, err = newKnowledge(ctx, pool, o); err != nil {
 		return fail(err)

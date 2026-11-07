@@ -110,3 +110,10 @@ explicit grants and revocation, concurrent admission and budget reservations,
 immutable settlement receipts, runtime restart with late descendant settlement,
 usage redelivery, native request caps, and both terminal and message waits with
 only one worker. Postgres tests require `FLOW_POSTGRES_TEST_URL`.
+
+Hosts can preserve their definition validation with `WithDefinitionResolver`.
+It carries the host resolver without registering an executable provider. Legacy
+host-admitted children use `AcceptOwnChild`: parentage must name a retained run
+in the same tenant, remains immutable across concurrent retries, and records no
+question or automatic parent resumption. The host still owns admission policy
+and budgets.

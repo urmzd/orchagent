@@ -54,23 +54,24 @@ type options struct {
 	Persons mcptools.PersonResolver
 
 	// Backends. Nil is memory, except where Postgres fills them.
-	Bus         bus.Bus
-	Definitions definition.Source
-	Ledger      Ledger
-	Queue       dqueue.Queue
-	Threads     thread.Store
-	Sessions    session.Store
-	Memberships membership.Store
-	Knowledge   knowledge.Store
-	Embedder    knowledge.Embedder
-	Blobs       blob.Store
-	Tools       toolprovider.Store
-	Runtime     turn.Runtime
-	Postgres    *pgxpool.Pool
-	Workspace   string
-	RuntimeOpts []runtime.Option
-	WorkerOpts  []worker.Option
-	EgressOpts  []egress.Option
+	Bus                bus.Bus
+	Definitions        definition.Source
+	DefinitionResolver *definition.Resolver
+	Ledger             Ledger
+	Queue              dqueue.Queue
+	Threads            thread.Store
+	Sessions           session.Store
+	Memberships        membership.Store
+	Knowledge          knowledge.Store
+	Embedder           knowledge.Embedder
+	Blobs              blob.Store
+	Tools              toolprovider.Store
+	Runtime            turn.Runtime
+	Postgres           *pgxpool.Pool
+	Workspace          string
+	RuntimeOpts        []runtime.Option
+	WorkerOpts         []worker.Option
+	EgressOpts         []egress.Option
 
 	// Deployment.
 	Tenant         string

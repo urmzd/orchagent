@@ -133,7 +133,22 @@ func WithBus(b bus.Bus) Option { return func(o *options) { o.Bus = b } }
 // WithDefinitions sets the agent store. The store decides which providers it
 // accepts (definition.WithProviders or WithChecks); App.Providers lists the
 // names this App can run.
-func WithDefinitions(s definition.Source) Option { return func(o *options) { o.Definitions = s } }
+func WithDefinitions(s definition.Source) Option {
+	return func(o *options) { o.Definitions, o.DefinitionResolver = s, nil }
+}
+
+// WithDefinitionResolver preserves a host's definition validation and source.
+// It is intended for a host runtime that resolves model policies itself; it
+// registers no executable model provider. The last definition option wins.
+func WithDefinitionResolver(r *definition.Resolver) Option {
+	return func(o *options) {
+		o.DefinitionResolver = r
+		o.Definitions = nil
+		if r != nil {
+			o.Definitions = r.Source()
+		}
+	}
+}
 
 // WithDurable sets the run ledger and queue runs execute from, for example
 // the two durable.Open returns. Both are required.
