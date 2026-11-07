@@ -95,6 +95,8 @@ type Renderer func(render.View) string
 // is safe for concurrent use, and deliveries to different runs do not block each
 // other while their surfaces are being written.
 type Engine struct {
+	observe func(context.Context, address.Address, string, render.View) error
+
 	surface  Surface
 	render   Renderer
 	interval time.Duration
@@ -110,6 +112,12 @@ type Engine struct {
 
 // Option configures an Engine.
 type Option func(*Engine)
+
+// WithObserver records the native message handle after delivery. An error
+// leaves the write pending, so the host never acknowledges an unindexed answer.
+func WithObserver(observe func(context.Context, address.Address, string, render.View) error) Option {
+	return func(e *Engine) { e.observe = observe }
+}
 
 // WithInterval sets the coalescing window. A non-positive interval flushes on
 // every event, which is what a test wants and no production surface does.
@@ -324,6 +332,11 @@ func (eng *Engine) write(ctx context.Context, st *state, v render.View) error {
 		return fmt.Errorf("sink: update message %s for run %s on %s: %w", st.handle, v.RunID, st.target, err)
 	}
 
+	if eng.observe != nil {
+		if err := eng.observe(ctx, st.target, st.handle, v); err != nil {
+			return err
+		}
+	}
 	st.written = body
 	st.dirty = false
 	st.lastFlush = eng.now()

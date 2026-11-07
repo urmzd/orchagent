@@ -82,6 +82,26 @@ type Verifier interface {
 
 // Config is everything the GitHub connector needs.
 type Config struct {
+	ObserveDelivery connectors.DeliveryObserver
+
+	// Feedback persists authenticated feedback and stops through the host.
+	Feedback connectors.FeedbackHandler
+	// StatusReactions replaces textual lifecycle announcements with reactions.
+	StatusReactions bool
+	// ContinueThread allows unmentioned replies only in an existing agent session.
+	ContinueThread func(address.Address) bool
+
+	// Review converts a completed answer into a validated native review. Nil disables it.
+	Review func(View, []ContextFile) (Review, bool, error)
+
+	// ActionRepositories grants native writes from other surfaces to exact owner/repo names.
+	ActionRepositories []string
+
+	// AllowReviewApproval applies the host's project policy. Nil denies approval.
+	AllowReviewApproval func(context.Context, Ref) bool
+	// AllowReviewApprovalFor evaluates policy for the actual run and project.
+	AllowReviewApprovalFor func(context.Context, View, Ref) bool
+
 	// DeliveryState persists the run's message handle and rendering across
 	// replica changes. Nil keeps local state only. Migrate before construction.
 	DeliveryState deliverystate.Store
@@ -174,13 +194,15 @@ type Connector struct {
 	cfg  Config
 	bots map[string]string
 	// app is the app's own mention (Config.Login), nil when it has none.
-	app       mention.Set
-	owners    map[string]bool
-	gate      inbound.Gate
-	pipe      inbound.Pipe
-	engine    *sink.Engine
-	checks    *sink.Engine
-	readRepos map[string]bool
+	app           mention.Set
+	owners        map[string]bool
+	gate          inbound.Gate
+	pipe          inbound.Pipe
+	engine        *sink.Engine
+	checks        *sink.Engine
+	reviewsSink   *sink.Engine
+	reactionsSink *sink.Engine
+	readRepos     map[string]bool
 	// fetcher downloads attached files; nil when file intake is off.
 	fetcher *intake.Fetcher
 	// redirectForTest, set only by tests, points a GitHub file URL at a
@@ -254,13 +276,38 @@ func New(cfg Config) (*Connector, error) {
 	if interval == 0 {
 		interval = sink.DefaultInterval
 	}
-	c.engine = sink.New(surface{c: c}, c.body, sink.WithInterval(interval), sink.WithClock(cfg.Clock), sink.WithState(cfg.DeliveryState, "comments:"+deliveryScope(cfg.Tenant, cfg.DeliveryScope)))
+	c.engine = sink.New(surface{c: c}, c.body, sink.WithInterval(interval), sink.WithClock(cfg.Clock), sink.WithState(cfg.DeliveryState, "comments:"+deliveryScope(cfg.Tenant, cfg.DeliveryScope)), sink.WithObserver(c.observed))
 	if cfg.Checks {
 		api, ok := cfg.API.(CheckAPI)
 		if !ok {
 			return nil, fmt.Errorf("github: checks need CheckAPI")
 		}
 		c.checks = sink.New(checkSurface{c: c, api: api}, c.checkBody, sink.WithInterval(interval), sink.WithClock(cfg.Clock), sink.WithState(cfg.DeliveryState, "checks:"+deliveryScope(cfg.Tenant, cfg.DeliveryScope)))
+	}
+	if cfg.StatusReactions {
+		api, ok := cfg.API.(ReactionAPI)
+		if !ok || cfg.Login == "" {
+			return nil, fmt.Errorf("github: status reactions require ReactionAPI and app login")
+		}
+		c.reactionsSink = sink.New(reactionSurface{api: api, login: cfg.Login}, reactionBody, sink.WithInterval(interval), sink.WithClock(cfg.Clock), sink.WithState(cfg.DeliveryState, "reactions:"+deliveryScope(cfg.Tenant, cfg.DeliveryScope)))
+	}
+	if cfg.Review != nil {
+		api, ok := cfg.API.(ReviewAPI)
+		if !ok {
+			return nil, fmt.Errorf("github: native reviews require ReviewAPI")
+		}
+		history, ok := cfg.API.(ReviewHistoryAPI)
+		if !ok {
+			return nil, fmt.Errorf("github: native reviews require ReviewHistoryAPI")
+		}
+		contextAPI, ok := cfg.API.(ContextAPI)
+		if !ok {
+			return nil, fmt.Errorf("github: native reviews require ContextAPI")
+		}
+		if cfg.Login == "" {
+			return nil, fmt.Errorf("github: native reviews require the app login for recovery")
+		}
+		c.reviewsSink = sink.New(reviewSurface{c: c, api: api, history: history, context: contextAPI}, reviewBody, sink.WithInterval(interval), sink.WithClock(cfg.Clock), sink.WithState(cfg.DeliveryState, "reviews:"+deliveryScope(cfg.Tenant, cfg.DeliveryScope)))
 	}
 	return c, nil
 }
@@ -298,6 +345,9 @@ func (c *Connector) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if c.serveFeedback(r.Context(), w, name, r.Header.Get(HeaderDelivery), h) {
+		return
+	}
 	e, ok := c.eventFrom(name, r.Header.Get(HeaderDelivery), h)
 	if !ok {
 		w.WriteHeader(http.StatusOK)
@@ -315,7 +365,7 @@ func (c *Connector) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Issue-comment payloads identify a PR but omit its head. Pin it before
 	// the event is published, so replay and check delivery never choose a
 	// later head.
-	if c.cfg.Checks && channel.Path[1] == "pull" && channel.Params["head_sha"] == "" {
+	if (c.cfg.Checks || c.cfg.Review != nil) && channel.Path[1] == "pull" && channel.Params["head_sha"] == "" {
 		api, supported := c.cfg.API.(ContextAPI)
 		if !supported {
 			http.Error(w, "github: checks need context reads for PR comments", http.StatusBadGateway)
@@ -424,6 +474,12 @@ func (c *Connector) Deliver(ctx context.Context, target address.Address, e event
 		return err
 	}
 	commentErr := c.engine.Deliver(ctx, target, e)
+	if c.reactionsSink != nil {
+		commentErr = errors.Join(commentErr, c.reactionsSink.Deliver(ctx, target, e))
+	}
+	if c.reviewsSink != nil {
+		commentErr = errors.Join(commentErr, c.reviewsSink.Deliver(ctx, target, e))
+	}
 	if c.checks != nil && target.Path[1] == "pull" && validSHA(target.Params["head_sha"]) {
 		return errors.Join(commentErr, c.checks.Deliver(ctx, target, e))
 	}
@@ -433,6 +489,12 @@ func (c *Connector) Deliver(ctx context.Context, target address.Address, e event
 // Flush writes every run whose comment edits are still being coalesced.
 func (c *Connector) Flush(ctx context.Context) error {
 	err := c.engine.Flush(ctx)
+	if c.reactionsSink != nil {
+		err = errors.Join(err, c.reactionsSink.Flush(ctx))
+	}
+	if c.reviewsSink != nil {
+		err = errors.Join(err, c.reviewsSink.Flush(ctx))
+	}
 	if c.checks != nil {
 		return errors.Join(err, c.checks.Flush(ctx))
 	}
@@ -528,6 +590,9 @@ func (s surface) Update(ctx context.Context, target address.Address, handle, bod
 // The fragments this package interpolates into its own markup are neutralized in
 // markdown.go instead.
 func (c *Connector) body(v render.View) string {
+	if c.cfg.StatusReactions && v.Empty() && !v.Terminal() && v.Status != render.StatusParked {
+		return ""
+	}
 	if c.cfg.Render != nil {
 		return c.cfg.Render(v)
 	}
@@ -551,6 +616,7 @@ func (c *Connector) Actions() []connector.Action {
 			Schema: json.RawMessage(`{
   "type": "object",
   "properties": {
+    "address": {"type":"string", "description":"Optional GitHub issue or PR address; other repositories require a write grant."},
     "body": {"type": "string", "description": "Comment body, GitHub Markdown."},
     "number": {"type": "integer", "description": "Issue or pull request number. Defaults to the one the run is answering on."}
   },
@@ -566,6 +632,7 @@ func (c *Connector) Actions() []connector.Action {
 			Schema: json.RawMessage(`{
   "type": "object",
   "properties": {
+    "address": {"type":"string", "description":"Optional GitHub issue or PR address; other repositories require a write grant."},
     "reviewers": {"type": "array", "items": {"type": "string"}, "description": "GitHub logins to request a review from."},
     "teams": {"type": "array", "items": {"type": "string"}, "description": "Team slugs to request a review from."},
     "number": {"type": "integer", "description": "Pull request number. Defaults to the one the run is answering on."}
@@ -581,6 +648,7 @@ func (c *Connector) Actions() []connector.Action {
 			Schema: json.RawMessage(`{
   "type": "object",
   "properties": {
+    "address": {"type":"string", "description":"Optional GitHub issue or PR address; other repositories require a write grant."},
     "labels": {"type": "array", "items": {"type": "string"}, "description": "Label names to add."},
     "number": {"type": "integer", "description": "Issue or pull request number. Defaults to the one the run is answering on."}
   },
@@ -590,20 +658,25 @@ func (c *Connector) Actions() []connector.Action {
 			Invoke: c.addLabels,
 		},
 	}
-	actions = append(actions, c.fileAction(), c.workflowStatusAction())
+	actions = append(actions, c.fileAction(), c.workflowStatusAction(), c.reviewAction())
 	return actions
 }
 
 func (c *Connector) comment(ctx context.Context, target address.Address, raw json.RawMessage) (connector.Result, error) {
 	var args struct {
-		Body   string `json:"body"`
-		Number int    `json:"number"`
+		Address string `json:"address"`
+		Body    string `json:"body"`
+		Number  int    `json:"number"`
 	}
 	if err := json.Unmarshal(raw, &args); err != nil {
 		return connector.Result{}, fmt.Errorf("github: github_comment args: %w", err)
 	}
 	if strings.TrimSpace(args.Body) == "" {
 		return connector.Result{}, fmt.Errorf("github: github_comment needs a body")
+	}
+	target, targetErr := c.actionTarget(target, args.Address)
+	if targetErr != nil {
+		return connector.Result{}, targetErr
 	}
 	ref, kind, err := c.resolve(target, args.Number)
 	if err != nil {
@@ -621,6 +694,7 @@ func (c *Connector) comment(ctx context.Context, target address.Address, raw jso
 
 func (c *Connector) requestReview(ctx context.Context, target address.Address, raw json.RawMessage) (connector.Result, error) {
 	var args struct {
+		Address   string   `json:"address"`
 		Reviewers []string `json:"reviewers"`
 		Teams     []string `json:"teams"`
 		Number    int      `json:"number"`
@@ -630,6 +704,10 @@ func (c *Connector) requestReview(ctx context.Context, target address.Address, r
 	}
 	if len(args.Reviewers) == 0 && len(args.Teams) == 0 {
 		return connector.Result{}, fmt.Errorf("github: github_request_review needs a reviewer or a team")
+	}
+	target, targetErr := c.actionTarget(target, args.Address)
+	if targetErr != nil {
+		return connector.Result{}, targetErr
 	}
 	ref, _, err := c.resolve(target, args.Number)
 	if err != nil {
@@ -648,14 +726,19 @@ func (c *Connector) requestReview(ctx context.Context, target address.Address, r
 
 func (c *Connector) addLabels(ctx context.Context, target address.Address, raw json.RawMessage) (connector.Result, error) {
 	var args struct {
-		Labels []string `json:"labels"`
-		Number int      `json:"number"`
+		Address string   `json:"address"`
+		Labels  []string `json:"labels"`
+		Number  int      `json:"number"`
 	}
 	if err := json.Unmarshal(raw, &args); err != nil {
 		return connector.Result{}, fmt.Errorf("github: github_add_labels args: %w", err)
 	}
 	if len(args.Labels) == 0 {
 		return connector.Result{}, fmt.Errorf("github: github_add_labels needs at least one label")
+	}
+	target, targetErr := c.actionTarget(target, args.Address)
+	if targetErr != nil {
+		return connector.Result{}, targetErr
 	}
 	ref, kind, err := c.resolve(target, args.Number)
 	if err != nil {

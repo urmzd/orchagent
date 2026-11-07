@@ -248,7 +248,7 @@ func (s Subscription) matchesNothing() bool {
 }
 
 // isRunEvent reports whether events of type t are sequenced within a run.
-func isRunEvent(t string) bool { return event.Family(t) == "run" }
+func isRunEvent(t string) bool { return event.Family(t) == "run" && t != event.TypeFeedback }
 
 // Defaults for the options below.
 const (

@@ -35,6 +35,12 @@ type eventEnvelope struct {
 
 // innerEvent is the event itself.
 type innerEvent struct {
+	Reaction string `json:"reaction"`
+	Item     struct {
+		Type    string `json:"type"`
+		Channel string `json:"channel"`
+		TS      string `json:"ts"`
+	} `json:"item"`
 	Type        string `json:"type"`
 	Subtype     string `json:"subtype"`
 	User        string `json:"user"`
@@ -79,7 +85,7 @@ func (c *Connector) eventFrom(env eventEnvelope) (event.Envelope, bool) {
 		// else in the conversation. In a channel, a plain message is not:
 		// answering every message in a channel we are in is not what joining a
 		// channel means.
-		if ev.ChannelType != "im" {
+		if ev.ChannelType != "im" && !(ev.ThreadTS != "" && c.cfg.ContinueThread != nil && c.cfg.ContinueThread(env.TeamID, ev.Channel, ev.ThreadTS)) {
 			return event.Envelope{}, false
 		}
 		if ev.Subtype != "" && ev.Subtype != "file_share" {

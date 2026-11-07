@@ -28,6 +28,9 @@ const (
 // switching on the event name is simpler than five near-identical structs, and
 // an unknown field is ignored rather than rejected.
 type hook struct {
+	Thread *struct {
+		Comments []body `json:"comments"`
+	} `json:"thread"`
 	Action     string     `json:"action"`
 	Repository repository `json:"repository"`
 	Sender     user       `json:"sender"`
@@ -189,7 +192,10 @@ func (c *Connector) eventFrom(name, delivery string, h hook) (event.Envelope, bo
 		subj = subjectOf(h)
 		commentID = h.Comment.ID
 		if mentions, text, ok = c.asked(h.Comment.Body); !ok {
-			return event.Envelope{}, false
+			if c.cfg.ContinueThread == nil || !c.cfg.ContinueThread(sourceOf(h.Repository, subj)) {
+				return event.Envelope{}, false
+			}
+			text = h.Comment.Body
 		}
 
 	case "pull_request_review_comment":
@@ -199,7 +205,10 @@ func (c *Connector) eventFrom(name, delivery string, h hook) (event.Envelope, bo
 		subj = subjectOf(h)
 		commentID = h.Comment.ID
 		if mentions, text, ok = c.asked(h.Comment.Body); !ok {
-			return event.Envelope{}, false
+			if c.cfg.ContinueThread == nil || !c.cfg.ContinueThread(sourceOf(h.Repository, subj)) {
+				return event.Envelope{}, false
+			}
+			text = h.Comment.Body
 		}
 
 	case "pull_request_review":

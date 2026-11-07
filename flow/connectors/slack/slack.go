@@ -59,6 +59,7 @@ package slack
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -97,6 +98,19 @@ type Verifier interface {
 // Config is everything the Slack connector needs. The zero value is not usable:
 // New validates.
 type Config struct {
+	ObserveDelivery connectors.DeliveryObserver
+
+	// StatusReactions shows lifecycle on the triggering message and renders concise native replies.
+	StatusReactions bool
+
+	// ActionChannels grants native actions from other surfaces to exact channel IDs in Team.
+	ActionChannels []string
+
+	// Feedback binds verified native reactions to the host's durable feedback writer.
+	Feedback connectors.FeedbackHandler
+	// ContinueThread grants plain replies only for a session the host recognizes.
+	ContinueThread func(team, channel, thread string) bool
+
 	// DeliveryState persists the run's message handle and rendering across
 	// replica changes. Nil keeps local state only. Migrate before construction.
 	DeliveryState deliverystate.Store
@@ -164,10 +178,11 @@ type Config struct {
 // Connector is the Slack peer. It implements pkg/connector's Trigger, Sink and
 // Actor faces, and net/http's Handler.
 type Connector struct {
-	cfg    Config
-	gate   inbound.Gate
-	pipe   inbound.Pipe
-	engine *sink.Engine
+	cfg       Config
+	gate      inbound.Gate
+	pipe      inbound.Pipe
+	engine    *sink.Engine
+	reactions *sink.Engine
 	// fetcher downloads files; nil when file intake is off.
 	fetcher *intake.Fetcher
 }
@@ -212,8 +227,15 @@ func New(cfg Config) (*Connector, error) {
 	c.gate = inbound.Gate{Verifier: cfg.Verifier, MaxBody: cfg.MaxBody}
 	c.engine = sink.New(surface{c: c}, c.body,
 		sink.WithInterval(intervalOr(cfg.Interval)),
-		sink.WithClock(cfg.Clock), sink.WithState(cfg.DeliveryState, deliveryScope(cfg.Tenant, cfg.DeliveryScope)),
+		sink.WithClock(cfg.Clock), sink.WithState(cfg.DeliveryState, deliveryScope(cfg.Tenant, cfg.DeliveryScope)), sink.WithObserver(c.observed),
 	)
+	if cfg.StatusReactions {
+		api, err := reactionsAvailable(cfg.API)
+		if err != nil {
+			return nil, err
+		}
+		c.reactions = sink.New(reactionSurface{api: api}, reactionBody, sink.WithInterval(intervalOr(cfg.Interval)), sink.WithClock(cfg.Clock), sink.WithState(cfg.DeliveryState, "reactions:"+deliveryScope(cfg.Tenant, cfg.DeliveryScope)))
+	}
 	return c, nil
 }
 
@@ -271,6 +293,9 @@ func (c *Connector) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if c.serveReaction(r.Context(), w, env) {
+		return
+	}
 	if stop, ok := c.stopFrom(env); ok {
 		stop.Time = orRequested(stop.Time, r.Header)
 		c.serveStop(r.Context(), w, stop)
@@ -281,6 +306,9 @@ func (c *Connector) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		// Not for us: acknowledge, or Slack retries it three more times.
 		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if c.serveThanks(r.Context(), w, env, e) {
 		return
 	}
 	e.Time = orRequested(e.Time, r.Header)
@@ -308,16 +336,23 @@ func (c *Connector) Deliver(ctx context.Context, target address.Address, e event
 	if err := c.reachable(target); err != nil {
 		return err
 	}
-	if err := c.engine.Deliver(ctx, target, e); err != nil {
-		return err
+	var reactionErr error
+	if c.reactions != nil {
+		reactionErr = c.reactions.Deliver(ctx, target, e)
 	}
-	return nil
+	return errors.Join(reactionErr, c.engine.Deliver(ctx, target, e))
 }
 
 // Flush writes every run whose edits are still being coalesced. A server calls
 // it on its own ticker and at shutdown; see internal/sink for why the connector
 // owns no goroutine of its own.
-func (c *Connector) Flush(ctx context.Context) error { return c.engine.Flush(ctx) }
+func (c *Connector) Flush(ctx context.Context) error {
+	var reactionErr error
+	if c.reactions != nil {
+		reactionErr = c.reactions.Flush(ctx)
+	}
+	return errors.Join(reactionErr, c.engine.Flush(ctx))
+}
 
 // reachable reports whether this connector can deliver to target.
 func (c *Connector) reachable(target address.Address) error {
@@ -361,6 +396,9 @@ func (s surface) Update(ctx context.Context, target address.Address, handle, bod
 
 // body renders a run for Slack.
 func (c *Connector) body(v render.View) string {
+	if c.cfg.StatusReactions {
+		return sink.Clamp(replyBody(v), MaxBodyChars)
+	}
 	return sink.Clamp(sink.Layout(mrkdwn{}, sink.MapText(v, escape)), MaxBodyChars)
 }
 
@@ -486,6 +524,17 @@ func (c *Connector) addReaction(ctx context.Context, target address.Address, raw
 // established, which is exactly the boundary an agent's own output must not be
 // able to move.
 func (c *Connector) resolve(target address.Address, channel string) (string, string, error) {
+	if target.Connector != Name {
+		if c.cfg.Team == "" || channel == "" {
+			return "", "", fmt.Errorf("%w: cross-surface Slack action requires a granted channel", connector.ErrUndeliverable)
+		}
+		for _, granted := range c.cfg.ActionChannels {
+			if granted == channel {
+				return channel, c.cfg.Team, nil
+			}
+		}
+		return "", "", fmt.Errorf("%w: Slack channel is not granted for cross-surface actions", connector.ErrUndeliverable)
+	}
 	if err := c.reachable(target); err != nil {
 		return "", "", err
 	}
