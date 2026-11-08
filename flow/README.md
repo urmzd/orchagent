@@ -591,3 +591,13 @@ Native feedback is the opt-in `run.feedback.v1` observation. It has sequence zer
 and deduplicates by event identity, so later feedback does not advance or reopen
 a completed execution stream. The host remains responsible for authenticated
 feedback ownership, persistence, and session visibility.
+
+### Fix pull requests
+
+An opt-in `github_create_fix_pr` action creates a draft on a generated
+`humagen/fix-…` branch after the host authorizes the current run. It pins the
+inspected default-branch SHA, refuses workflow edits and stale initial bases,
+and recovers an existing commit or PR after a lost response. Titles end with
+`[humagen]`, and the PR links the verified source issue or pull request. The
+connector never writes the source or default branch. The host owns approval
+policy and requester repository permission checks.

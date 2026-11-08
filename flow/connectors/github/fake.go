@@ -10,6 +10,8 @@ import (
 // recorded per pull request. It ships in the package so the mesh can be run
 // end to end — mention in, edited comment out — with no token and no network.
 type Fake struct {
+	fixPulls  map[string]FakeFixPull
+	defaults  map[string]RepositoryBase
 	reactions map[string][]NativeReaction
 	submitted []FakeReview
 	workflows map[string]map[int64]WorkflowRun
