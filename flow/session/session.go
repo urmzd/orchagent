@@ -88,6 +88,15 @@ type Filter struct {
 	Limit  int
 }
 
+// Link kinds. A link records a reference between two sessions of one tenant
+// and grants nothing.
+const (
+	// LinkContext records that the session read the target as context.
+	LinkContext = "context"
+	// LinkEvidence records that the target supports the session's findings.
+	LinkEvidence = "evidence"
+)
+
 type Link struct {
 	Target    string    `json:"target"`
 	Kind      string    `json:"kind"`
@@ -129,4 +138,6 @@ func channel(k Key, c string) string {
 	}
 	return "session://" + url.PathEscape(k.Tenant) + "/" + k.ID()
 }
-func validLink(l Link) bool { return l.Target != "" && (l.Kind == "context" || l.Kind == "evidence") }
+func validLink(l Link) bool {
+	return l.Target != "" && (l.Kind == LinkContext || l.Kind == LinkEvidence)
+}

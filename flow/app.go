@@ -747,6 +747,17 @@ func (a *App) Handler() http.Handler {
 	return mux
 }
 
+// Define stores an agent from its .agent.md content under the App's tenant
+// and returns the stored record. Definitions are insert only: storing
+// identical content again is a no-op, and storing different content under an
+// existing name and version is definition.ErrExists.
+func (a *App) Define(ctx context.Context, content string) (definition.Record, error) {
+	if a.opt.Tenant == "" {
+		return definition.Record{}, configf("define: the App has no tenant (WithTenant)")
+	}
+	return a.store.Put(ctx, definition.Record{Tenant: a.opt.Tenant, Content: content, CreatedBy: "orchagent"})
+}
+
 // Accessors. They return the live components, for a program that adds its
 // own transport, tooling or tests on top.
 

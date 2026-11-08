@@ -8,8 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/urmzd/orchagent/durable"
 	"github.com/urmzd/orchagent/durable/worker"
+	"github.com/urmzd/orchagent/flow/bus"
 	"github.com/urmzd/orchagent/flow/event"
+	"github.com/urmzd/orchagent/flow/runtime"
 	"github.com/urmzd/orchagent/flow/session"
 	"github.com/urmzd/orchagent/flow/thread"
 	"github.com/urmzd/orchagent/flow/turn"
@@ -287,5 +290,202 @@ func TestSessionRedeliveryRetainsAcceptedBudgetAfterDefinitionChanges(t *testing
 	account, err := app.sessions.(session.BudgetStore).BudgetAccount(ctx, "t", first.RunID)
 	if err != nil || account.Limit.Requests != 5 {
 		t.Fatal("redelivery changed budget", account, err)
+	}
+}
+
+const budgetedHelper = "---\napiVersion: saige/v1\nname: helper\nversion: 1.0.0\nmodel: offline/echo\nlimits:\n  budget:\n    max_requests: 20\n---\nHelp."
+
+// Wait ends with how the run ended, as its record says: the answer, ErrRunFailed
+// for a terminal failure and for retries exhausted with no terminal event on
+// the bus, ErrRunStopped for a stop, and ctx's error for a run that never runs.
+func TestSessionWaitEndsWithHowTheRunEnded(t *testing.T) {
+	// A host that owns admission lets durable retry a failed turn.
+	hostAdmitted := []Option{
+		WithWorkerOptions(worker.WithBackoff(func(int) time.Duration { return time.Millisecond })),
+		WithRuntimeOptions(runtime.WithChildStarter(func(context.Context, runtime.Input, runtime.SessionCall) (string, error) {
+			return "", errors.New("unused child admission")
+		})),
+	}
+	for _, tc := range []struct {
+		name    string
+		result  turn.Result
+		err     error
+		opts    []Option
+		stop    bool // ask the run to stop before a worker picks it up
+		idle    bool // run no worker, so only ctx ends the wait
+		want    string
+		wantErr error
+	}{
+		{name: "a completed run returns its answer", result: turn.Result{Text: "the answer"}, want: "the answer"},
+		{name: "a terminal failure is ErrRunFailed", err: durable.NonRetryable(errors.New("boom")), wantErr: ErrRunFailed},
+		{name: "exhausted retries are ErrRunFailed", err: errors.New("flaky"), opts: hostAdmitted, wantErr: ErrRunFailed},
+		{name: "a stopped run is ErrRunStopped", result: turn.Result{Text: "never said"}, stop: true, wantErr: ErrRunStopped},
+		{name: "ctx ends the wait for a run that never runs", idle: true, wantErr: context.DeadlineExceeded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			model := turn.Func(func(context.Context, turn.Pinned, turn.Input, func(context.Context, event.Body) error) (turn.Result, error) {
+				return tc.result, tc.err
+			})
+			app := newApp(t, append([]Option{WithTenant("t"), WithTurnRuntime(model)}, tc.opts...)...)
+			ctx := context.Background()
+			if _, err := app.Define(ctx, budgetedHelper); err != nil {
+				t.Fatal(err)
+			}
+			s, err := app.Session(ctx, session.Open{Agent: "helper"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			acc, err := s.Post(ctx, "help")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.stop {
+				if err := app.Stop(ctx, runtime.StopRequest{Tenant: "t", RunID: acc.RunID, Reason: "enough"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if !tc.idle {
+				start(t, app.RunExecution)
+			}
+			bound := 15 * time.Second
+			if tc.idle {
+				bound = 100 * time.Millisecond
+			}
+			waitCtx, cancel := context.WithTimeout(ctx, bound)
+			defer cancel()
+			got, err := s.Wait(waitCtx, acc.RunID)
+			if !errors.Is(err, tc.wantErr) || (tc.wantErr == nil && err != nil) {
+				t.Fatalf("Wait error = %v, want %v", err, tc.wantErr)
+			}
+			if got != tc.want {
+				t.Fatalf("Wait = %q, want %q", got, tc.want)
+			}
+			// Only the exhausted retries end with no terminal event on the bus,
+			// which is what makes the ledger the authority.
+			if want := !tc.idle && tc.opts == nil; retainedTerminal(t, app, s.Record(), acc.RunID) != want {
+				t.Fatalf("the bus retains a terminal event: %v, want %v", !want, want)
+			}
+		})
+	}
+}
+
+// retainedTerminal reports whether the bus retains a terminal event of runID.
+func retainedTerminal(t *testing.T, app *App, r session.Record, runID string) bool {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	stream, err := app.Bus().Subscribe(ctx, bus.Subscription{Tenant: r.Key.Tenant, Channels: []string{r.Channel}, Types: []string{"run"}, Run: runID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = stream.Close() }()
+	for {
+		e, err := stream.Recv(ctx)
+		if err != nil {
+			return false
+		}
+		if terminal(e) {
+			return true
+		}
+	}
+}
+
+// Wait reads only its own session's runs. Another session's run and a run
+// that does not exist are one ErrNotFound, returned at once rather than when
+// ctx ends.
+func TestSessionWaitIsConfinedToItsOwnRuns(t *testing.T) {
+	app := newApp(t, WithTenant("t"), WithTurnRuntime(turn.Func(func(context.Context, turn.Pinned, turn.Input, func(context.Context, event.Body) error) (turn.Result, error) {
+		return turn.Result{Text: "private"}, nil
+	})))
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if _, err := app.Define(ctx, budgetedHelper); err != nil {
+		t.Fatal(err)
+	}
+	start(t, app.RunExecution)
+	mine, err := app.Session(ctx, session.Open{Parent: "console://t/chat", Agent: "helper"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	theirs, err := app.Session(ctx, session.Open{Parent: "console://t/chat", Agent: "helper", Label: "other"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acc, err := theirs.Post(ctx, "help")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := theirs.Wait(ctx, acc.RunID); err != nil || got != "private" {
+		t.Fatalf("own run = %q, %v", got, err)
+	}
+	for _, tc := range []struct {
+		name    string
+		runID   string
+		wantErr error
+	}{
+		{name: "another session's run", runID: acc.RunID, wantErr: ErrNotFound},
+		{name: "a run that does not exist", runID: "r00000000000000000000000000000000", wantErr: ErrNotFound},
+		{name: "no run", runID: "", wantErr: session.ErrInvalid},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := mine.Wait(ctx, tc.runID)
+			if !errors.Is(err, tc.wantErr) || got != "" {
+				t.Fatalf("Wait = %q, %v, want %v", got, err, tc.wantErr)
+			}
+		})
+	}
+}
+
+// Link records a context or evidence link once, Links reads them back in
+// order, and any other kind, an unknown target and the session itself are
+// refused.
+func TestSessionLinkTakesOnlyKnownKindsAndLinksReadsThemBack(t *testing.T) {
+	app := newApp(t, WithTenant("t"))
+	ctx := context.Background()
+	if _, err := app.Define(ctx, budgetedHelper); err != nil {
+		t.Fatal(err)
+	}
+	s, err := app.Session(ctx, session.Open{Parent: "console://t/chat", Agent: "helper"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := app.Session(ctx, session.Open{Parent: "console://t/chat", Agent: "helper", Label: "other"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := other.Record().ID
+	for _, tc := range []struct {
+		name    string
+		target  string
+		kind    string
+		wantErr error
+	}{
+		{name: "context", target: target, kind: session.LinkContext},
+		{name: "evidence", target: target, kind: session.LinkEvidence},
+		{name: "the same link again is a no-op", target: target, kind: session.LinkContext},
+		{name: "no kind", target: target, kind: "", wantErr: session.ErrInvalid},
+		{name: "an unknown kind", target: target, kind: "citation", wantErr: session.ErrInvalid},
+		{name: "itself", target: s.Record().ID, kind: session.LinkContext, wantErr: session.ErrInvalid},
+		{name: "an unknown target", target: "s_missing", kind: session.LinkContext, wantErr: session.ErrNotFound},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := s.Link(ctx, tc.target, tc.kind)
+			if !errors.Is(err, tc.wantErr) || (tc.wantErr == nil && err != nil) {
+				t.Fatalf("Link(%q, %q) = %v, want %v", tc.target, tc.kind, err, tc.wantErr)
+			}
+		})
+	}
+	links, err := s.Links(ctx, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(links) != 2 || links[0].Target != target || links[0].Kind != session.LinkContext || links[1].Target != target || links[1].Kind != session.LinkEvidence {
+		t.Fatalf("Links = %+v, want context then evidence to %s", links, target)
+	}
+	if links, err := s.Links(ctx, 1); err != nil || len(links) != 1 {
+		t.Fatalf("Links(1) = %+v, %v", links, err)
+	}
+	if links, err := other.Links(ctx, 0); err != nil || len(links) != 0 {
+		t.Fatalf("a link is one-way: target's Links = %+v, %v", links, err)
 	}
 }

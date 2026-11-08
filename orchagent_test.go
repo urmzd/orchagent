@@ -9,9 +9,11 @@ import (
 
 	"github.com/urmzd/orchagent"
 	"github.com/urmzd/orchagent/flow/event"
+	"github.com/urmzd/orchagent/flow/runtime"
 	"github.com/urmzd/orchagent/flow/turn/native/agenttest"
 )
 
+// helper declares the budget a standalone Session.Post requires.
 const helper = `---
 apiVersion: saige/v1
 name: helper
@@ -19,6 +21,9 @@ version: 1.0.0
 description: answers in tests
 model:
   use: scripted/one
+limits:
+  budget:
+    max_requests: 4
 ---
 Answer briefly.
 `
@@ -31,7 +36,13 @@ func scripted(text string) orchagent.ProviderFunc {
 	}
 }
 
-func start(t *testing.T, opts ...orchagent.Option) (context.Context, *orchagent.App) {
+// failing builds no model client, so every turn fails.
+func failing(orchagent.Spec) (orchagent.Provider, error) {
+	return nil, errors.New("no model for this agent")
+}
+
+// newApp composes an App with the helper agent defined and no worker running.
+func newApp(t *testing.T, opts ...orchagent.Option) (context.Context, *orchagent.App) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
@@ -40,6 +51,15 @@ func start(t *testing.T, opts ...orchagent.Option) (context.Context, *orchagent.
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = app.Close() })
+	if _, err := app.Define(ctx, helper); err != nil {
+		t.Fatal(err)
+	}
+	return ctx, app
+}
+
+// run runs app until the test ends.
+func run(t *testing.T, ctx context.Context, app *orchagent.App) {
+	t.Helper()
 	runCtx, stop := context.WithCancel(ctx)
 	done := make(chan error, 1)
 	go func() { done <- app.Run(runCtx) }()
@@ -49,61 +69,98 @@ func start(t *testing.T, opts ...orchagent.Option) (context.Context, *orchagent.
 			t.Errorf("Run: %v", err)
 		}
 	})
-	if _, err := app.Define(ctx, helper); err != nil {
-		t.Fatal(err)
-	}
+}
+
+func start(t *testing.T, opts ...orchagent.Option) (context.Context, *orchagent.App) {
+	t.Helper()
+	ctx, app := newApp(t, opts...)
+	run(t, ctx, app)
 	return ctx, app
 }
 
-func TestAskText(t *testing.T) {
-	ctx, app := start(t, orchagent.WithModelProvider("scripted", scripted("hello from helper")))
-	reply, err := app.Ask(ctx, "helper", "hi") //nolint:staticcheck // Verify the one-release legacy API contract.
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = reply.Close() }()
-	got, err := reply.Text(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "hello from helper" {
-		t.Fatalf("Text = %q", got)
-	}
-	if reply.RunID == "" {
-		t.Fatal("no run id")
+// Post then Wait is the one way to run an agent and read its answer: the
+// answer of a completed run, ErrRunFailed for a run that failed terminally,
+// and ErrRunStopped with the partial answer for a run asked to stop.
+func TestSessionPostThenWaitReturnsHowTheRunEnded(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		provider orchagent.ProviderFunc
+		stop     bool
+		want     string
+		wantErr  error
+	}{
+		{name: "a completed run returns its answer", provider: scripted("hello from helper"), want: "hello from helper"},
+		{name: "a terminal failure is ErrRunFailed", provider: failing, wantErr: orchagent.ErrRunFailed},
+		{name: "a stopped run is ErrRunStopped", provider: scripted("never said"), stop: true, wantErr: orchagent.ErrRunStopped},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, app := newApp(t, orchagent.WithModelProvider("scripted", tc.provider))
+			s, err := app.Session(ctx, orchagent.SessionOptions{Agent: "helper"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			accepted, err := s.Post(ctx, "hi")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if accepted.RunID == "" {
+				t.Fatal("no run id")
+			}
+			if tc.stop {
+				if err := app.Stop(ctx, runtime.StopRequest{Tenant: "acme", RunID: accepted.RunID, Reason: "enough"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			run(t, ctx, app)
+			got, err := s.Wait(ctx, accepted.RunID)
+			if !errors.Is(err, tc.wantErr) || (tc.wantErr == nil && err != nil) {
+				t.Fatalf("Wait error = %v, want %v", err, tc.wantErr)
+			}
+			if got != tc.want {
+				t.Fatalf("Wait = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 
-func TestAskEventsEndAtTerminal(t *testing.T) {
+// Stream carries the posted run to its terminal event, and Wait called after
+// the run already ended still returns its answer from the replayed window.
+func TestSessionStreamEndsAtTheTerminalEventAndALateWaitStillAnswers(t *testing.T) {
 	ctx, app := start(t, orchagent.WithModelProvider("scripted", scripted("streamed")))
-	reply, err := app.Ask(ctx, "helper", "hi") //nolint:staticcheck // Verify the one-release legacy API contract.
+	s, err := app.Session(ctx, orchagent.SessionOptions{Agent: "helper"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = reply.Close() }()
+	stream, err := s.Stream(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = stream.Close() }()
+	accepted, err := s.Post(ctx, "hi")
+	if err != nil {
+		t.Fatal(err)
+	}
 	var text strings.Builder
-	var last orchagent.Event
-	for e, err := range reply.Events(ctx) {
+	for {
+		e, err := stream.Recv(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if e.Run != reply.RunID {
-			t.Fatalf("event for run %s, want %s", e.Run, reply.RunID)
+		if e.Run != accepted.RunID {
+			t.Fatalf("event for run %s, want %s", e.Run, accepted.RunID)
 		}
 		if b, ok := e.Data.(event.Text); ok {
 			text.WriteString(b.Text)
 		}
-		last = e
-	}
-	if _, ok := last.Data.(event.Completed); !ok {
-		t.Fatalf("last event %s, want run.completed", last.Type)
+		if _, ok := e.Data.(event.Completed); ok {
+			break
+		}
 	}
 	if text.String() != "streamed" {
 		t.Fatalf("streamed text = %q", text.String())
 	}
-	// Text after Events reuses the recorded terminal event.
-	if got, err := reply.Text(ctx); err != nil || got != "streamed" {
-		t.Fatalf("Text after Events = %q, %v", got, err)
+	if got, err := s.Wait(ctx, accepted.RunID); err != nil || got != "streamed" {
+		t.Fatalf("Wait after the run ended = %q, %v", got, err)
 	}
 }
 
@@ -118,22 +175,22 @@ func TestDefineIsInsertOnly(t *testing.T) {
 	}
 }
 
-func TestAskUnknownAgent(t *testing.T) {
+func TestSessionOfAnUndefinedAgentIsRefused(t *testing.T) {
 	ctx, app := start(t, orchagent.WithModelProvider("scripted", scripted("x")))
-	if _, err := app.Ask(ctx, "nobody", "hi"); err == nil { //nolint:staticcheck // Verify the one-release legacy API contract.
-		t.Fatal("Ask of an undefined agent succeeded")
+	if _, err := app.Session(ctx, orchagent.SessionOptions{Agent: "nobody"}); err == nil {
+		t.Fatal("Session of an undefined agent succeeded")
 	}
 }
 
-func TestAskNeedsTenant(t *testing.T) {
+func TestSessionAndDefineNeedATenant(t *testing.T) {
 	ctx := context.Background()
 	app, err := orchagent.New(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = app.Close() }()
-	if _, err := app.Ask(ctx, "helper", "hi"); err == nil { //nolint:staticcheck // Verify the one-release legacy API contract.
-		t.Fatal("Ask without a tenant succeeded")
+	if _, err := app.Session(ctx, orchagent.SessionOptions{Agent: "helper"}); err == nil {
+		t.Fatal("Session without a tenant succeeded")
 	}
 	if _, err := app.Define(ctx, helper); err == nil {
 		t.Fatal("Define without a tenant succeeded")

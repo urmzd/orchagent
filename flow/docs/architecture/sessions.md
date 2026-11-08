@@ -11,12 +11,20 @@ s, err := app.Session(ctx, session.Open{
 })
 if err != nil { return err }
 accepted, err := s.Post(ctx, "Review this change")
+if err != nil { return err }
+review, err := s.Wait(ctx, accepted.RunID)
 ```
 
-`Post` returns a durable acceptance. `Stream` tails the session and newly created
+`Post` returns a durable acceptance. `Wait` blocks until that run ends and returns
+its answer, `ErrRunFailed` or `ErrRunStopped` with the partial answer. The run's
+ledger record decides, so a run that ended before `Wait` was called, or one that
+exhausted its retries with no terminal event, still ends the wait. A run of
+another session is `ErrNotFound`. `Stream` tails the session and newly created
 direct children, with a map of run IDs to sequence cursors. `Read` returns at most
 200 journal entries after a cursor. `Summary` returns deterministic excerpts with
-entry citations. `Children` and `Link` expose the tree and context references.
+entry citations. `Children` exposes the tree. `Link` records a reference to
+another session as `session.LinkContext` or `session.LinkEvidence` (the store
+refuses any other kind), and `Links` reads them back, oldest first.
 
 Hosts authenticate and authorize before opening a handle. `AcceptOwnSession`
 preserves a host's already unique per-agent event ID. Its child variant records
@@ -70,9 +78,8 @@ without session metadata and keep their original journal identity.
 
 `Run(ctx, RoleExecution)` runs workers only. `RoleIngress`, `RoleDispatch` and
 `RoleDelivery` select the other responsibilities. Omitting roles starts all of
-them. `Handler()` is the combined webhook handler. The older one-shot `Ask` and
-`Reply`, `RunDelivery`, `RunExecution` and `WebhookHandler` remain compatibility
-entry points while callers migrate.
+them. `Handler()` is the combined webhook handler. `RunDelivery`, `RunExecution`
+and `WebhookHandler` remain compatibility entry points while callers migrate.
 
 ## Budgets and live usage
 

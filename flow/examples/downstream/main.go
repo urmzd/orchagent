@@ -26,7 +26,6 @@ import (
 	"os/signal"
 
 	"github.com/urmzd/orchagent"
-	"github.com/urmzd/orchagent/flow/event"
 	"github.com/urmzd/orchagent/flow/turn/native/agenttest"
 	"github.com/urmzd/orchagent/flow/turn/native/saigetypes"
 )
@@ -78,44 +77,17 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	stream, err := conversation.Stream(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = stream.Close() }()
+	// Post starts a turn; Wait returns its answer, or ErrRunFailed or
+	// ErrRunStopped.
 	accepted, err := conversation.Post(ctx, "api is down")
 	if err != nil {
 		return err
 	}
-	for {
-		e, err := stream.Recv(ctx)
-		if err != nil {
-			return err
-		}
-		if e.Run != accepted.RunID {
-			continue
-		}
-		if e.Type == event.TypeFailed || e.Type == event.TypeStopped {
-			detail, renderErr := event.Render(e)
-			if renderErr != nil {
-				return renderErr
-			}
-			return fmt.Errorf("run %s: %s", e.Run, detail)
-		}
-		if e.Type == event.TypeCompleted {
-			break
-		}
-	}
-	entries, err := conversation.Read(ctx, 0)
+	answer, err := conversation.Wait(ctx, accepted.RunID)
 	if err != nil {
 		return err
 	}
-	for _, entry := range entries {
-		if entry.RunID == accepted.RunID && string(entry.Role) == "assistant" {
-			fmt.Println(entry.Text)
-		}
-	}
-	fmt.Printf("run %s: completed\n", accepted.RunID)
+	fmt.Printf("%s\nrun %s: completed\n", answer, accepted.RunID)
 	cancel()
 	if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
 		return err
