@@ -123,6 +123,22 @@ func (q *Queue) deltaKey(runID string) string {
 	return q.deltaPrefix + runID
 }
 
+// readyAtMillis rounds a positive delay's absolute deadline up to Redis's
+// millisecond precision. Rounding only the duration can still lose the
+// current time's fractional millisecond and make a run claimable early.
+// Nonpositive delays remain immediately claimable.
+func readyAtMillis(now time.Time, delay time.Duration) int64 {
+	if delay <= 0 {
+		return now.UnixMilli()
+	}
+	ready := now.Add(delay)
+	millis := ready.UnixMilli()
+	if ready.Nanosecond()%int(time.Millisecond) != 0 {
+		millis++
+	}
+	return millis
+}
+
 // ceilMillis converts d to whole milliseconds, rounding up so no positive
 // duration collapses to zero and a lease always covers its full TTL.
 func ceilMillis(d time.Duration) int64 {
