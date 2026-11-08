@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0 (2026-11-08)
+
+### Features
+
+- **flow**: accept and resolve model providers added at run time (#14) ([fb4ad7a](https://github.com/urmzd/orchagent/commit/fb4ad7aedfb67c284516e4e816250d6620c7614d))
+- refresh Slack file credentials for every validated request (#13) ([e59812d](https://github.com/urmzd/orchagent/commit/e59812de53a322a522704a5fe69526c2d3d70d60))
+- reconcile native feedback and retain verified fix provenance (#12) ([00a6d3d](https://github.com/urmzd/orchagent/commit/00a6d3d1e309c0213dca169e9f8c34772a511acf))
+- create authorized draft fix pull requests (#11) ([3360570](https://github.com/urmzd/orchagent/commit/3360570b937753af7de637d7cb74926b028b5ed1))
+- deliver native session reviews and feedback (#10) ([28c9b52](https://github.com/urmzd/orchagent/commit/28c9b5223b801aac7ff570f4939c03f946651b42))
+- **flow**: run governed agent sessions with durable waits (#9) ([6a8964c](https://github.com/urmzd/orchagent/commit/6a8964c6106cbf26a0285487ff2853ec81126df2))
+- **session**: persist identities, grants and bounded accounting (#7) ([e2e2979](https://github.com/urmzd/orchagent/commit/e2e29790a9760db46613d23fae6e3ffdc43a330c))
+- **mcptools**: refresh OAuth credentials without crossing identity boundaries (#6) ([2f0711f](https://github.com/urmzd/orchagent/commit/2f0711f83c79d4adccabe0621fd23b1cde4d1ee4))
+
+[Full Changelog](https://github.com/urmzd/orchagent/compare/v0.4.0...v0.5.0)
+
+
 ## 0.4.0 (2026-11-07)
 
 ### Features
