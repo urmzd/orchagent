@@ -47,8 +47,22 @@ func TestCompletedReviewSurvivesReplicaChangeAndLostDeliveryCommit(t *testing.T)
 	if err := api.SeedContext(ref, snapshot); err != nil {
 		t.Fatal(err)
 	}
-	cfg := Config{API: api, Tenant: "tenant", Login: "humagen[bot]", Review: func(View, []ContextFile) (Review, bool, error) {
-		return Review{CommitID: sha, Event: "COMMENT", Body: "Checked", Comments: []ReviewComment{{Path: "a.go", Line: 1, Body: "Finding", FindingID: "f1"}}}, true, nil
+	allow := true
+	planned := func(disposition string) Review {
+		return Review{CommitID: sha, Event: disposition, Body: "Checked", Comments: []ReviewComment{{Path: "a.go", Line: 1, Body: "Finding", FindingID: "f1"}}}
+	}
+	cfg := Config{API: api, Tenant: "tenant", Login: "humagen[bot]", AllowReviewApproval: func(context.Context, Ref) bool { return allow }, Review: func(View, []ContextFile) (Review, bool, error) {
+		if allow {
+			return planned("APPROVE"), true, nil
+		}
+		r := planned("COMMENT")
+		r.Body += " policy now denies approval"
+		return r, true, nil
+	}, RecoverReview: func(_ View, files []ContextFile, disposition string) (Review, bool, error) {
+		if len(files) == 0 || !strings.Contains(files[0].Patch, "+new") {
+			t.Fatal("original remote diff evidence missing")
+		}
+		return planned(disposition), true, nil
 	}}
 	var observed []connectors.Delivery
 	cfg.ObserveDelivery = func(_ context.Context, d connectors.Delivery) error { observed = append(observed, d); return nil }
@@ -63,6 +77,14 @@ func TestCompletedReviewSurvivesReplicaChangeAndLostDeliveryCommit(t *testing.T)
 			t.Fatal(err)
 		}
 		if err := c.Deliver(ctx, target, env); err != nil {
+			t.Fatal(err)
+		}
+		// The next replica must recover the existing immutable review even when
+		// both the PR head and current approval policy have changed.
+		allow = false
+		snapshot.Subject.Head.SHA = strings.Repeat("b", 40)
+		snapshot.Files = []ContextFile{{Filename: "a.go", Patch: "@@ -1 +1 @@\n-new\n+later"}}
+		if err := api.SeedContext(ref, snapshot); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -90,6 +112,24 @@ func TestCompletedReviewSurvivesReplicaChangeAndLostDeliveryCommit(t *testing.T)
 	}
 	if len(api.SubmittedReviews()) != 1 {
 		t.Fatal("stale review altered remote reviews")
+	}
+	// Copied markers cannot recover a changed payload or different final input.
+	env.Run = "r1"
+	for _, change := range []string{"payload", "input"} {
+		if change == "payload" {
+			api.submitted[0].Review.Body = strings.Replace(api.submitted[0].Review.Body, "Checked", "Tampered", 1)
+		} else {
+			env.Data = event.Completed{Text: "different structured review"}
+		}
+		cfg.DeliveryState = deliverystate.NewMemory()
+		c, _ := New(cfg)
+		if err := c.Deliver(ctx, target, env); err == nil {
+			t.Fatalf("%s mismatch recovered an unrelated review", change)
+		}
+		api.submitted[0].Review.Body = strings.Replace(api.submitted[0].Review.Body, "Tampered", "Checked", 1)
+	}
+	if len(api.SubmittedReviews()) != 1 {
+		t.Fatal("failed recovery submitted a duplicate")
 	}
 }
 func TestCrossSurfaceWritesNeedTheirOwnGrant(t *testing.T) {

@@ -22,6 +22,7 @@ type ReviewRecord struct {
 	ReviewResult
 	Body     string `json:"body"`
 	CommitID string `json:"commit_id"`
+	State    string `json:"state"`
 	User     struct {
 		Login string `json:"login"`
 	} `json:"user"`
@@ -53,6 +54,7 @@ func (f *Fake) ListReviews(_ context.Context, ref Ref, page int) ([]ReviewRecord
 	for _, entry := range f.submitted {
 		if entry.Ref == ref {
 			v := ReviewRecord{ReviewResult: entry.Result, Body: entry.Review.Body, CommitID: entry.Review.CommitID}
+			v.State = map[string]string{"COMMENT": "COMMENTED", "APPROVE": "APPROVED", "REQUEST_CHANGES": "CHANGES_REQUESTED"}[entry.Review.Event]
 			v.User.Login = "humagen[bot]"
 			all = append(all, v)
 		}
@@ -99,6 +101,24 @@ func (s reviewSurface) Create(ctx context.Context, target address.Address, body 
 	if pinned == "" {
 		return "", fmt.Errorf("github: native review needs a pinned PR head")
 	}
+	marker := reviewMarker(view, pinned)
+	for page := 1; page <= 10; page++ {
+		rows, err := s.history.ListReviews(ctx, ref, page)
+		if err != nil {
+			return "", err
+		}
+		for _, row := range rows {
+			if row.CommitID == pinned && strings.EqualFold(row.User.Login, s.c.cfg.Login) && strings.Contains(row.Body, marker) {
+				return s.recoverReview(ctx, ref, row, marker, view)
+			}
+		}
+		if len(rows) < 100 {
+			break
+		}
+		if page == 10 {
+			return "", fmt.Errorf("github: review recovery exceeds 1000 reviews")
+		}
+	}
 	var files []ContextFile
 	for page := 1; page <= 10; page++ {
 		got, err := s.context.ReadContext(ctx, ref, page)
@@ -131,41 +151,56 @@ func (s reviewSurface) Create(ctx context.Context, target address.Address, body 
 	if err != nil {
 		return "", err
 	}
-	for i := range review.Comments {
-		if id := review.Comments[i].FindingID; id != "" {
-			review.Comments[i].Body += "\n\n" + findingMarker(id)
-		}
-	}
-	sum := sha256.Sum256([]byte(view.Tenant + "\x00" + view.RunID + "\x00" + pinned))
-	marker := "<!-- humagen-review:" + hex.EncodeToString(sum[:]) + " -->"
-	for page := 1; page <= 10; page++ {
-		rows, err := s.history.ListReviews(ctx, ref, page)
-		if err != nil {
-			return "", err
-		}
-		for _, row := range rows {
-			if row.CommitID == pinned && strings.EqualFold(row.User.Login, s.c.cfg.Login) && strings.Contains(row.Body, marker) {
-				return fmt.Sprint(row.ID), s.observeReview(ctx, target, ref, row.ID, review, view)
-			}
-		}
-		if len(rows) < 100 {
-			break
-		}
-		if page == 10 {
-			return "", fmt.Errorf("github: review recovery exceeds 1000 reviews")
-		}
-	}
-	review.Body += "\n\n" + marker
+	review = markFindings(review)
+	review.Body += "\n\n" + marker + "\n\n" + reviewPayloadMarker(view, review)
 	result, err := s.api.CreateReview(ctx, ref, review)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprint(result.ID), s.observeReview(ctx, target, ref, result.ID, review, view)
+	return reviewReceipt(result.ID, review, view)
 }
 func (s reviewSurface) Update(_ context.Context, _ address.Address, _ string, _ string) error {
 	// A submitted review is immutable. Late earlier events can update the status
 	// comment, but cannot submit a second review for the same completed run.
 	return nil
+}
+
+// Keep the exact submitted anchors in the opaque durable handle. FindingID
+// never enters GitHub's API JSON, so its private mapping is stored separately.
+type deliveredReview struct {
+	ID                   int64
+	Review               Review
+	Findings             []string
+	Tenant, Run, Channel string
+}
+
+func reviewReceipt(id int64, review Review, view render.View) (string, error) {
+	r := deliveredReview{ID: id, Review: review, Tenant: view.Tenant, Run: view.RunID, Channel: view.Channel}
+	for _, comment := range review.Comments {
+		r.Findings = append(r.Findings, comment.FindingID)
+	}
+	b, err := json.Marshal(r)
+	return string(b), err
+}
+func (s reviewSurface) AfterDelivery(ctx context.Context, target address.Address, handle string) error {
+	if handle == "none" {
+		return nil
+	}
+	var r deliveredReview
+	if err := json.Unmarshal([]byte(handle), &r); err != nil {
+		return err
+	}
+	if r.ID <= 0 || r.Tenant != s.c.cfg.Tenant || r.Run == "" || r.Channel == "" || len(r.Findings) != len(r.Review.Comments) {
+		return fmt.Errorf("github: invalid delivered review receipt")
+	}
+	for i := range r.Review.Comments {
+		r.Review.Comments[i].FindingID = r.Findings[i]
+	}
+	ref, err := s.c.ref(target)
+	if err != nil {
+		return err
+	}
+	return s.observeReview(ctx, target, ref, r.ID, r.Review, render.View{Tenant: r.Tenant, RunID: r.Run, Channel: r.Channel})
 }
 
 func findingMarker(id string) string {
@@ -176,10 +211,10 @@ func (s reviewSurface) observeReview(ctx context.Context, target address.Address
 	if s.c.cfg.ObserveDelivery == nil {
 		return nil
 	}
-	expected := map[string]string{}
+	expected := map[string]ReviewComment{}
 	for _, comment := range review.Comments {
 		if comment.FindingID != "" {
-			expected[findingMarker(comment.FindingID)] = comment.FindingID
+			expected[findingMarker(comment.FindingID)] = comment
 		}
 	}
 	if len(expected) == 0 {
@@ -198,7 +233,10 @@ func (s reviewSurface) observeReview(ctx context.Context, target address.Address
 			for marker, finding := range expected {
 				if strings.Contains(comment.Body, marker) {
 					message := refAddress(ref, "pull").WithParam("review_comment", fmt.Sprint(comment.ID))
-					if err := s.c.cfg.ObserveDelivery(ctx, connectors.Delivery{Tenant: v.Tenant, Run: v.RunID, Channel: v.Channel, Target: message, Message: message, Finding: finding}); err != nil {
+					if err := s.c.rememberSuggestion(ctx, message, finding, review.CommitID, v); err != nil {
+						return err
+					}
+					if err := s.c.cfg.ObserveDelivery(ctx, connectors.Delivery{Tenant: v.Tenant, Run: v.RunID, Channel: v.Channel, Target: message, Message: message, Finding: finding.FindingID}); err != nil {
 						return err
 					}
 					delete(expected, marker)

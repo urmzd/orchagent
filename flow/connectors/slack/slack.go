@@ -178,11 +178,12 @@ type Config struct {
 // Connector is the Slack peer. It implements pkg/connector's Trigger, Sink and
 // Actor faces, and net/http's Handler.
 type Connector struct {
-	cfg       Config
-	gate      inbound.Gate
-	pipe      inbound.Pipe
-	engine    *sink.Engine
-	reactions *sink.Engine
+	cfg           Config
+	gate          inbound.Gate
+	pipe          inbound.Pipe
+	engine        *sink.Engine
+	reactions     *sink.Engine
+	feedbackState deliverystate.Store
 	// fetcher downloads files; nil when file intake is off.
 	fetcher *intake.Fetcher
 }
@@ -216,6 +217,10 @@ func New(cfg Config) (*Connector, error) {
 	}
 
 	c := &Connector{cfg: cfg}
+	c.feedbackState = cfg.DeliveryState
+	if c.feedbackState == nil {
+		c.feedbackState = deliverystate.NewMemory()
+	}
 	if cfg.Files.Enabled() {
 		if cfg.Tenant == "" || cfg.FileToken == "" {
 			return nil, fmt.Errorf("slack: file intake needs a tenant to store files under and a bot token to download them with")

@@ -70,7 +70,7 @@ func TestOnlySignedKnownAnswerReactionsBecomeFeedback(t *testing.T) {
 		},
 		Stop: func(context.Context, string, string, event.Actor) error { stops++; return nil },
 	}})
-	payload := `{"type":"event_callback","team_id":"T01","event_id":"e1","event":{"type":"reaction_added","user":"U01","reaction":"-1","item":{"type":"message","channel":"C01","ts":"10.0"}}}`
+	payload := `{"type":"event_callback","team_id":"T01","event_id":"e1","event":{"type":"reaction_added","event_ts":"11.000001","user":"U01","reaction":"-1","item":{"type":"message","channel":"C01","ts":"10.0"}}}`
 	for _, change := range []struct {
 		body     string
 		unsigned bool

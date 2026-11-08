@@ -11,6 +11,7 @@ type FakeReview struct {
 	Ref    Ref
 	Review Review
 	Result ReviewResult
+	Files  []ContextFile
 }
 
 func (f *Fake) CreateReview(_ context.Context, ref Ref, review Review) (ReviewResult, error) {
@@ -28,7 +29,7 @@ func (f *Fake) CreateReview(_ context.Context, ref Ref, review Review) (ReviewRe
 	f.nextID++
 	result := ReviewResult{ID: f.nextID, URL: fmt.Sprintf("https://github.com/%s/%s/pull/%d#pullrequestreview-%d", ref.Owner, ref.Repo, ref.Number, f.nextID)}
 	review.Comments = slices.Clone(review.Comments)
-	f.submitted = append(f.submitted, FakeReview{Ref: ref, Review: review, Result: result})
+	f.submitted = append(f.submitted, FakeReview{Ref: ref, Review: review, Result: result, Files: slices.Clone(f.contexts[ref.String()].Files)})
 	return result, nil
 }
 func (f *Fake) SubmittedReviews() []FakeReview {
@@ -37,6 +38,7 @@ func (f *Fake) SubmittedReviews() []FakeReview {
 	out := slices.Clone(f.submitted)
 	for i := range out {
 		out[i].Review.Comments = slices.Clone(out[i].Review.Comments)
+		out[i].Files = slices.Clone(out[i].Files)
 	}
 	return out
 }

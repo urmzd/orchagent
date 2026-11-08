@@ -48,12 +48,12 @@ func (c *Connector) serveReaction(ctx context.Context, w http.ResponseWriter, en
 		if handler.Stop != nil && ev.Type == "reaction_added" {
 			err = handler.Stop(ctx, c.cfg.Tenant, resolved.Run, actor)
 		}
-	} else if handler.Record != nil {
+	} else {
 		id := env.EventID
 		if id == "" {
 			id = "reaction:" + ev.User + ":" + ev.EventTS + ":" + ev.Item.TS + ":" + ev.Reaction + ":" + ev.Type
 		}
-		err = handler.Record(ctx, c.cfg.Tenant, id, event.Feedback{RunID: resolved.Run, SessionID: resolved.Session, MessageID: resolved.Message, FindingID: resolved.Finding, Actor: actor, Rating: rating, Surface: Name, Removed: ev.Type == "reaction_removed"})
+		err = c.recordReaction(ctx, target, id, ev.EventTS, event.Feedback{RunID: resolved.Run, SessionID: resolved.Session, MessageID: resolved.Message, FindingID: resolved.Finding, Actor: actor, Rating: rating, Surface: Name, Removed: ev.Type == "reaction_removed"})
 	}
 	if err != nil {
 		http.Error(w, "feedback refused", http.StatusServiceUnavailable)

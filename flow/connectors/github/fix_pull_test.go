@@ -16,6 +16,37 @@ import (
 func fixFixture() FixPullRequest {
 	return FixPullRequest{Base: RepositoryBase{Name: "main", SHA: strings.Repeat("a", 40)}, Title: "Fix retry handling", Body: "Tested with unit tests.", SourceKind: "issues", Changes: ChangeRequest{Message: "fix: retry handling", Files: []FileEdit{{Path: "a.go", Content: "fixed"}}}}
 }
+
+func TestFixPullBacklinksComeOnlyFromTrustedHostContext(t *testing.T) {
+	api := NewFake()
+	ref := Ref{Owner: "acme", Repo: "repo", Number: 7}
+	api.SeedDefaultBranch(ref, fixFixture().Base)
+	links := FixPullContext{SessionURL: "https://console.example.test/sessions/s_source", AlertURL: "https://console.example.test/alerts?alert=a_source"}
+	c, err := New(Config{API: api, FixPullRequests: true, AuthorizeFixPull: func(context.Context, Ref) error { return nil }, FixPullContext: func(context.Context, Ref) (FixPullContext, error) { return links, nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := map[string]any{"base": fixFixture().Base, "title": "Fix", "body": "Checked", "changes": fixFixture().Changes}
+	target := address.MustParse("github://acme/repo/issues/7")
+	input["context"] = map[string]string{"alert_url": "https://attacker.invalid"}
+	raw, _ := json.Marshal(input)
+	if _, err := c.createFixPull(connector.WithRunID(t.Context(), "run"), target, raw); err == nil {
+		t.Fatal("model supplied backlink accepted")
+	}
+	delete(input, "context")
+	raw, _ = json.Marshal(input)
+	if _, err := c.createFixPull(connector.WithRunID(t.Context(), "run"), target, raw); err != nil {
+		t.Fatal(err)
+	}
+	body := api.FixPulls()[0].Body
+	if !strings.Contains(body, links.SessionURL) || !strings.Contains(body, links.AlertURL) || !strings.Contains(body, "https://github.com/acme/repo/issues/7") {
+		t.Fatal(body)
+	}
+	links.AlertURL = "javascript:alert(1)"
+	if _, err := c.createFixPull(connector.WithRunID(t.Context(), "other"), target, raw); err == nil {
+		t.Fatal("invalid host link accepted")
+	}
+}
 func TestFixPullCannotWriteWorkflowsOrAdvanceDefaultAndRetriesOnePR(t *testing.T) {
 	r := fixFixture()
 	api := NewFake()

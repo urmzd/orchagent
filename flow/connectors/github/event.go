@@ -29,6 +29,7 @@ const (
 // an unknown field is ignored rather than rejected.
 type hook struct {
 	Thread *struct {
+		NodeID   string `json:"node_id"`
 		Comments []body `json:"comments"`
 	} `json:"thread"`
 	Action     string     `json:"action"`

@@ -103,7 +103,7 @@ func (c *Connector) serveResolved(ctx context.Context, w http.ResponseWriter, id
 		return true
 	}
 	handler := c.cfg.Feedback
-	if h.Thread == nil || h.Sender.Login == "" || h.Sender.Type == "Bot" || strings.HasSuffix(h.Sender.Login, "[bot]") || handler.Resolve == nil || handler.Record == nil {
+	if h.Thread == nil || h.Thread.NodeID == "" || len(h.Thread.Comments) > 100 || h.Sender.Login == "" || h.Sender.Type == "Bot" || strings.HasSuffix(h.Sender.Login, "[bot]") || handler.Resolve == nil || h.Action == "resolved" && handler.Record == nil || h.Action == "unresolved" && handler.Withdraw == nil {
 		w.WriteHeader(http.StatusOK)
 		return true
 	}
@@ -128,7 +128,7 @@ func (c *Connector) serveResolved(ctx context.Context, w http.ResponseWriter, id
 			http.Error(w, "resolution needs delivery identity", http.StatusBadRequest)
 			return true
 		}
-		err = handler.Record(ctx, c.cfg.Tenant, id+":"+fmt.Sprint(comment.ID), event.Feedback{RunID: resolved.Run, SessionID: resolved.Session, MessageID: resolved.Message, FindingID: resolved.Finding, Actor: event.Actor{ID: h.Sender.Login}, Rating: "up", Reasons: []string{"resolved"}, Surface: Name, Removed: h.Action == "unresolved"})
+		err = c.recordResolution(ctx, target, h.Thread.NodeID, comment.ID, id+":"+fmt.Sprint(comment.ID), event.Feedback{RunID: resolved.Run, SessionID: resolved.Session, MessageID: resolved.Message, FindingID: resolved.Finding, Actor: event.Actor{ID: h.Sender.Login}, Rating: "up", Reasons: []string{"resolved"}, Surface: Name, Removed: h.Action == "unresolved"})
 		if err != nil {
 			http.Error(w, "feedback refused", http.StatusServiceUnavailable)
 			return true

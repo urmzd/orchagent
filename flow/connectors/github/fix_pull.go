@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/urmzd/orchagent/flow/address"
@@ -28,8 +29,14 @@ type FixPullRequest struct {
 	Body       string         `json:"body"`
 	Changes    ChangeRequest  `json:"changes"`
 	SourceKind string         `json:"-"`
+	Context    FixPullContext `json:"-"`
 }
 
+// FixPullContext contains host-verified links, never model arguments.
+type FixPullContext struct {
+	SessionURL string
+	AlertURL   string
+}
 type FixPullResult struct {
 	Number    int    `json:"number"`
 	URL       string `json:"html_url"`
@@ -39,6 +46,15 @@ type FixPullResult struct {
 }
 
 func validateFixPull(r FixPullRequest) error {
+	for _, link := range []string{r.Context.SessionURL, r.Context.AlertURL} {
+		if link == "" {
+			continue
+		}
+		u, err := url.Parse(link)
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.User != nil || len(link) > 2048 || strings.ContainsAny(link, "<>\r\n") {
+			return fmt.Errorf("github: invalid trusted fix context link")
+		}
+	}
 	if !validSHA(r.Base.SHA) || r.Base.Name == "" || strings.ContainsAny(r.Base.Name, "\x00\r\n") {
 		return fmt.Errorf("github: fix requires inspected default branch and immutable SHA")
 	}
@@ -68,7 +84,8 @@ func fixIdentity(ref Ref, run string, r FixPullRequest) (branch, marker string) 
 		Run     string
 		Request FixPullRequest
 		Kind    string
-	}{ref, run, r, r.SourceKind})
+		Context FixPullContext
+	}{ref, run, r, r.SourceKind, r.Context})
 	hash := sha256.Sum256(raw)
 	id := hex.EncodeToString(hash[:])
 	return "humagen/fix-" + id[:24], "<!-- humagen-fix:" + id + " -->"
@@ -82,7 +99,14 @@ func fixBody(ref Ref, r FixPullRequest, marker string) string {
 	if r.SourceKind == "issues" {
 		relation = "Fixes "
 	}
-	return strings.TrimSpace(r.Body) + "\n\n" + relation + link + ".\n\nCreated by Humagen. Tests are reported in the description; creation does not run them.\n\n" + marker
+	context := ""
+	if r.Context.SessionURL != "" {
+		context += "\n\nSource session: <" + r.Context.SessionURL + ">."
+	}
+	if r.Context.AlertURL != "" {
+		context += "\n\nSource alert: <" + r.Context.AlertURL + ">."
+	}
+	return strings.TrimSpace(r.Body) + "\n\n" + relation + link + "." + context + "\n\nCreated by Humagen. Tests are reported in the description; creation does not run them.\n\n" + marker
 }
 func (c *Connector) fixBaseAction() connector.Action {
 	return connector.Action{Name: "github_fix_base", Description: "Read the default branch and immutable commit to inspect before preparing a fix PR. Read files at this SHA before proposing changes.", Schema: json.RawMessage(`{"type":"object","properties":{"address":{"type":"string"}},"additionalProperties":false}`), Invoke: func(ctx context.Context, target address.Address, raw json.RawMessage) (connector.Result, error) {
@@ -145,6 +169,15 @@ func (c *Connector) createFixPull(ctx context.Context, target address.Address, r
 	}
 	if err := c.cfg.AuthorizeFixPull(ctx, ref); err != nil {
 		return connector.Result{}, err
+	}
+	if c.cfg.FixPullContext != nil {
+		r.Context, err = c.cfg.FixPullContext(ctx, ref)
+		if err != nil {
+			return connector.Result{}, err
+		}
+		if err := validateFixPull(r); err != nil {
+			return connector.Result{}, err
+		}
 	}
 	result, err := c.cfg.API.(FixPullAPI).CreateFixPull(ctx, ref, run, r)
 	if err != nil {

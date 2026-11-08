@@ -14,15 +14,25 @@ import (
 
 func TestResolutionOnlyRatesVerifiedKnownFinding(t *testing.T) {
 	var got []event.Feedback
-	c, tags := start(t, github.Config{Tenant: "t", Owners: []string{"acme"}, Feedback: connectors.FeedbackHandler{
+	api := github.NewFake()
+	ref := github.Ref{Owner: "acme", Repo: "repo", Number: 3}
+	c, tags := start(t, github.Config{API: api, Tenant: "t", Owners: []string{"acme"}, Feedback: connectors.FeedbackHandler{
 		Resolve: func(_ context.Context, _ string, a address.Address) (connectors.FeedbackTarget, error) {
 			id, _ := a.Param("review_comment")
 			return connectors.FeedbackTarget{Found: id == "5", Run: "run", Finding: "f1"}, nil
 		},
 		Record: func(_ context.Context, tenant, id string, b event.Feedback) error { got = append(got, b); return nil },
+		Withdraw: func(_ context.Context, tenant, id, source string, b event.Feedback) error {
+			if source != "resolved:5" {
+				t.Fatalf("wrong resolution source %q", source)
+			}
+			got = append(got, b)
+			return nil
+		},
 	}})
-	body := `{"action":"resolved","repository":{"name":"repo","full_name":"acme/repo","owner":{"login":"acme"}},"pull_request":{"number":3},"sender":{"login":"ada","type":"User"},"thread":{"comments":[{"id":5},{"id":6}]}}`
+	body := `{"action":"resolved","repository":{"name":"repo","full_name":"acme/repo","owner":{"login":"acme"}},"pull_request":{"number":3},"sender":{"login":"ada","type":"User"},"thread":{"node_id":"thread","comments":[{"id":5},{"id":6}]}}`
 	for _, action := range []string{"resolved", "unresolved"} {
+		api.SeedReviewThread(ref, "thread", github.ReviewThreadState{Resolved: action == "resolved", ResolvedBy: "ada", Comments: []int64{5, 6}})
 		w := httptest.NewRecorder()
 		c.ServeHTTP(w, deliver(t, "pull_request_review_thread", action, strings.Replace(body, `"resolved"`, `"`+action+`"`, 1)))
 		if w.Code != http.StatusOK {
