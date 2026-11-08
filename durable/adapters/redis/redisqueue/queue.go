@@ -18,7 +18,7 @@ import (
 // claimable at now+delay. The attempt counter, if any, is untouched — a
 // settled run re-enqueued here continues its lineage.
 func (q *Queue) Enqueue(ctx context.Context, runID string, delay time.Duration) error {
-	readyAt := time.Now().Add(delay).UnixMilli()
+	readyAt := readyAtMillis(time.Now(), delay)
 	err := scriptEnqueue.Run(ctx, q.client,
 		[]string{q.keyReady, q.keyLeased},
 		runID, readyAt,
@@ -100,9 +100,14 @@ func (q *Queue) Release(ctx context.Context, it queue.Item, delay time.Duration,
 	if failed {
 		failedArg = 1
 	}
+	now := time.Now()
+	nowMillis := now.UnixMilli()
+	// Lua adds the delay to the floored current time. Include its discarded
+	// fraction so the absolute ready time never precedes now+delay.
+	delayMillis := readyAtMillis(now, delay) - nowMillis
 	res, err := scriptRelease.Run(ctx, q.client,
 		[]string{q.keyReady, q.keyLeased, q.keyAttempt, q.keyFailures},
-		it.RunID, it.Attempt, time.Now().UnixMilli(), ceilMillis(delay), failedArg,
+		it.RunID, it.Attempt, nowMillis, delayMillis, failedArg,
 	).Int64()
 	if err != nil {
 		return fmt.Errorf("redisqueue: release %q attempt %d: %w", it.RunID, it.Attempt, err)
