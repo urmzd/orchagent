@@ -262,7 +262,9 @@ Run from the repository root.
 - **New model provider**: an OpenAI-compatible endpoint is
   `flow.WithOpenAICompatible`. Anything else outside this repo is a
   `flow.WithModelProvider` in the composing program; see
-  `examples/downstream`. A built-in belongs in `pkg/turn/native`'s provider
+  `examples/downstream`. A provider the program adds while it runs (one an
+  administrator sets up) is `flow.WithModelProviderResolver`: it says which
+  names the registry accepts and builds each one when a turn runs. A built-in belongs in `pkg/turn/native`'s provider
   construction and `definition.KnownProviders`. Keep
   `agenttest.ScriptedProvider` (the `offline` provider) working, since it is
   what makes the examples and the tests run with no API key.

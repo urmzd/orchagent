@@ -61,6 +61,12 @@ const DefaultOpenAIBaseURL = "https://api.openai.com/v1"
 // against the wrong model is worse than a run that does not start.
 type ProviderFunc func(spec Spec) (saigetypes.Provider, error)
 
+// ProviderResolver finds the factory for a provider no option registered by
+// name, when a turn runs: one a deployment adds while it runs. It reports
+// false for a name it does not know, and the turn fails as it would for any
+// unknown provider.
+type ProviderResolver func(name string) (ProviderFunc, bool)
+
 // defaultProviders returns the built-in provider table. It is a function, not a
 // package-level map, so no two Runners can mutate each other's table and so the
 // zero configuration is not process-global state.
@@ -358,8 +364,8 @@ func (c *config) modelChain(rev Revision) (saigetypes.Provider, []saigetypes.Pro
 	refs = append(refs, rev.Spec.Fallbacks...)
 	members := make([]saigetypes.Provider, 0, len(refs))
 	for i, ref := range refs {
-		newProvider, ok := c.providers[ref.Provider]
-		if !ok || newProvider == nil {
+		newProvider, ok := c.provider(ref.Provider)
+		if !ok {
 			if i == 0 {
 				return nil, nil, fmt.Errorf("%w: agent %q version %s names provider %q; this deployment has %v",
 					ErrInvalid, rev.Spec.Name, rev.Version, ref.Provider, providerNames(c.providers))

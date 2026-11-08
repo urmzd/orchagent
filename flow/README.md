@@ -510,7 +510,7 @@ in your own program and turn them into these options; flow reads neither.
 | `WithWorkspace(dir)` | Where the sandbox writes agent artifacts | a temporary directory |
 | `WithTenant`, `WithConcurrency`, `WithCompaction`, `WithAuthor`, `WithLogger`, `WithMetrics` | Deployment | none, one, off, offline, discard, none |
 | `WithSlack`, `WithGitHub`, `WithJira`, `WithWebhooks`, `WithSchedules` | Built-in connectors, typed Go values | off |
-| `WithModelProvider`, `WithOpenAICompatible`, `WithTools`, `WithToolSource`, `WithConnector`, `WithToolProvider` | Extensions | none |
+| `WithModelProvider`, `WithModelProviderResolver`, `WithOpenAICompatible`, `WithTools`, `WithToolSource`, `WithConnector`, `WithToolProvider` | Extensions | none |
 | `WithPersonCredentials` | Each person's own credential for person-scoped MCP providers | none, so those providers offer no tools |
 
 Model providers read their own credentials when an agent is built:

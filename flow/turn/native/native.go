@@ -347,6 +347,7 @@ type Option func(*config)
 
 type config struct {
 	providers map[string]ProviderFunc
+	resolver  ProviderResolver
 	script    [][]saigetypes.Delta
 	tools     Tools
 	groups    map[string]ToolGroup
@@ -402,6 +403,24 @@ func WithProvider(name string, fn ProviderFunc) Option {
 		}
 		c.providers[name] = fn
 	}
+}
+
+// WithProviderResolver consults r for a provider no WithProvider named. A
+// name registered by WithProvider, or built in, is never passed to it.
+func WithProviderResolver(r ProviderResolver) Option {
+	return func(c *config) { c.resolver = r }
+}
+
+// provider is the factory for name: a registered one, else the resolver's.
+func (c *config) provider(name string) (ProviderFunc, bool) {
+	if fn, ok := c.providers[name]; ok && fn != nil {
+		return fn, true
+	}
+	if c.resolver == nil {
+		return nil, false
+	}
+	fn, ok := c.resolver(name)
+	return fn, ok && fn != nil
 }
 
 // WithScript sets the delta sequences the offline provider replays, one per

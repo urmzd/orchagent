@@ -38,6 +38,15 @@ type Checks struct {
 	// fallback must have one: a fallback that cannot be reached is not a
 	// fallback.
 	Credential func(provider string) error
+	// Accept reports whether a provider outside Providers may be named
+	// anyway: one the deployment adds while it runs, such as a model
+	// provider an administrator set up. Nil accepts none beyond Providers.
+	Accept func(provider string) bool
+}
+
+// known reports whether a definition may name provider.
+func (c Checks) known(provider string) bool {
+	return slices.Contains(c.providers(), provider) || (c.Accept != nil && c.Accept(provider))
 }
 
 func (c Checks) providers() []string {
@@ -129,7 +138,7 @@ func check(def *sdef.Definition, policy Policy, checks Checks) (Agent, error) {
 		if !ok || prov == "" || model == "" {
 			return fail("%s %q must be provider/model; presets are not supported", what, ref)
 		}
-		if !slices.Contains(providers, prov) {
+		if !checks.known(prov) {
 			return fail("%s names provider %q; this deployment knows %s", what, prov, strings.Join(sorted(providers), ", "))
 		}
 		if checks.Credential != nil {
@@ -151,7 +160,7 @@ func check(def *sdef.Definition, policy Policy, checks Checks) (Agent, error) {
 	if c := policy.Choices; c != nil {
 		for _, m := range c.Models {
 			prov, _, _ := strings.Cut(m, "/")
-			if !slices.Contains(providers, prov) {
+			if !checks.known(prov) {
 				return fail("model choice %q names provider %q; this deployment knows %s", m, prov, strings.Join(sorted(providers), ", "))
 			}
 		}

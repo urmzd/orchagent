@@ -112,3 +112,20 @@ func TestPolicyChoices(t *testing.T) {
 		t.Errorf("Parse refused valid choices: %v", err)
 	}
 }
+
+// Accept admits a provider the deployment adds while it runs; without it, only
+// the provider table counts.
+func TestChecksAcceptAdmitsAProviderAddedAtRunTime(t *testing.T) {
+	content := "---\napiVersion: saige/v1\nname: docs-bot\nversion: 1.0.0\nmodel: team-anthropic/claude-sonnet-5-5\n---\nAnswer.\n"
+	if _, err := definition.Parse(content, definition.Policy{}, definition.Checks{}); err == nil {
+		t.Fatal("Parse accepted a provider outside the table with no Accept")
+	}
+	accept := func(name string) bool { return name == "team-anthropic" }
+	if _, err := definition.Parse(content, definition.Policy{}, definition.Checks{Accept: accept}); err != nil {
+		t.Fatalf("Parse refused a provider Accept admits: %v", err)
+	}
+	refused := strings.Replace(content, "team-anthropic/", "elsewhere/", 1)
+	if _, err := definition.Parse(refused, definition.Policy{}, definition.Checks{Accept: accept}); err == nil {
+		t.Fatal("Parse accepted a provider Accept refuses")
+	}
+}
