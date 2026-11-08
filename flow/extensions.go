@@ -40,6 +40,10 @@ type options struct {
 	// Providers are model providers by the name a spec's provider field
 	// selects. A name already built in is replaced.
 	Providers map[string]native.ProviderFunc
+	// AcceptProvider and ResolveProvider let specs name providers added
+	// while the App runs (WithModelProviderResolver).
+	AcceptProvider  func(name string) bool
+	ResolveProvider native.ProviderResolver
 	// Catalogs resolve tool names a spec grants, after the connectors'
 	// actions and in order: the first that resolves a name wins.
 	Catalogs []runtime.Catalog
@@ -113,7 +117,7 @@ func (e options) providerNames() []string {
 
 // checks are the deployment facts definitions are validated against.
 func (e options) checks() definition.Checks {
-	return definition.Checks{Providers: e.providerNames()}
+	return definition.Checks{Providers: e.providerNames(), Accept: e.AcceptProvider}
 }
 
 // catalog chains the connectors' actions with the extensions' catalogs. A

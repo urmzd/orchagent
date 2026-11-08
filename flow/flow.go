@@ -221,6 +221,15 @@ func WithModelProvider(name string, fn native.ProviderFunc) Option {
 	}
 }
 
+// WithModelProviderResolver lets specs name model providers added while the
+// App runs, such as ones an administrator sets up. accept says whether a
+// definition may name a provider no WithModelProvider registered; resolve
+// builds it when a turn runs. A registered or built-in name never reaches
+// either.
+func WithModelProviderResolver(accept func(name string) bool, resolve native.ProviderResolver) Option {
+	return func(o *options) { o.AcceptProvider, o.ResolveProvider = accept, resolve }
+}
+
 // WithOpenAICompatible registers an OpenAI-compatible endpoint under ep.Name.
 // It is WithModelProvider with ep.Provider(); the key is read from the
 // environment variable ep.KeyEnv names when an agent is built.

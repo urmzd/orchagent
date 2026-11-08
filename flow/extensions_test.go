@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -335,5 +336,54 @@ func TestAPersonScopedProviderIsSeededFromItsDeclarationWithoutDialling(t *testi
 	}
 	if p, _ := store.GetProvider(ctx, tenant, "issues"); p.Version != 2 || p.Scope() != toolprovider.ScopeShared {
 		t.Errorf("after moving back to shared the record is %+v", p)
+	}
+}
+
+// A provider added while the App runs is accepted by the registry and runs
+// the turn, with no WithModelProvider naming it at start.
+func TestAProviderAddedAtRunTimeReachesTheRegistryAndTheTurn(t *testing.T) {
+	var added atomic.Bool // "team", once the test adds it
+	known := func(name string) bool { return name == "team" && added.Load() }
+	resolve := func(name string) (native.ProviderFunc, bool) {
+		if !known(name) {
+			return nil, false
+		}
+		return func(native.Spec) (saigetypes.Provider, error) {
+			return &agenttest.ScriptedProvider{Responses: [][]saigetypes.Delta{agenttest.TextResponse("team key answered")}}, nil
+		}, true
+	}
+	box := &inbox{}
+	c := newApp(t, WithTenant("acme"), WithConnector(box),
+		WithModelProviderResolver(known, resolve))
+	start(t, func(ctx context.Context) error { return c.Run(ctx) })
+	ctx := context.Background()
+
+	spec := definition.AgentSpec{Name: "oncall", Model: "m-1", Provider: "team", SystemPrompt: "Help."}
+	if _, err := createAgent(c.Definitions(), ctx, "acme", spec, "test"); err == nil {
+		t.Fatal("the registry accepted a provider nobody added")
+	}
+	added.Store(true)
+	if _, err := createAgent(c.Definitions(), ctx, "acme", spec, "test"); err != nil {
+		t.Fatalf("the registry refused a provider added at run time: %v", err)
+	}
+	target, _ := address.Parse("inbox://acme/out")
+	if _, err := ask(ctx, c, posted("Ev-1", "acme", "oncall", target.String(), "hello")); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(15 * time.Second)
+	for !box.completed(target.String()) {
+		if time.Now().After(deadline) {
+			t.Fatalf("the run did not complete; delivered %d events", len(box.at(target.String())))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	var text string
+	for _, e := range box.at(target.String()) {
+		if b, ok := e.Data.(event.Text); ok {
+			text += b.Text
+		}
+	}
+	if !strings.Contains(text, "team key answered") {
+		t.Errorf("delivered text %q, want the added provider's answer", text)
 	}
 }

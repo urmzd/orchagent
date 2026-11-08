@@ -454,6 +454,9 @@ func (a *App) newSandbox(groups runtime.ToolGroupSource) (turn.Runtime, error) {
 	for _, name := range slices.Sorted(maps.Keys(a.opt.Providers)) {
 		agentOpts = append(agentOpts, native.WithProvider(name, a.opt.Providers[name]))
 	}
+	if a.opt.ResolveProvider != nil {
+		agentOpts = append(agentOpts, native.WithProviderResolver(a.opt.ResolveProvider))
+	}
 	if c := a.opt.Compaction; c.MaxInputTokens > 0 || c.OnRequest {
 		agentOpts = append(agentOpts, native.WithCompaction(c))
 	}
