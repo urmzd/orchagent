@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/urmzd/orchagent/flow/address"
+	"github.com/urmzd/orchagent/flow/connectors"
 	"github.com/urmzd/orchagent/flow/connectors/mention"
 	"github.com/urmzd/orchagent/flow/event"
 )
@@ -220,21 +221,25 @@ func (c *Connector) eventFrom(header http.Header, h hook) (event.Envelope, bool)
 	var body event.Body
 	switch {
 	case h.Comment != nil && (h.WebhookEvent == EventCommentCreated || h.IssueEventType == "issue_commented"):
+		raw := c.text(h.Comment.Body)
 		var text string
-		req.Mentions, text = mention.FindAll(c.text(h.Comment.Body), c.agents())
+		req.Mentions, text = mention.FindAll(raw, c.agents())
 		if len(req.Mentions) == 0 {
 			return event.Envelope{}, false
 		}
 		req.Text = strings.TrimSpace(text)
+		req.References = connectors.References(c.references(raw))
 		body = event.JiraCommentCreated{Request: req, JiraRef: ref, CommentID: h.Comment.ID}
 
 	case h.WebhookEvent == EventIssueCreated:
+		raw := c.issueText(h.Issue)
 		var text string
-		req.Mentions, text = mention.FindAll(c.issueText(h.Issue), c.agents())
+		req.Mentions, text = mention.FindAll(raw, c.agents())
 		if len(req.Mentions) == 0 {
 			return event.Envelope{}, false
 		}
 		req.Text = strings.TrimSpace(text)
+		req.References = connectors.References(c.references(raw))
 		body = event.JiraIssueCreated{Request: req, JiraRef: ref}
 
 	case h.WebhookEvent == EventIssueUpdated:
@@ -248,7 +253,9 @@ func (c *Connector) eventFrom(header http.Header, h hook) (event.Envelope, bool)
 		if !ok {
 			return event.Envelope{}, false
 		}
-		req.Text = strings.TrimSpace(mention.Strip(c.issueText(h.Issue), agent))
+		raw := c.issueText(h.Issue)
+		req.Text = strings.TrimSpace(mention.Strip(raw, agent))
+		req.References = connectors.References(c.references(raw))
 		body = event.JiraIssueAssigned{Request: req, JiraRef: ref, Agent: agent}
 
 	default:
@@ -307,6 +314,29 @@ func (c *Connector) issueText(issue *jiraIssue) string {
 		return summary
 	}
 	return summary + "\n\n" + description
+}
+
+// references is what normalized Jira text refers to: the agents it mentions
+// and the links it carries, in order, then the people it mentions. A person
+// is an account mention ("[~accountid:...]") that normalize left in place
+// because no bot holds it; a literal "@name" in Jira is text, not a person.
+func (c *Connector) references(text string) []mention.Reference {
+	refs := mention.References(text, mention.Scope{Agents: c.agents(), Links: c.cfg.Links})
+	for rest := text; ; {
+		i := strings.Index(rest, "[~accountid:")
+		if i < 0 {
+			return refs
+		}
+		rest = rest[i+len("[~accountid:"):]
+		j := strings.IndexByte(rest, ']')
+		if j < 0 {
+			return refs
+		}
+		if id := rest[:j]; id != "" {
+			refs = mention.Merge(refs, mention.Reference{Kind: mention.KindPerson, ID: id})
+		}
+		rest = rest[j+1:]
+	}
 }
 
 // text decodes a Jira body field, resolving mentions against the configured

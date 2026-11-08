@@ -23,7 +23,7 @@ Humagen's.
 
 | Type | Raised by |
 |------|-----------|
-| `message.posted.v1` | A mention of the app or a direct message, with the agents it names (through `Bots`) in `Mentions` |
+| `message.posted.v1` | A mention of the app or a direct message, with the agents it names (through `Bots`) in `Mentions` and everything it refers to in `References` |
 | `slack.command.invoked.v1` | A slash command |
 | `slack.session.stopped.v1` | A person pressing stop on an agent session |
 
@@ -31,6 +31,31 @@ Each is published on the conversation's channel,
 `slack://<team>/<channel>[?thread=<ts>]`. The connector chooses no agent: the
 channel's members do (`pkg/membership`), and the Slack sink answers on the
 same channel, editing one message per run.
+
+## What a message refers to
+
+Slack writes a reference as markup, and the connector reduces each to what a
+person saw, so the model reads `@ada`, `#general` and a link's label rather
+than ids and angle brackets. What the reduction drops is kept in
+`Request.References`, in the order written and once each:
+
+| Markup | Text | Reference |
+|--------|------|-----------|
+| `<@U08BOT>`, a user in `Bots` | `@docs-bot`, then stripped | `agent`, name `docs-bot`, id `U08BOT` |
+| `<@U07\|ada>`, any other user | `@ada` (`@U07` without a label) | `person`, name `@ada`, id `U07` |
+| `<#C02\|general>` | `#general` | `place`, name `#general`, id `C02`, address `slack://<team>/C02` |
+| `<https://...\|label>` | `label` (the URL without one) | `link`, the URL, its label, and its address when it has one |
+| `<!here>`, `<!subteam^S1>` | `@here`, the label | none |
+
+The app's own bot user, which every `app_mention` tags, is the addressee and
+no reference; the connector knows it from the delivery's `authorizations`.
+A link to a GitHub pull request or issue is addressed
+`github://<owner>/<repo>/{pull|issues}/<n>`, whatever tail it has. A message
+permalink is addressed as its thread,
+`slack://<team>/<channel>?thread=<ts>`, only when `Config.Links.SlackTeams`
+names the domain it was copied from; otherwise it keeps only its URL.
+`Config.Links.Address` reads the host's own URLs, such as a link to a
+session. The same rules hold for a slash command's text.
 
 ## Stopping a session
 

@@ -136,6 +136,11 @@ type Config struct {
 	// the shared @name grammar applies. Nil disables textual resolution.
 	Agents mention.Set
 
+	// Links is what the deployment knows about the links people paste: which
+	// team a Slack domain is, so a pasted Slack permalink is addressed as its
+	// thread, and how to read its own URLs, such as a link to a session.
+	Links mention.Links
+
 	// Interval coalesces comment edits. Zero means sink.DefaultInterval.
 	Interval time.Duration
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/urmzd/orchagent/flow/address"
+	"github.com/urmzd/orchagent/flow/connectors"
 	"github.com/urmzd/orchagent/flow/connectors/mention"
 	"github.com/urmzd/orchagent/flow/event"
 )
@@ -29,8 +30,25 @@ type eventEnvelope struct {
 	EventTime int64 `json:"event_time"`
 	// APIAppID identifies the app the event was delivered to.
 	APIAppID string `json:"api_app_id"`
+	// Authorizations name the installation the event was delivered for,
+	// including the app's own bot user, whose mention is nobody's reference.
+	Authorizations []struct {
+		UserID string `json:"user_id"`
+		IsBot  bool   `json:"is_bot"`
+	} `json:"authorizations"`
 
 	Event innerEvent `json:"event"`
+}
+
+// self is the app's own bot users this delivery was made for.
+func (env eventEnvelope) self() []string {
+	var out []string
+	for _, a := range env.Authorizations {
+		if a.IsBot && a.UserID != "" {
+			out = append(out, a.UserID)
+		}
+	}
+	return out
 }
 
 // innerEvent is the event itself.
@@ -110,7 +128,7 @@ func (c *Connector) eventFrom(env eventEnvelope) (event.Envelope, bool) {
 		return event.Envelope{}, false
 	}
 
-	text, mentioned := decode(ev.Text, c.cfg.Bots)
+	text, mentioned, refs := c.reader(env.TeamID, env.self()...).decode(ev.Text)
 	mentions := unique(mentioned)
 	for _, agent := range mentions {
 		text = mention.Strip(text, agent)
@@ -141,7 +159,10 @@ func (c *Connector) eventFrom(env eventEnvelope) (event.Envelope, bool) {
 	}
 
 	body := event.MessagePosted{
-		Request: event.Request{Text: text, Actor: event.Actor{ID: ev.User}, Mentions: mentions},
+		Request: event.Request{
+			Text: text, Actor: event.Actor{ID: ev.User}, Mentions: mentions,
+			References: connectors.References(refs),
+		},
 		Slack: &event.SlackRef{
 			Team:        env.TeamID,
 			Channel:     ev.Channel,
@@ -214,17 +235,38 @@ func parseTS(ts string) (time.Time, bool) {
 	return time.Unix(sec, nsec).UTC(), true
 }
 
+// reader is what Slack's markup is read against: the configured bots, the
+// app's own bot users, the team the text was written in and what the
+// deployment knows about links.
+type reader struct {
+	bots  map[string]string
+	self  []string
+	team  string
+	links mention.Links
+}
+
+func (c *Connector) reader(team string, self ...string) reader {
+	return reader{bots: c.cfg.Bots, self: self, team: team, links: c.cfg.Links}
+}
+
 // decode turns Slack's wire text into text a model can read, and reports which
-// agents were mentioned, in the order they appear.
+// agents were mentioned, in the order they appear, and everything the text
+// refers to.
 //
 // Slack sends entity-escaped text with its own markup for anything that refers
 // to something: <@U123> for a user, <#C123|general> for a channel,
 // <https://x|label> for a link, <!here> for a broadcast. A model reading the raw
 // form learns opaque ids and stray angle brackets, so each construct is reduced
-// to what a human sees — except a mention of an agent, which is reduced to
+// to what a human sees, except a mention of an agent, which is reduced to
 // "@name" so that mention stripping can then remove it the same way it does on
 // every other surface.
-func decode(raw string, bots map[string]string) (text string, mentioned []string) {
+//
+// What the reduction drops is kept in refs instead: a user who is not a bot
+// is a person with their id, a channel is a place addressed in the team, and
+// a link keeps its URL and, through Config.Links, its address. A broadcast
+// refers to nobody in particular, and the app's own bot user is the
+// addressee rather than someone referred to; neither is a reference.
+func (r reader) decode(raw string) (text string, mentioned []string, refs []mention.Reference) {
 	var b strings.Builder
 	b.Grow(len(raw))
 
@@ -243,14 +285,24 @@ func decode(raw string, bots map[string]string) (text string, mentioned []string
 		token := raw[i+1 : i+end]
 		i += end + 1
 
+		// The text is unescaped once, at the end; a reference is unescaped
+		// here, since it never passes through the text.
 		body, label, hasLabel := strings.Cut(token, "|")
 		switch {
 		case strings.HasPrefix(body, "@"):
 			id := body[1:]
-			if agent, ok := bots[id]; ok {
+			if agent, ok := r.bots[id]; ok {
 				mentioned = append(mentioned, agent)
+				refs = mention.Merge(refs, mention.Reference{Kind: mention.KindAgent, Name: agent, ID: id})
 				b.WriteString("@" + agent)
 				continue
+			}
+			if !slices.Contains(r.self, id) {
+				person := mention.Reference{Kind: mention.KindPerson, ID: id}
+				if hasLabel && label != "" {
+					person.Name = "@" + strings.TrimPrefix(unescape(label), "@")
+				}
+				refs = mention.Merge(refs, person)
 			}
 			if hasLabel && label != "" {
 				b.WriteString("@" + label)
@@ -260,11 +312,20 @@ func decode(raw string, bots map[string]string) (text string, mentioned []string
 			// is written as "@<id>", which no agent name set will match.
 			b.WriteString("@" + id)
 		case strings.HasPrefix(body, "#"):
+			id := body[1:]
+			place := mention.Reference{Kind: mention.KindPlace, ID: id}
+			if hasLabel && label != "" {
+				place.Name = "#" + unescape(label)
+			}
+			if r.team != "" && id != "" {
+				place.Address = address.Address{Connector: Name, Workspace: r.team, Path: []string{id}}.String()
+			}
+			refs = mention.Merge(refs, place)
 			if hasLabel && label != "" {
 				b.WriteString("#" + label)
 				continue
 			}
-			b.WriteString("#" + body[1:])
+			b.WriteString("#" + id)
 		case strings.HasPrefix(body, "!"):
 			// A broadcast: <!here>, <!channel>, <!subteam^S123|@team>.
 			if hasLabel && label != "" {
@@ -274,6 +335,9 @@ func decode(raw string, bots map[string]string) (text string, mentioned []string
 			b.WriteString("@" + body[1:])
 		default:
 			// A link. The label is what the human saw; without one, the URL is.
+			if link, ok := mention.ParseLink(unescape(body), unescape(label), r.links); ok {
+				refs = mention.Merge(refs, link)
+			}
 			if hasLabel && label != "" {
 				b.WriteString(label)
 				continue
@@ -282,7 +346,7 @@ func decode(raw string, bots map[string]string) (text string, mentioned []string
 		}
 	}
 
-	return unescape(strings.TrimSpace(b.String())), mentioned
+	return unescape(strings.TrimSpace(b.String())), mentioned, refs
 }
 
 // unescape reverses the three entities Slack escapes on the way in. It runs
