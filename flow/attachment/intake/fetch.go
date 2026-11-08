@@ -151,15 +151,16 @@ var blockedPrefixes = func() []netip.Prefix {
 
 // Fetcher downloads URLs into a blob store. It is safe for concurrent use.
 type Fetcher struct {
-	store        blob.Store
-	allow        Allow
-	network      NetworkPolicy
-	headers      func(u *url.URL) http.Header
-	client       *http.Client
-	timeout      time.Duration
-	maxBytes     int64
-	maxRedirects int
-	plainHTTP    bool
+	store          blob.Store
+	allow          Allow
+	network        NetworkPolicy
+	headers        func(u *url.URL) http.Header
+	requestHeaders func(context.Context, *url.URL) (http.Header, error)
+	client         *http.Client
+	timeout        time.Duration
+	maxBytes       int64
+	maxRedirects   int
+	plainHTTP      bool
 }
 
 // Option configures a Fetcher.
@@ -178,6 +179,12 @@ type Option func(*Fetcher)
 //	})
 func WithHeaders(fn func(u *url.URL) http.Header) Option {
 	return func(f *Fetcher) { f.headers = fn }
+}
+
+// WithRequestHeaders obtains rotating credentials for each validated request,
+// including redirect hops. Failure stops the fetch before any HTTP request.
+func WithRequestHeaders(fn func(context.Context, *url.URL) (http.Header, error)) Option {
+	return func(f *Fetcher) { f.requestHeaders = fn }
 }
 
 // WithTimeout bounds a whole fetch. Non-positive values are ignored.
@@ -360,7 +367,15 @@ func (f *Fetcher) get(ctx context.Context, u *url.URL) (*http.Response, error) {
 	}
 	req.Header.Set("User-Agent", "fiber-attachment-intake")
 	req.Header.Set("Accept", "*/*")
-	if f.headers != nil {
+	if f.requestHeaders != nil {
+		headers, err := f.requestHeaders(ctx, u)
+		if err != nil {
+			return nil, errors.New("intake: request credentials unavailable")
+		}
+		for k, vs := range headers {
+			req.Header[k] = append([]string(nil), vs...)
+		}
+	} else if f.headers != nil {
 		for k, vs := range f.headers(u) {
 			for _, v := range vs {
 				req.Header.Add(k, v)

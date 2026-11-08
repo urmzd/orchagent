@@ -601,3 +601,11 @@ and recovers an existing commit or PR after a lost response. Titles end with
 `[humagen]`, and the PR links the verified source issue or pull request. The
 connector never writes the source or default branch. The host owns approval
 policy and requester repository permission checks.
+
+### Rotating Slack file credentials
+
+`slack.Config.FileTokenSource` obtains the current installation token for each
+allowed file request. A refresh failure stops intake instead of using a stale
+static token. The generic intake `WithRequestHeaders` hook receives the request
+context after URL validation, including redirect hops; Slack attaches credentials
+only to its approved download hosts.

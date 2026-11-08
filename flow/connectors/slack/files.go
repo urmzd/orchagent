@@ -61,6 +61,23 @@ func fileHeaders(token string) func(*url.URL) http.Header {
 	}
 }
 
+func fileRequestHeaders(fixed string, source func(context.Context) (string, error)) func(context.Context, *url.URL) (http.Header, error) {
+	return func(ctx context.Context, u *url.URL) (http.Header, error) {
+		if u.Scheme != "https" || !strings.EqualFold(u.Host, FileHost) {
+			return nil, nil
+		}
+		token := fixed
+		if source != nil {
+			var err error
+			token, err = source(ctx)
+			if err != nil || token == "" {
+				return nil, errors.New("slack: file authorization unavailable")
+			}
+		}
+		return fileHeaders(token)(u), nil
+	}
+}
+
 // candidates turns the files on a message into intake candidates, in the
 // order Slack listed them.
 func (c *Connector) candidates(workspace string, files []File) []intake.Candidate {
