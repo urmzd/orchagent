@@ -22,7 +22,7 @@ func (r *Runtime) reconcileSessionUsage(ctx context.Context, in Input) error {
 	}
 	_, records, err := r.recordsOf(ctx, in.runID(), false, prefixUsage)
 	if err != nil {
-		return pendingUsage(err)
+		return pendingUsage(ctx, err)
 	}
 	// Receipts are append-only. Key each effect by the immutable actual call,
 	// not one aggregate checkpoint that would hide calls from later attempts.
@@ -40,13 +40,18 @@ func (r *Runtime) reconcileSessionUsage(ctx context.Context, in Input) error {
 				if run.IsNonRetryable(err) || errors.Is(err, run.ErrNonDeterministic) {
 					return err
 				}
-				return pendingUsage(err)
+				return pendingUsage(ctx, err)
 			}
 		}
 	}
 	return nil
 }
 
-func pendingUsage(err error) error {
+func pendingUsage(ctx context.Context, err error) error {
+	// Shutdown must release the claimed run immediately. Parking instead would
+	// settle its queue entry and leave recovery waiting for the janitor.
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	return fmt.Errorf("runtime: session usage receipt reconciliation pending (%v): %w", err, run.ErrParked)
 }
