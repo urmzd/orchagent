@@ -19,11 +19,14 @@
 // definitions (definition.Source) for an agent granted them.
 //
 // mention is a helper, not a connector: it finds the agents a text names and
-// strips the mention, for every ingress adapter.
+// strips the mention, and reads the people, places and links it refers to,
+// for every ingress adapter. References converts what it reads into the
+// event's own type.
 //
 // An ingress adapter verifies a request, publishes one typed event on the
-// surface's channel with the agents it mentions, and chooses no agent: the
-// channel's members do (pkg/membership, pkg/dispatch). An egress adapter
+// surface's channel with the agents it mentions and the references it makes
+// (event.Request.References), and chooses no agent: the channel's members do
+// (pkg/membership, pkg/dispatch). An egress adapter
 // subscribes by channel and type prefix (pkg/egress) and renders what
 // arrives. No connector imports another. An event raised in github reaches
 // jira because both talk to the bus, never to each other, and

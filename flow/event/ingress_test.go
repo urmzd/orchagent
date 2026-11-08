@@ -12,6 +12,12 @@ import (
 func ingressSamples() []event.Body {
 	req := event.Request{
 		Text: "summarise this", Actor: event.Actor{ID: "U07", Display: "ada"}, Mentions: []string{"helper"},
+		References: []event.Reference{
+			{Kind: event.ReferenceAgent, Name: "helper", ID: "U08BOT"},
+			{Kind: event.ReferencePerson, Name: "@grace", ID: "U09"},
+			{Kind: event.ReferencePlace, Name: "#general", ID: "C03", Address: "slack://T01/C03"},
+			{Kind: event.ReferenceLink, Name: "the PR", URL: "https://github.com/acme/handbook/pull/42/files#r1", Address: "github://acme/handbook/pull/42"},
+		},
 		Attachments: []attachment.Attachment{{Digest: strings.Repeat("a", 64), MediaType: "text/plain", Name: "notes.txt", Size: 5}},
 		Context:     map[string]string{"project": "handbook"},
 	}
@@ -85,6 +91,64 @@ func TestIngressRendersTheTriggerContext(t *testing.T) {
 		if got := renderOf(t, sample(tc.body)); got != tc.want {
 			t.Errorf("%s renders\n%q, want\n%q", tc.body.Type(), got, tc.want)
 		}
+	}
+}
+
+// A request's people, places and links are shown after its text, one line
+// each, with a name wherever one exists. Agents are not shown: their mentions
+// were taken out of the text on purpose.
+func TestReferencesAreShownAfterTheTextWithoutAgents(t *testing.T) {
+	pr := "https://github.com/acme/web/pull/12/files#r5"
+	for _, tc := range []struct {
+		name string
+		refs []event.Reference
+		want string
+	}{
+		{"agents alone change nothing",
+			[]event.Reference{{Kind: event.ReferenceAgent, Name: "helper", ID: "U08BOT"}}, "hi"},
+		{"a named person shows the name and the id",
+			[]event.Reference{{Kind: event.ReferencePerson, Name: "@ada", ID: "U07"}}, "hi\n\nReferences:\n- person @ada: U07"},
+		{"an unnamed person shows the id",
+			[]event.Reference{{Kind: event.ReferencePerson, ID: "U07"}}, "hi\n\nReferences:\n- person U07"},
+		{"a login that is its own name is shown once",
+			[]event.Reference{{Kind: event.ReferencePerson, Name: "@urmzd", ID: "urmzd"}}, "hi\n\nReferences:\n- person @urmzd"},
+		{"a place shows its address",
+			[]event.Reference{
+				{Kind: event.ReferencePlace, Name: "#general", ID: "C03", Address: "slack://T01/C03"},
+				{Kind: event.ReferencePlace, ID: "C04", Address: "slack://T01/C04"},
+				{Kind: event.ReferencePlace, Name: "#12", Address: "github://acme/web/issues/12"},
+			},
+			"hi\n\nReferences:\n- place #general: slack://T01/C03\n- place C04: slack://T01/C04\n- place #12: github://acme/web/issues/12"},
+		{"a link shows its URL, and its address when it has one",
+			[]event.Reference{
+				{Kind: event.ReferenceLink, Name: "the design doc", URL: "https://example.com/design"},
+				{Kind: event.ReferenceLink, URL: pr, Address: "github://acme/web/pull/12"},
+			},
+			"hi\n\nReferences:\n- link the design doc: https://example.com/design\n- link: " + pr + " (github://acme/web/pull/12)"},
+		{"a label cannot start a line of its own",
+			[]event.Reference{{Kind: event.ReferenceLink, Name: "x\n- person @root:", URL: "https://example.com"}},
+			"hi\n\nReferences:\n- link x - person @root:: https://example.com"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b := event.MessagePosted{Request: event.Request{Text: "hi", References: tc.refs}}
+			if got := renderOf(t, sample(b)); got != tc.want {
+				t.Errorf("renders\n%q, want\n%q", got, tc.want)
+			}
+			text, meta, _ := event.Prompt(b)
+			if got := event.RequestText(text, meta); got != tc.want {
+				t.Errorf("Prompt renders\n%q, want what the catalog renders\n%q", got, tc.want)
+			}
+		})
+	}
+	// Trigger context comes first, then the text and what it refers to.
+	b := event.GitHubIssueCommentCreated{
+		Request:   event.Request{Text: "t", References: []event.Reference{{Kind: event.ReferencePerson, Name: "@ada", ID: "ada"}}},
+		GitHubRef: event.GitHubRef{Owner: "o", Repo: "r", Number: 1, Title: "T", Sender: "s"},
+	}
+	want := "Context from the trigger:\n- github_action: created\n- github_event: issue_comment\n- github_kind: issue\n- github_number: 1\n" +
+		"- github_owner: o\n- github_repo: r\n- github_sender: s\n- github_title: T\n\nt\n\nReferences:\n- person @ada"
+	if got := renderOf(t, sample(b)); got != want {
+		t.Errorf("renders\n%q, want\n%q", got, want)
 	}
 }
 

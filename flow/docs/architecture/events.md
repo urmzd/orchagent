@@ -127,6 +127,46 @@ to the other.
 GitHub types follow `github.<event>.<action>.v1`, using GitHub's own event
 and action names, so a new GitHub event is added without a naming debate.
 
+### References
+
+Every ingress body that can start a run embeds `Request`. Its `Mentions` are
+the agents it names, and they alone wake members. Its `References` are
+everything the text refers to, in the order written and once each, one
+routing language for every surface:
+
+```go
+type Reference struct {
+	Kind    string `json:"kind"`              // agent, person, place or link
+	Name    string `json:"name,omitempty"`    // the agent's name, or what a person saw: "@ada", "#12"
+	ID      string `json:"id,omitempty"`      // native id: Slack U07 or C02, GitHub login, Jira account id
+	Address string `json:"address,omitempty"` // canonical: slack://T01/C02?thread=1699.001, github://acme/web/pull/12
+	URL     string `json:"url,omitempty"`     // a link as written, line ranges and all
+}
+```
+
+A link is a URL the text carried; a place is one it named without a URL
+(`#12`, a Slack channel). A person's id is native to the surface the event
+came from, the scheme of its source. Address is set only when it is known:
+a GitHub file or commit link, or a Slack permalink from a workspace the
+connector was not told about, keeps only its URL. A host's own URLs, such as
+a link to a session, are addressed by the host (`mention.Links.Address`).
+flow keeps no directory of people: a host maps the id to its own.
+
+The renderer shows the model the people, places and links after the request
+text, one line each, and never an id alone where a name exists:
+
+```
+summarise this
+
+References:
+- person @grace: U09
+- place #general: slack://T01/C03
+- link the PR: https://github.com/acme/handbook/pull/42/files#r1 (github://acme/handbook/pull/42)
+```
+
+Agents are left out: their mentions were taken out of the text on purpose.
+A body with no references renders exactly as before.
+
 ## 3. Go shape
 
 ```go
