@@ -584,8 +584,8 @@ Slack and GitHub connectors can show run lifecycle reactions, continue known
 threads without another mention, and map delivered native message handles back
 to their runs through host callbacks. Cross-surface actions require exact channel
 or repository grants. GitHub reviews pin the reviewed head, validate inline diff
-locations, recover native review IDs on retry, and deny approval unless the host
-explicitly allows it for that run.
+locations and recover native review IDs on retry. They comment or request
+changes and never approve: a person approves and merges.
 
 Native feedback is the opt-in `run.feedback.v1` observation. It has sequence zero
 and deduplicates by event identity, so later feedback does not advance or reopen

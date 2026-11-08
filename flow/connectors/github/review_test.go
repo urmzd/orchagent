@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -15,28 +16,47 @@ import (
 func TestReviewAnchorsSuggestionsAndApprovalAreValidated(t *testing.T) {
 	change := "replacement"
 	base := Review{CommitID: "commit", Event: "COMMENT", Body: "Findings", Comments: []ReviewComment{{Path: "new.go", Line: 1, Body: "Fix", Change: &change}, {Path: "new.go", Line: 90, Body: "Unavailable location"}}}
-	out, err := PrepareReview(base, []ContextFile{{Filename: "new.go", Patch: "@@ -0,0 +1,2 @@\n+old\n+second"}}, false)
+	out, err := PrepareReview(base, []ContextFile{{Filename: "new.go", Patch: "@@ -0,0 +1,2 @@\n+old\n+second"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(out.Comments) != 1 || !strings.Contains(out.Comments[0].Body, "```suggestion\nreplacement") || !strings.Contains(out.Body, "Unavailable location") {
 		t.Fatalf("review=%+v", out)
 	}
-	base.Event = "APPROVE"
-	if _, err := PrepareReview(base, nil, false); err == nil {
-		t.Fatal("ungranted approval accepted")
-	}
-	if _, err := PrepareReview(base, nil, true); err != nil {
-		t.Fatal(err)
-	}
 	base.Event = "COMMENT"
 	injection := "```\nunsafe"
 	base.Comments[0].Change = &injection
-	out, err = PrepareReview(base, []ContextFile{{Filename: "new.go", Patch: "@@ -0,0 +1,2 @@\n+old\n+second"}}, false)
+	out, err = PrepareReview(base, []ContextFile{{Filename: "new.go", Patch: "@@ -0,0 +1,2 @@\n+old\n+second"}})
 	if err != nil || len(out.Comments) != 0 {
 		t.Fatalf("unapplicable suggestion emitted: %+v %v", out, err)
 	}
 }
+// Agents comment or request changes; a person approves (RFC 0009). Only an
+// approval submitted before that rule is read back, so recovery can match it.
+func TestAgentsNeverApprove(t *testing.T) {
+	approve := Review{CommitID: "commit", Event: "APPROVE", Body: "Looks good"}
+	if _, err := PrepareReview(approve, nil); !errors.Is(err, ErrNoApproval) {
+		t.Fatalf("approval prepared: %v", err)
+	}
+	if _, err := prepareReview(approve, nil, true); err != nil {
+		t.Fatalf("an existing approval cannot be recovered: %v", err)
+	}
+	api := NewFake()
+	if _, err := api.CreateReview(context.Background(), Ref{Owner: "acme", Repo: "project", Number: 7}, approve); !errors.Is(err, ErrNoApproval) {
+		t.Fatalf("approval submitted: %v", err)
+	}
+	if _, err := (&HTTPAPI{}).CreateReview(context.Background(), Ref{Owner: "acme", Repo: "project", Number: 7}, approve); !errors.Is(err, ErrNoApproval) {
+		t.Fatalf("approval sent to GitHub: %v", err)
+	}
+	c, err := New(Config{API: api})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if schema := string(c.reviewAction().Schema); strings.Contains(schema, "APPROVE") {
+		t.Fatalf("review tool offers approval: %s", schema)
+	}
+}
+
 func TestCompletedReviewSurvivesReplicaChangeAndLostDeliveryCommit(t *testing.T) {
 	ctx := context.Background()
 	api := NewFake()
@@ -47,16 +67,16 @@ func TestCompletedReviewSurvivesReplicaChangeAndLostDeliveryCommit(t *testing.T)
 	if err := api.SeedContext(ref, snapshot); err != nil {
 		t.Fatal(err)
 	}
-	allow := true
+	first := true
 	planned := func(disposition string) Review {
 		return Review{CommitID: sha, Event: disposition, Body: "Checked", Comments: []ReviewComment{{Path: "a.go", Line: 1, Body: "Finding", FindingID: "f1"}}}
 	}
-	cfg := Config{API: api, Tenant: "tenant", Login: "humagen[bot]", AllowReviewApproval: func(context.Context, Ref) bool { return allow }, Review: func(View, []ContextFile) (Review, bool, error) {
-		if allow {
-			return planned("APPROVE"), true, nil
+	cfg := Config{API: api, Tenant: "tenant", Login: "humagen[bot]", Review: func(View, []ContextFile) (Review, bool, error) {
+		if first {
+			return planned("REQUEST_CHANGES"), true, nil
 		}
 		r := planned("COMMENT")
-		r.Body += " policy now denies approval"
+		r.Body += " a later plan differs"
 		return r, true, nil
 	}, RecoverReview: func(_ View, files []ContextFile, disposition string) (Review, bool, error) {
 		if len(files) == 0 || !strings.Contains(files[0].Patch, "+new") {
@@ -80,8 +100,8 @@ func TestCompletedReviewSurvivesReplicaChangeAndLostDeliveryCommit(t *testing.T)
 			t.Fatal(err)
 		}
 		// The next replica must recover the existing immutable review even when
-		// both the PR head and current approval policy have changed.
-		allow = false
+		// both the PR head and the review it would plan now have changed.
+		first = false
 		snapshot.Subject.Head.SHA = strings.Repeat("b", 40)
 		snapshot.Files = []ContextFile{{Filename: "a.go", Patch: "@@ -1 +1 @@\n-new\n+later"}}
 		if err := api.SeedContext(ref, snapshot); err != nil {

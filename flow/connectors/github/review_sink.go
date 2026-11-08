@@ -143,11 +143,7 @@ func (s reviewSurface) Create(ctx context.Context, target address.Address, body 
 	if review.CommitID != pinned {
 		return "", fmt.Errorf("github: review commit differs from pinned PR head")
 	}
-	allow := s.c.cfg.AllowReviewApproval != nil && s.c.cfg.AllowReviewApproval(ctx, ref)
-	if s.c.cfg.AllowReviewApprovalFor != nil {
-		allow = s.c.cfg.AllowReviewApprovalFor(ctx, view, ref)
-	}
-	review, err = PrepareReview(review, files, allow)
+	review, err = PrepareReview(review, files)
 	if err != nil {
 		return "", err
 	}

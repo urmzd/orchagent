@@ -106,10 +106,6 @@ type Config struct {
 	// ActionRepositories grants native writes from other surfaces to exact owner/repo names.
 	ActionRepositories []string
 
-	// AllowReviewApproval applies the host's project policy. Nil denies approval.
-	AllowReviewApproval func(context.Context, Ref) bool
-	// AllowReviewApprovalFor evaluates policy for the actual run and project.
-	AllowReviewApprovalFor func(context.Context, View, Ref) bool
 
 	// DeliveryState persists the run's message handle and rendering across
 	// replica changes. Nil keeps local state only. Migrate before construction.

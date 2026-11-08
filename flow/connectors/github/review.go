@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -48,18 +49,28 @@ type ReviewResult struct {
 
 var diffHeader = regexp.MustCompile(`^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@`)
 
+// ErrNoApproval refuses an approving review: agents comment or request
+// changes, and a person approves and merges (RFC 0009).
+var ErrNoApproval = errors.New("github: agents never approve pull requests")
+
 // PrepareReview checks every inline location against actual changed-file
 // patches. Unavailable or invalid anchors degrade to the review body; they do
-// not disappear. Approvals require the host's explicit project policy grant.
-func PrepareReview(review Review, files []ContextFile, allowApprove bool) (Review, error) {
+// not disappear. An approving review is refused with ErrNoApproval.
+func PrepareReview(review Review, files []ContextFile) (Review, error) {
+	return prepareReview(review, files, false)
+}
+
+// prepareReview also reads back an approval submitted before agents stopped
+// approving, so recovery can match an existing review; it never creates one.
+func prepareReview(review Review, files []ContextFile, recovering bool) (Review, error) {
 	if review.CommitID == "" {
 		return Review{}, fmt.Errorf("github: review needs the inspected commit")
 	}
 	switch review.Event {
 	case "COMMENT", "REQUEST_CHANGES":
 	case "APPROVE":
-		if !allowApprove {
-			return Review{}, fmt.Errorf("github: project policy does not allow approval")
+		if !recovering {
+			return Review{}, ErrNoApproval
 		}
 	default:
 		return Review{}, fmt.Errorf("github: invalid review event %q", review.Event)
@@ -160,7 +171,10 @@ func (a *HTTPAPI) CreateReview(ctx context.Context, ref Ref, review Review) (Rev
 	if ref.Number <= 0 || review.CommitID == "" {
 		return ReviewResult{}, fmt.Errorf("github: review needs a pull request and commit")
 	}
-	if review.Event != "COMMENT" && review.Event != "REQUEST_CHANGES" && review.Event != "APPROVE" {
+	if review.Event == "APPROVE" {
+		return ReviewResult{}, ErrNoApproval
+	}
+	if review.Event != "COMMENT" && review.Event != "REQUEST_CHANGES" {
 		return ReviewResult{}, fmt.Errorf("github: review event is required")
 	}
 	var out ReviewResult
@@ -175,7 +189,7 @@ func (a *HTTPAPI) CreateReview(ctx context.Context, ref Ref, review Review) (Rev
 }
 
 func (c *Connector) reviewAction() connector.Action {
-	return connector.Action{Name: "github_create_review", Description: "Submit a pull request review on the inspected commit. Inline findings outside its diff become body text. Approve requires project policy.", Schema: json.RawMessage(`{"type":"object","properties":{"address":{"type":"string"},"commit_id":{"type":"string"},"event":{"type":"string","enum":["COMMENT","REQUEST_CHANGES","APPROVE"]},"body":{"type":"string"},"comments":{"type":"array","items":{"type":"object","properties":{"path":{"type":"string"},"body":{"type":"string"},"line":{"type":"integer"},"side":{"type":"string","enum":["LEFT","RIGHT"]},"start_line":{"type":"integer"},"start_side":{"type":"string"},"change":{"type":"string"}},"required":["path","body","line"],"additionalProperties":false}}},"required":["commit_id","event","body"],"additionalProperties":false}`), Invoke: c.createReview}
+	return connector.Action{Name: "github_create_review", Description: "Submit a pull request review on the inspected commit. Inline findings outside its diff become body text. It comments or requests changes; agents never approve.", Schema: json.RawMessage(`{"type":"object","properties":{"address":{"type":"string"},"commit_id":{"type":"string"},"event":{"type":"string","enum":["COMMENT","REQUEST_CHANGES"]},"body":{"type":"string"},"comments":{"type":"array","items":{"type":"object","properties":{"path":{"type":"string"},"body":{"type":"string"},"line":{"type":"integer"},"side":{"type":"string","enum":["LEFT","RIGHT"]},"start_line":{"type":"integer"},"start_side":{"type":"string"},"change":{"type":"string"}},"required":["path","body","line"],"additionalProperties":false}}},"required":["commit_id","event","body"],"additionalProperties":false}`), Invoke: c.createReview}
 }
 func (c *Connector) createReview(ctx context.Context, target address.Address, raw json.RawMessage) (connector.Result, error) {
 	if target.Connector == Name {
@@ -238,11 +252,7 @@ func (c *Connector) createReview(ctx context.Context, target address.Address, ra
 			break
 		}
 	}
-	allow := c.cfg.AllowReviewApproval != nil && c.cfg.AllowReviewApproval(ctx, ref)
-	if c.cfg.AllowReviewApprovalFor != nil {
-		allow = c.cfg.AllowReviewApprovalFor(ctx, View{RunID: connector.RunID(ctx), Tenant: c.cfg.Tenant, Channel: target.String()}, ref)
-	}
-	review, err = PrepareReview(review, files, allow)
+	review, err = PrepareReview(review, files)
 	if err != nil {
 		return connector.Result{}, err
 	}

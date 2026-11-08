@@ -23,7 +23,10 @@ func (f *Fake) CreateReview(_ context.Context, ref Ref, review Review) (ReviewRe
 	if ref.Number <= 0 || review.CommitID == "" {
 		return ReviewResult{}, fmt.Errorf("github: review needs a pull request and commit")
 	}
-	if review.Event != "COMMENT" && review.Event != "REQUEST_CHANGES" && review.Event != "APPROVE" {
+	if review.Event == "APPROVE" {
+		return ReviewResult{}, ErrNoApproval
+	}
+	if review.Event != "COMMENT" && review.Event != "REQUEST_CHANGES" {
 		return ReviewResult{}, fmt.Errorf("github: review event is required")
 	}
 	f.nextID++
