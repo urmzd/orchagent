@@ -32,6 +32,8 @@ func (a *App) Define(ctx context.Context, content string) (definition.Record, er
 	return a.store.Put(ctx, definition.Record{Tenant: a.opt.Tenant, Content: content, CreatedBy: "orchagent"})
 }
 
+// Deprecated: use App.Session and Session.Post for a continuing conversation.
+//
 // Ask starts one run of agent on text and returns its Reply. The message is
 // posted on a channel private to this call, so no membership is needed and
 // no other subscriber sees it unless it subscribes to that channel. It uses

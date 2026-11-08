@@ -41,6 +41,9 @@ type Envelope struct {
 	Agent   string `json:"agent,omitempty"`
 	Version string `json:"version,omitempty"`
 	Digest  string `json:"digest,omitempty"`
+	// Session identifies the stable conversation, independently of a run.
+	Session       string `json:"session,omitempty"`
+	ParentSession string `json:"parent_session,omitempty"`
 
 	// Data is the body for Type.
 	Data Body `json:"data"`

@@ -301,6 +301,9 @@ func (r *Runtime) childUsage(tenant, parentRunID string) func(context.Context, s
 		if err := json.Unmarshal(rec.Input, &in); err != nil || in.Trigger.Tenant != tenant {
 			return event.UsageChild{}, fmt.Errorf("%w: no run %q", ErrNotAChild, runID)
 		}
+		if in.Session != nil && rec.ParentRunID != parentRunID {
+			return event.UsageChild{}, fmt.Errorf("%w: run %q has another parent", ErrNotAChild, runID)
+		}
 		if !rec.Status.Terminal() {
 			return event.UsageChild{}, fmt.Errorf("%w: run %q has not ended", ErrNotAChild, runID)
 		}

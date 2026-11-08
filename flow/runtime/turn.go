@@ -60,6 +60,7 @@ func report(ctx context.Context, out Outcome) {
 func (r *Runtime) runOne(ctx context.Context, in Input, req Request, emit func(context.Context, event.Body) error) (Outcome, error) {
 	tin := turnrt.Input{
 		Trigger:      triggerOf(in, req),
+		Budget:       req.Budget,
 		History:      req.History,
 		Instructions: req.Instructions,
 		Tenant:       req.Tenant,
