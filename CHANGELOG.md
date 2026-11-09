@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0 (2026-11-09)
+
+### Features
+
+- **turn**: an agent's spec may constrain its answer to a JSON schema (#17) ([248527e](https://github.com/urmzd/orchagent/commit/248527e1ad3e5b5aeac4b667033d905320463c31))
+
+[Full Changelog](https://github.com/urmzd/orchagent/compare/v0.5.0...v0.6.0)
+
+
 ## 0.5.0 (2026-11-08)
 
 ### Features
