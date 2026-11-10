@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0 (2026-11-10)
+
+### Features
+
+- **runtime**: a host chooses which session verbs a turn is offered (#18) ([0055c8d](https://github.com/urmzd/orchagent/commit/0055c8d725e859965b1b897f1b53d0af43b2c474))
+
+[Full Changelog](https://github.com/urmzd/orchagent/compare/v0.6.0...v0.7.0)
+
+
 ## 0.6.0 (2026-11-09)
 
 ### Features
