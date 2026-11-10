@@ -1,19 +1,33 @@
-// Package mention finds the agent a human tagged and removes the mention from
-// the text the agent will read.
+// Package mention finds the agent a human tagged, removes the mention from the
+// text the agent will read, and reads everything else the text refers to.
 //
-// Every trigger faces the same two questions — "who was tagged?" and "what is
-// left once the tag is removed?" — and every native surface encodes a mention
+// Every trigger faces the same two questions ("who was tagged?" and "what is
+// left once the tag is removed?") and every native surface encodes a mention
 // differently: Slack sends <@U08BOT>, Jira sends [~accountid:5b10a2], GitHub
 // sends the literal @login. The encodings are the connectors' problem: each one
 // normalizes its native markup into @name tokens and then calls this package,
 // which knows only the normalized grammar. That split is what keeps the
-// stripping rules — mid-sentence mentions, repeated mentions, the trailing colon
-// people type after a name — in one tested place instead of three.
+// stripping rules (mid-sentence mentions, repeated mentions, the trailing colon
+// people type after a name) in one tested place instead of three.
 //
 // Stripping matters more than it looks. Text arrives as "@docs-bot summarize
 // this" and the agent must be prompted with "summarize this": leaving its own
 // name in makes the model answer as if it were being addressed in the third
 // person, and leaving the raw <@U08BOT> in leaks an opaque id into the prompt.
+//
+// # References
+//
+// Agents are one of four things a text refers to. People, places and links
+// are the others, and References reads them all into one typed list, the
+// same on every surface: a person by native id, a place or a link with its
+// canonical address when one is known (github://acme/web/pull/12,
+// slack://T01/C02?thread=1699.001), a link with its URL as written. A
+// connector reads what only it can see (Slack's <@U07|ada> and <#C02|general>
+// markup) and hands URLs to ParseLink, so a pasted pull request or Slack
+// permalink is addressed the same way whichever surface it was pasted on.
+// What a deployment knows beyond this package (which team a Slack domain is,
+// which URLs are its own sessions) arrives as Links. Who a person is stays
+// the host's question: a reference carries the id, never a directory entry.
 //
 // This package is a leaf: stdlib only.
 package mention

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/urmzd/orchagent/flow/address"
+	"github.com/urmzd/orchagent/flow/connectors"
 	"github.com/urmzd/orchagent/flow/connectors/internal/inbound"
 	"github.com/urmzd/orchagent/flow/connectors/mention"
 	"github.com/urmzd/orchagent/flow/event"
@@ -65,7 +66,7 @@ func (c *Connector) eventFromCommand(form url.Values, header http.Header) (event
 		return event.Envelope{}, false
 	}
 
-	args, mentioned := decode(strings.TrimSpace(form.Get("text")), c.cfg.Bots)
+	args, mentioned, refs := c.reader(team).decode(strings.TrimSpace(form.Get("text")))
 	mentions := unique(mentioned)
 	for _, agent := range mentions {
 		args = mention.Strip(args, agent)
@@ -79,7 +80,10 @@ func (c *Connector) eventFromCommand(form url.Values, header http.Header) (event
 	// top-level messages.
 	at := address.Address{Connector: Name, Workspace: team, Path: []string{channel}}.String()
 	body := event.SlackCommandInvoked{
-		Request: event.Request{Text: text, Actor: event.Actor{ID: user}, Mentions: mentions},
+		Request: event.Request{
+			Text: text, Actor: event.Actor{ID: user}, Mentions: mentions,
+			References: connectors.References(refs),
+		},
 		Command: command,
 		Team:    team,
 		Channel: channel,

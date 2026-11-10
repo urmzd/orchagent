@@ -139,6 +139,13 @@ type Config struct {
 	// agent maps its own bot user id to that agent.
 	Bots map[string]string
 
+	// Links is what the deployment knows about the links people paste: which
+	// team a Slack domain is, so a message permalink is addressed as its
+	// thread (slack://<team>/<channel>?thread=<ts>), and how to read its own
+	// URLs, such as a link to a session. The zero value still addresses
+	// GitHub pull requests and issues; a permalink keeps only its URL.
+	Links mention.Links
+
 	// Prepare applies application policy to a verified event before it is
 	// published. An error refuses the request.
 	Prepare func(context.Context, *event.Envelope) error

@@ -60,6 +60,30 @@ The connector chooses no agent. The channel's members decide who answers
 it is mentioned, the app's own too, so when `Bots` maps the app's login,
 `@humagen what changed?` mentions that agent.
 
+## What a comment refers to
+
+Besides the agents in `Mentions`, a person's text (a comment, a review, a
+review comment, a new issue or pull request, or the description a review
+request reads) is published with what it refers to in `Request.References`,
+in the order written and once each:
+
+| Written | Reference |
+|---------|-----------|
+| `@docs-bot`, a login `Bots` or `Agents` names | `agent`, id the login as written |
+| `@ada`, any other login | `person`, id `ada` |
+| `@humagen`, the app's own login | none |
+| `#12` | `place`, address `github://<owner>/<repo>/issues/12` in this repository |
+| `acme/web#12` | `place`, address `github://acme/web/issues/12` |
+| `https://github.com/acme/web/pull/12/files#r5` | `link`, the URL, address `github://acme/web/pull/12` |
+| a file or commit permalink | `link`, the URL with its line range, no address |
+
+GitHub serves a pull request at its issue number too, and a short reference
+does not say which it is, so `#12` is addressed as an issue. A team mention
+(`@acme/reviewers`), an email address and anything inside code is not a
+reference. A pasted Slack permalink is addressed as its thread when
+`Config.Links.SlackTeams` names its domain, and `Config.Links.Address` reads
+the host's own URLs. Automation text is the host's and refers to nothing.
+
 ## Where the answer lands
 
 The GitHub sink subscribes to `github://` channels with the run types, so a run

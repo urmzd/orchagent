@@ -60,7 +60,7 @@ func (c *Connector) Messages(ctx context.Context, tenant string, surface address
 	origin := address.Address{Connector: Name, Workspace: surface.Workspace, Path: []string{surface.Path[0]}}.WithParam(thread.ParamThread, ts)
 	out := make([]thread.Message, 0, len(replies))
 	for _, m := range replies {
-		text, _ := decode(m.Text, c.cfg.Bots)
+		text, _, _ := c.reader(surface.Workspace).decode(m.Text)
 		msg := thread.Message{
 			ID:    m.TS,
 			Text:  text,

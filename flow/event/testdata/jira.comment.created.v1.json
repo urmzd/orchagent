@@ -15,6 +15,30 @@
     "mentions": [
       "helper"
     ],
+    "references": [
+      {
+        "kind": "agent",
+        "name": "helper",
+        "id": "U08BOT"
+      },
+      {
+        "kind": "person",
+        "name": "@grace",
+        "id": "U09"
+      },
+      {
+        "kind": "place",
+        "name": "#general",
+        "id": "C03",
+        "address": "slack://T01/C03"
+      },
+      {
+        "kind": "link",
+        "name": "the PR",
+        "address": "github://acme/handbook/pull/42",
+        "url": "https://github.com/acme/handbook/pull/42/files#r1"
+      }
+    ],
     "attachments": [
       {
         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

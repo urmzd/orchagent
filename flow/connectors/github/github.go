@@ -154,6 +154,12 @@ type Config struct {
 	// names that agent instead, as any login in Bots does.
 	Login string
 
+	// Links is what the deployment knows about the links people paste: which
+	// team a Slack domain is, so a pasted Slack permalink is addressed as its
+	// thread, and how to read its own URLs, such as a link to a session.
+	// GitHub pull request and issue URLs need nothing here.
+	Links mention.Links
+
 	// Automation decides whether a labeled or synchronize event asks for
 	// work, and with what text. Nil is off. It runs only after signature and
 	// repository validation. It names no agent: the members of the pull

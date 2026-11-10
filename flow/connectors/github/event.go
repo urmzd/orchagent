@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/urmzd/orchagent/flow/address"
+	"github.com/urmzd/orchagent/flow/connectors"
 	"github.com/urmzd/orchagent/flow/connectors/mention"
 	"github.com/urmzd/orchagent/flow/event"
 )
@@ -184,6 +185,10 @@ func (c *Connector) eventFrom(name, delivery string, h hook) (event.Envelope, bo
 		commentID  int64
 		reviewRoot int64
 		ok         bool
+		// raw is the text a person wrote, before any mention is taken out:
+		// what references are read from. Automation text is the host's, and
+		// refers to nothing on a person's behalf.
+		raw string
 	)
 
 	switch name {
@@ -193,6 +198,7 @@ func (c *Connector) eventFrom(name, delivery string, h hook) (event.Envelope, bo
 		}
 		subj = subjectOf(h)
 		commentID = h.Comment.ID
+		raw = h.Comment.Body
 		if mentions, text, ok = c.asked(h.Comment.Body); !ok {
 			if c.cfg.ContinueThread == nil || !c.cfg.ContinueThread(sourceOf(h.Repository, subj)) {
 				return event.Envelope{}, false
@@ -214,6 +220,7 @@ func (c *Connector) eventFrom(name, delivery string, h hook) (event.Envelope, bo
 			return event.Envelope{}, false
 		}
 		reviewTarget := sourceOf(h.Repository, subj).WithParam("review_comment", strconv.FormatInt(reviewRoot, 10))
+		raw = h.Comment.Body
 		if mentions, text, ok = c.asked(h.Comment.Body); !ok {
 			if c.cfg.ContinueThread == nil || !c.cfg.ContinueThread(reviewTarget) {
 				return event.Envelope{}, false
@@ -227,6 +234,7 @@ func (c *Connector) eventFrom(name, delivery string, h hook) (event.Envelope, bo
 		}
 		subj = subjectOf(h)
 		commentID = h.Review.ID
+		raw = h.Review.Body
 		if mentions, text, ok = c.asked(h.Review.Body); !ok {
 			return event.Envelope{}, false
 		}
@@ -241,7 +249,8 @@ func (c *Connector) eventFrom(name, delivery string, h hook) (event.Envelope, bo
 			text, ok = c.automation(h)
 			mentions = c.automationFor(h)
 		case "opened":
-			mentions, text, ok = c.asked(h.Issue.Title + "\n\n" + h.Issue.Body)
+			raw = h.Issue.Title + "\n\n" + h.Issue.Body
+			mentions, text, ok = c.asked(raw)
 		}
 		if !ok {
 			return event.Envelope{}, false
@@ -281,9 +290,11 @@ func (c *Connector) eventFrom(name, delivery string, h hook) (event.Envelope, bo
 			}
 			// A review request carries no message, so the request IS the pull
 			// request: its title and description are what the agent reviews.
-			text = mention.Strip(strings.TrimSpace(subj.title+"\n\n"+subj.body), reviewer)
+			raw = subj.title + "\n\n" + subj.body
+			text = mention.Strip(strings.TrimSpace(raw), reviewer)
 		case "opened", "ready_for_review":
-			if mentions, text, ok = c.asked(subj.title + "\n\n" + subj.body); !ok {
+			raw = subj.title + "\n\n" + subj.body
+			if mentions, text, ok = c.asked(raw); !ok {
 				return event.Envelope{}, false
 			}
 		default:
@@ -329,9 +340,10 @@ func (c *Connector) eventFrom(name, delivery string, h hook) (event.Envelope, bo
 	}
 
 	req := event.Request{
-		Text:     strings.TrimSpace(text),
-		Actor:    event.Actor{ID: h.Sender.Login, Bot: h.Sender.Type == "Bot"},
-		Mentions: mentions,
+		Text:       strings.TrimSpace(text),
+		Actor:      event.Actor{ID: h.Sender.Login, Bot: h.Sender.Type == "Bot"},
+		Mentions:   mentions,
+		References: connectors.References(c.references(h.Repository, raw)),
 	}
 	ref := refOf(h, subj)
 	var body event.Body
@@ -409,6 +421,23 @@ func (c *Connector) asked(text string) (mentions []string, stripped string, ok b
 		_, stripped, toApp = mention.Find(stripped, c.app)
 	}
 	return mentions, stripped, len(mentions) > 0 || toApp
+}
+
+// references is what a person's text refers to: the agents and people it
+// mentions (a login that names no agent is a person, the app's own is
+// neither), the issues and pull requests it names ("#12" in this
+// repository, "owner/repo#12" in any), and the links it carries.
+func (c *Connector) references(repo repository, text string) []mention.Reference {
+	if strings.TrimSpace(text) == "" {
+		return nil
+	}
+	return mention.References(text, mention.Scope{
+		Agents: c.agents(),
+		People: true,
+		Self:   c.app,
+		Repo:   repo.Owner.Login + "/" + repo.Name,
+		Links:  c.cfg.Links,
+	})
 }
 
 func (c *Connector) automation(h hook) (string, bool) {

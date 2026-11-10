@@ -43,6 +43,11 @@ type Request struct {
 	Actor Actor `json:"actor,omitzero"`
 	// Mentions are the agents the request names, in order.
 	Mentions []string `json:"mentions,omitempty"`
+	// References are the agents, people, places and links the request refers
+	// to, in the order each was first written. Mentions stays the list of
+	// agents that wakes members; References is what a host resolves people
+	// and sessions from, and what the model is shown next to the text.
+	References []Reference `json:"references,omitempty"`
 	// Attachments are the files that arrived with the request.
 	Attachments []attachment.Attachment `json:"attachments,omitempty"`
 	// Context is host context shown to the model next to the body's own
@@ -52,6 +57,92 @@ type Request struct {
 }
 
 func (r Request) request() Request { return r }
+
+// Kinds of reference (Reference.Kind).
+const (
+	ReferenceAgent  = "agent"
+	ReferencePerson = "person"
+	ReferencePlace  = "place"
+	ReferenceLink   = "link"
+)
+
+// Reference is one thing a request refers to: an agent or a person it names,
+// a place it points at, or a link it carries. It is one routing language for
+// every surface: a host maps a person's ID to its own people and an Address
+// to its sessions and places without knowing how the surface wrote them.
+type Reference struct {
+	// Kind is ReferenceAgent, ReferencePerson, ReferencePlace or
+	// ReferenceLink. A link is a URL the text carried; a place is one it
+	// named without a URL, such as GitHub's "#12" or a Slack channel.
+	Kind string `json:"kind"`
+	// Name is the agent's name for an agent, and otherwise what a person saw
+	// in the text: "@ada", "#general", "#12", a link's label. Empty when they
+	// saw only an id, or the URL itself.
+	Name string `json:"name,omitempty"`
+	// ID is the native id on the surface the event came from (the scheme of
+	// its source): a Slack user or channel id, a GitHub login, a Jira account
+	// id.
+	ID string `json:"id,omitempty"`
+	// Address is the canonical address of what is referred to, when it is
+	// known: "slack://T01/C02", "slack://T01/C02?thread=1699.001",
+	// "github://acme/web/pull/12", or what the host's link reader returned,
+	// such as a session id.
+	Address string `json:"address,omitempty"`
+	// URL is the link exactly as it was written, line ranges and all.
+	URL string `json:"url,omitempty"`
+}
+
+// message is what a model reads of the request: its text, then the people,
+// places and links it refers to. Agents are left out: their mentions were
+// taken out of the text on purpose, and an agent reading its own name answers
+// as if spoken about.
+func (r Request) message() string {
+	var lines []string
+	for _, ref := range r.References {
+		if ref.Kind != ReferenceAgent {
+			lines = append(lines, ref.line())
+		}
+	}
+	if len(lines) == 0 {
+		return r.Text
+	}
+	return r.Text + "\n\nReferences:\n" + strings.Join(lines, "\n")
+}
+
+// line renders a reference as "- <kind> <name>: <where>", where is a link's
+// URL and address, a place's address, or a person's id. A raw id stands
+// alone only when nothing names it.
+func (ref Reference) line() string {
+	name, id := oneLine(ref.Name), ref.ID
+	if name == "" && ref.Kind != ReferenceLink {
+		name, id = id, ""
+	}
+	if strings.EqualFold(strings.TrimLeft(name, "@#"), id) {
+		id = ""
+	}
+	where := id
+	switch {
+	case ref.URL != "" && ref.Address != "":
+		where = ref.URL + " (" + ref.Address + ")"
+	case ref.URL != "":
+		where = ref.URL
+	case ref.Address != "":
+		where = ref.Address
+	}
+	s := "- " + ref.Kind
+	if name != "" {
+		s += " " + name
+	}
+	if where != "" {
+		s += ": " + where
+	}
+	return oneLine(s)
+}
+
+// oneLine keeps a label on its line, so a label cannot forge a reference.
+func oneLine(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
 
 // RequestOf returns the request an ingress body carries, and false for a
 // body that carries none.
@@ -459,9 +550,9 @@ type prompter interface {
 	prompt() (string, map[string]string)
 }
 
-func (b MessagePosted) prompt() (string, map[string]string)       { return b.Text, b.meta() }
-func (b SlackCommandInvoked) prompt() (string, map[string]string) { return b.Text, b.meta() }
-func (b CronTick) prompt() (string, map[string]string)            { return b.Text, b.meta() }
+func (b MessagePosted) prompt() (string, map[string]string)       { return b.message(), b.meta() }
+func (b SlackCommandInvoked) prompt() (string, map[string]string) { return b.message(), b.meta() }
+func (b CronTick) prompt() (string, map[string]string)            { return b.message(), b.meta() }
 
 func (b GitHubIssueCommentCreated) prompt() (string, map[string]string)  { return gitHubPrompt(b) }
 func (b GitHubReviewCommentCreated) prompt() (string, map[string]string) { return gitHubPrompt(b) }
@@ -477,22 +568,23 @@ func (b GitHubPullLabeled) prompt() (string, map[string]string)          { retur
 func (b JiraCommentCreated) prompt() (string, map[string]string) {
 	m := jiraMeta(b.Request, b.JiraRef)
 	setNonEmpty(m, "jira_comment_id", b.CommentID)
-	return b.Text, m
+	return b.message(), m
 }
 
 func (b JiraIssueCreated) prompt() (string, map[string]string) {
-	return b.Text, jiraMeta(b.Request, b.JiraRef)
+	return b.message(), jiraMeta(b.Request, b.JiraRef)
 }
 
 func (b JiraIssueAssigned) prompt() (string, map[string]string) {
 	m := jiraMeta(b.Request, b.JiraRef)
 	m["jira_assigned"] = "true"
-	return b.Text, m
+	return b.message(), m
 }
 
-// Prompt returns what an ingress body asks: its request text and the trigger
-// context a model is shown next to it. The catalog renders exactly
-// RequestText(text, context). ok is false for a body that asks nothing.
+// Prompt returns what an ingress body asks: its request text, followed by the
+// people, places and links it refers to, and the trigger context a model is
+// shown next to it. The catalog renders exactly RequestText(text, context).
+// ok is false for a body that asks nothing.
 func Prompt(b Body) (text string, context map[string]string, ok bool) {
 	p, ok := b.(prompter)
 	if !ok {
@@ -617,7 +709,7 @@ func gitHubPrompt(b gitHubBody) (string, map[string]string) {
 	if rc, ok := b.(GitHubReviewCommentCreated); ok && rc.ReviewRootID != 0 {
 		m["github_review_root_id"] = strconv.FormatInt(rc.ReviewRootID, 10)
 	}
-	return r.Text, m
+	return r.message(), m
 }
 
 func gitHubEntry[T interface {
