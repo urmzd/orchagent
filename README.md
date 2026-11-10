@@ -41,7 +41,7 @@ pass is a complete in-memory implementation.
 
 ## Features
 
-- **One entry point**: `orchagent.New(ctx, opts...)` returns an `App` with the bus, definitions, durable runtime, sandbox and connectors wired. `app.Define` stores an agent, `app.Ask` runs it and streams the reply.
+- **One entry point**: `orchagent.New(ctx, opts...)` returns an `App` with the bus, definitions, durable runtime, sandbox and connectors wired. `app.Define` stores an agent and `app.Session` opens a conversation with it: `Post` sends a message, `Wait` returns the answer.
 - **Agents are documents**: store a saige `.agent.md` and it runs, with no redeploy. A run pins its definition's version, so a retry never runs a newer prompt.
 - **Durable runs**: a ledger, a queue with leases and fencing, and a worker that resumes after a crash without re-executing recorded steps.
 - **Sandboxed tools**: tools see only the workspace their NGAC policy grants, in process or isolated with Docker, gVisor or Kubernetes.
@@ -104,6 +104,7 @@ import (
 
 	"github.com/urmzd/orchagent"
 	"github.com/urmzd/orchagent/flow/turn/native/agenttest"
+	"github.com/urmzd/orchagent/flow/turn/native/saigetypes"
 )
 
 // oncall is the agent, as a saige definition file.
@@ -148,17 +149,22 @@ func run() error {
 		return err
 	}
 
-	// Ask runs the agent once and streams its reply.
-	reply, err := app.Ask(ctx, "oncall", "api is down")
+	// The session can be reopened to continue this agent's conversation.
+	conversation, err := app.Session(ctx, orchagent.SessionOptions{Agent: "oncall", Parent: "console://downstream"})
 	if err != nil {
 		return err
 	}
-	defer func() { _ = reply.Close() }()
-	answer, err := reply.Text(ctx)
+	// Post starts a turn; Wait returns its answer, or ErrRunFailed or
+	// ErrRunStopped.
+	accepted, err := conversation.Post(ctx, "api is down")
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s\nrun %s: completed\n", answer, reply.RunID)
+	answer, err := conversation.Wait(ctx, accepted.RunID)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s\nrun %s: completed\n", answer, accepted.RunID)
 	cancel()
 	if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
 		return err
@@ -171,8 +177,21 @@ func run() error {
 func houseProvider(spec orchagent.Spec) (orchagent.Provider, error) {
 	p := &agenttest.ScriptedProvider{}
 	p.Responses = append(p.Responses,
-		agenttest.TextResponse(spec.Name+" answered on the house model ("+spec.Model+")."))
-	return p, nil
+		append(agenttest.TextResponse(spec.Name+" answered on the house model ("+spec.Model+")."),
+			saigetypes.UsageDelta{PromptTokens: 20, CompletionTokens: 10, TotalTokens: 30}))
+	return &houseModel{ScriptedProvider: p, model: spec.Model}, nil
+}
+
+// The example declares an illustrative rate card so session admission can
+// enforce its explicit budget. A real provider returns its actual capabilities.
+type houseModel struct {
+	*agenttest.ScriptedProvider
+	model string
+}
+
+func (p *houseModel) Capabilities() saigetypes.ModelCapabilities {
+	return saigetypes.ModelCapabilities{Model: p.model, Known: true, ContextWindow: 8192,
+		Pricing: saigetypes.Pricing{InputPerMTok: 1, OutputPerMTok: 1, Source: "offline example"}}
 }
 
 // runbookTool is a tool the team owns. Any orchagent.Tool works.
@@ -215,6 +234,11 @@ model:
 tools:
   registry:
     - lookup_runbook
+limits:
+  budget:
+    max_cost: 1
+    max_requests: 4
+    max_tokens: 4096
 ---
 Help the on-call engineer.
 ```
@@ -245,7 +269,7 @@ Pick the import that matches the job:
 
 | You need | Import | Start with |
 |----------|--------|------------|
-| Run an agent and read its reply | `orchagent` | `orchagent.New`, `app.Define`, `app.Ask` |
+| Run an agent and read its answer | `orchagent` | `orchagent.New`, `app.Define`, `app.Session` |
 | Every option and store: connectors, memberships, knowledge | `orchagent/flow` | `flow.With*`, `app.Publish`, `app.Memberships` |
 | Work that finishes once despite crashes | `orchagent/durable` | `durable.New`, `durable.Start`, `durable.Exec` |
 | Tools confined by policy | `orchagent/sandbox/...` | `controlplane.NewMemory`, `sandbox.Policy` |

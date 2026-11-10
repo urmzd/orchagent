@@ -1,8 +1,9 @@
 // Package orchagent is the orchestration stack for all your agent needs.
 //
 // New composes the whole stack (agent definitions, the event bus, the
-// durable runtime, the sandbox and the connectors) into an App, and Ask
-// runs one agent and returns its reply:
+// durable runtime, the sandbox and the connectors) into an App, and
+// App.Session opens a conversation with one agent: Post sends it a message
+// and Wait returns the answer.
 //
 //	app, err := orchagent.New(ctx,
 //		orchagent.WithTenant("acme"),
@@ -12,11 +13,12 @@
 //	if err != nil { ... }
 //	defer app.Close()
 //	go app.Run(ctx)
-//	_, err = app.Define(ctx, oncallAgentMD) // an .agent.md file
-//	reply, err := app.Ask(ctx, "oncall", "api is down")
+//	_, err = app.Define(ctx, oncallAgentMD) // an .agent.md with limits.budget
+//	s, err := app.Session(ctx, orchagent.SessionOptions{Agent: "oncall"})
 //	if err != nil { ... }
-//	defer reply.Close()
-//	answer, err := reply.Text(ctx)
+//	accepted, err := s.Post(ctx, "api is down")
+//	if err != nil { ... }
+//	answer, err := s.Wait(ctx, accepted.RunID)
 //
 // This package names the common path. Everything else is in its component:
 // github.com/urmzd/orchagent/flow for every option and store,
@@ -53,10 +55,6 @@ const (
 	RoleDelivery  = flow.RoleDelivery
 )
 
-// Reply is one run started by App.Ask.
-// Deprecated: use App.Session and Session.Post.
-type Reply = flow.Reply
-
 // Event is one event on the bus.
 type Event = event.Envelope
 
@@ -78,7 +76,7 @@ type (
 	OpenAICompatible = native.OpenAICompatible
 )
 
-// Errors from App.Define and Reply.Text.
+// Errors from App.Define and Session.Wait.
 var (
 	ErrExists     = definition.ErrExists
 	ErrRunFailed  = flow.ErrRunFailed
