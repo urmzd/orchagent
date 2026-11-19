@@ -1,0 +1,1 @@
+--8<-- "durable/docs/architecture/overview.md"

@@ -1,0 +1,43 @@
+[project]
+site_name = "Orchagent"
+site_description = "Run agents in Go, continue conversations and inspect durable runs."
+site_url = "https://docs.urmzd.com/orchagent/"
+repo_url = "https://github.com/urmzd/orchagent"
+repo_name = "urmzd/orchagent"
+nav = [
+  { "Overview" = "README.md" },
+  { "Run your first agent" = "guides/first-run.md" },
+  { "Work with sessions" = "guides/sessions.md" },
+  { "Component reference" = [
+    { "Choose a component" = "reference/components.md" },
+    { "Flow" = "reference/flow/overview.md" },
+    { "Event catalog" = "reference/flow/events.md" },
+    { "Session architecture" = "reference/flow/sessions.md" },
+    { "Slack" = "reference/flow/slack.md" },
+    { "GitHub" = "reference/flow/github.md" },
+    { "Durable execution" = "reference/durable/overview.md" },
+    { "Replay" = "reference/durable/replay.md" },
+    { "Sandbox policies" = "reference/sandbox/overview.md" },
+  ] },
+  { "All project guides" = "https://docs.urmzd.com/" },
+]
+
+[project.theme]
+font = false
+features = ["content.code.copy", "navigation.footer"]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[project.markdown_extensions."pymdownx.snippets"]
+base_path = ["."]
+check_paths = true

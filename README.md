@@ -41,7 +41,7 @@ pass is a complete in-memory implementation.
 
 ## Features
 
-- **One entry point**: `orchagent.New(ctx, opts...)` returns an `App` with the bus, definitions, durable runtime, sandbox and connectors wired. `app.Define` stores an agent, `app.Ask` runs it and streams the reply.
+- **One entry point**: `orchagent.New(ctx, opts...)` returns an `App` with the bus, definitions, durable runtime, sandbox and connectors wired. `app.Define` stores an agent, `app.Session` opens a conversation and `Session.Post` starts a run.
 - **Agents are documents**: store a saige `.agent.md` and it runs, with no redeploy. A run pins its definition's version, so a retry never runs a newer prompt.
 - **Durable runs**: a ledger, a queue with leases and fencing, and a worker that resumes after a crash without re-executing recorded steps.
 - **Sandboxed tools**: tools see only the workspace their NGAC policy grants, in process or isolated with Docker, gVisor or Kubernetes.
@@ -70,155 +70,13 @@ go get github.com/urmzd/orchagent/sandbox/runner/k8s
 
 ## Quick Start
 
-An agent with its own model provider and tool, answering one message, with no
-API key and no external services:
-
-<!-- fsrc src="flow/examples/downstream/main.go" fence="auto" -->
-```go
-// Command downstream is what a team building on flow ships instead of a fork:
-// its own program, composing flow in Go, plus what it registers.
-//
-// It adds three things in Go:
-//
-//   - a model provider named "house", standing in for an in-house model
-//     client. Here it is saige's scripted provider, so the example runs with
-//     no key and no network; a real one returns the team's own
-//     saige Provider.
-//   - an OpenAI-compatible endpoint named "fireworks", selected by the same
-//     model.use field, with its key read from $FIREWORKS_API_KEY at run time.
-//   - a tool, "lookup_runbook", that any agent can be granted by name.
-//
-// It stores the agent agents/oncall.agent.md defines, on the house provider, asks it one question in process and
-// prints the answer:
-//
-//	go run ./examples/downstream
-package main
-
-import (
-	"context"
-	_ "embed"
-	"errors"
-	"fmt"
-	"os"
-	"os/signal"
-
-	"github.com/urmzd/orchagent"
-	"github.com/urmzd/orchagent/flow/turn/native/agenttest"
-)
-
-// oncall is the agent, as a saige definition file.
-//
-//go:embed agents/oncall.agent.md
-var oncall string
-
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "downstream:", err)
-		os.Exit(1)
-	}
-}
-
-func run() error {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
-
-	// Everything is in memory unless an option says otherwise: a program
-	// on Postgres adds orchagent.WithPostgres(pool) and orchagent.WithBus(...).
-	app, err := orchagent.New(ctx,
-		orchagent.WithTenant("acme"),
-		orchagent.WithModelProvider("house", houseProvider),
-		orchagent.WithOpenAICompatible(orchagent.OpenAICompatible{
-			Name:    "fireworks",
-			BaseURL: "https://api.fireworks.ai/inference/v1",
-			KeyEnv:  "FIREWORKS_API_KEY",
-		}),
-		orchagent.WithTools(runbookTool{}),
-	)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = app.Close() }()
-
-	// Delivery and execution, in this process, until ctx ends.
-	done := make(chan error, 1)
-	go func() { done <- app.Run(ctx) }()
-
-	// Define is insert-only: storing the same file again is a no-op.
-	if _, err := app.Define(ctx, oncall); err != nil {
-		return err
-	}
-
-	// Ask runs the agent once and streams its reply.
-	reply, err := app.Ask(ctx, "oncall", "api is down")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = reply.Close() }()
-	answer, err := reply.Text(ctx)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("%s\nrun %s: completed\n", answer, reply.RunID)
-	cancel()
-	if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
-		return err
-	}
-	return nil
-}
-
-// houseProvider builds the model client for one agent version. It receives
-// the whole spec, so it can key on the model name or the agent.
-func houseProvider(spec orchagent.Spec) (orchagent.Provider, error) {
-	p := &agenttest.ScriptedProvider{}
-	p.Responses = append(p.Responses,
-		agenttest.TextResponse(spec.Name+" answered on the house model ("+spec.Model+")."))
-	return p, nil
-}
-
-// runbookTool is a tool the team owns. Any orchagent.Tool works.
-type runbookTool struct{}
-
-func (runbookTool) Definition() orchagent.ToolDef {
-	return orchagent.ToolDef{
-		Name:        "lookup_runbook",
-		Description: "Look up the on-call runbook for a service.",
-		Parameters: orchagent.ParameterSchema{
-			Type:       "object",
-			Properties: map[string]orchagent.PropertyDef{"service": {Type: "string"}},
-			Required:   []string{"service"},
-		},
-	}
-}
-
-func (runbookTool) Execute(_ context.Context, args map[string]any) (string, error) {
-	service, _ := args["service"].(string)
-	return "Restart " + service + " with `make restart`, then page the owner.", nil
-}
-```
-<!-- /fsrc -->
+From the repository root, run an on-call agent using a scripted provider and in-memory stores.
 
 ```sh
 go run ./flow/examples/downstream
 ```
 
-The agent it runs is a definition file:
-
-<!-- fsrc src="flow/examples/downstream/agents/oncall.agent.md" fence="auto" -->
-```markdown
----
-apiVersion: saige/v1
-name: oncall
-version: 1.0.0
-description: helps the on-call engineer
-model:
-  use: house/house-1
-tools:
-  registry:
-    - lookup_runbook
----
-Help the on-call engineer.
-```
-<!-- /fsrc -->
+The program prints the agent’s answer and its run ID. Follow the [first-run walkthrough](docs/guides/first-run.md) to change the model and see how the session works.
 
 ## Examples
 
@@ -245,7 +103,7 @@ Pick the import that matches the job:
 
 | You need | Import | Start with |
 |----------|--------|------------|
-| Run an agent and read its reply | `orchagent` | `orchagent.New`, `app.Define`, `app.Ask` |
+| Run an agent and read its reply | `orchagent` | `app.Define`, `app.Session`, `Session.Post` |
 | Every option and store: connectors, memberships, knowledge | `orchagent/flow` | `flow.With*`, `app.Publish`, `app.Memberships` |
 | Work that finishes once despite crashes | `orchagent/durable` | `durable.New`, `durable.Start`, `durable.Exec` |
 | Tools confined by policy | `orchagent/sandbox/...` | `controlplane.NewMemory`, `sandbox.Policy` |
@@ -275,8 +133,18 @@ make test-integration   # Postgres and Redis adapters (uses compose.yaml)
 
 ## Documentation
 
-- [Documentation index](docs/README.md)
+- [Orchagent documentation](https://docs.urmzd.com/orchagent/)
+- [Documentation source](docs/README.md)
 - [Contributing](CONTRIBUTING.md)
+
+To preview or build the documentation from the repository root with [uv](https://docs.astral.sh/uv/):
+
+```sh
+uvx --from zensical==0.1.2 zensical serve
+uvx --from zensical==0.1.2 zensical build
+```
+
+The build writes static files to `site/`. Pull requests run a strict build. After a merge to `main`, the [documentation workflow](.github/workflows/docs.yml) deploys that build to GitHub Pages at `/orchagent/`.
 
 ## Agent Skill
 
