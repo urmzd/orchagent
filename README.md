@@ -144,7 +144,7 @@ uvx --from zensical==0.1.2 zensical serve
 uvx --from zensical==0.1.2 zensical build
 ```
 
-The build writes static files to `site/` for serving under `/orchagent/`.
+The build writes static files to `site/`. Pull requests run a strict build. After a merge to `main`, the [documentation workflow](.github/workflows/docs.yml) deploys that build to GitHub Pages at `/orchagent/`.
 
 ## Agent Skill
 
