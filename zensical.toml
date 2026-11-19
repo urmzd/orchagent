@@ -19,6 +19,7 @@ nav = [
     { "Replay" = "reference/durable/replay.md" },
     { "Sandbox policies" = "reference/sandbox/overview.md" },
   ] },
+  { "All project guides" = "https://docs.urmzd.com/" },
 ]
 
 [project.theme]
