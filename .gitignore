@@ -27,3 +27,7 @@ dist/
 sandbox/examples/saige/saige
 go.work
 go.work.sum
+
+# Zensical build output and cache
+/site/
+/.cache/

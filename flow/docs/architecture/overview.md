@@ -27,8 +27,8 @@ flow composes three libraries and adds the parts that make them a product.
 | Concern | Owner |
 |---------|-------|
 | The agent loop, typed deltas, RAG, citations, versioned agent definitions | [saige](https://github.com/urmzd/saige) |
-| Durability, replay, exactly-once effects, per-run journal | [durable](https://github.com/urmzd/orchagent/durable) |
-| Sandboxed execution nodes, NGAC access control | [sandbox](https://github.com/urmzd/orchagent/sandbox) |
+| Durability, replay, exactly-once effects, per-run journal | [durable](https://github.com/urmzd/orchagent/tree/main/durable) |
+| Sandboxed execution nodes, NGAC access control | [sandbox](https://github.com/urmzd/orchagent/tree/main/sandbox) |
 | The event union and its catalog, the channel bus, membership, dispatch, delivery | flow |
 | Definition storage, pins and the Policy sidecar | flow |
 | Ingress and egress adapters, and native actions | flow |
