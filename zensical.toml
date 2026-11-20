@@ -4,6 +4,7 @@ site_description = "Run agents in Go, continue conversations and inspect durable
 site_url = "https://docs.urmzd.com/orchagent/"
 repo_url = "https://github.com/urmzd/orchagent"
 repo_name = "urmzd/orchagent"
+extra_css = ["/brand/zensical.css"]
 nav = [
   { "Overview" = "README.md" },
   { "Run your first agent" = "guides/first-run.md" },
@@ -23,6 +24,8 @@ nav = [
 ]
 
 [project.theme]
+logo = "/brand/logo-mark.svg"
+favicon = "/brand/favicon.svg"
 font = false
 features = ["content.code.copy", "navigation.footer"]
 
