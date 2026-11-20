@@ -149,3 +149,40 @@ func runEvent(runID string, seq uint64) event.Envelope {
 		Data:    event.Text{Text: "hi"},
 	}
 }
+
+// Short runs share the bus with live subscribers. Measure the cost of opening
+// their retention windows and replaying one run among many.
+func BenchmarkMemoryShortRuns(b *testing.B) {
+	broker := bus.NewMemory(bus.WithMaxRuns(64))
+	ctx := context.Background()
+	b.ReportAllocs()
+	for i := 0; b.Loop(); i++ {
+		if err := broker.Publish(ctx, runEvent(fmt.Sprint(i), 1)); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkMemorySubscribeOneRun(b *testing.B) {
+	broker := bus.NewMemory(bus.WithBacklog(1), bus.WithRetention(64))
+	ctx := context.Background()
+	for i := range 64 {
+		for seq := uint64(1); seq <= 16; seq++ {
+			if err := broker.Publish(ctx, runEvent(fmt.Sprint(i), seq)); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+	sub := all
+	sub.Run = "0"
+	b.ReportAllocs()
+	for b.Loop() {
+		stream, err := broker.Subscribe(ctx, sub)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if err := stream.Close(); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

@@ -14,7 +14,7 @@
 // It stores the agent agents/oncall.agent.md defines, on the house provider, asks it one question in process and
 // prints the answer:
 //
-//	go run ./examples/downstream
+//	go run ./flow/examples/downstream
 package main
 
 import (
@@ -26,7 +26,6 @@ import (
 	"os/signal"
 
 	"github.com/urmzd/orchagent"
-	"github.com/urmzd/orchagent/flow/event"
 	"github.com/urmzd/orchagent/flow/turn/native/agenttest"
 	"github.com/urmzd/orchagent/flow/turn/native/saigetypes"
 )
@@ -43,7 +42,7 @@ func main() {
 	}
 }
 
-func run() error {
+func run() (err error) {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
@@ -66,7 +65,13 @@ func run() error {
 
 	// Delivery and execution, in this process, until ctx ends.
 	done := make(chan error, 1)
-	go func() { done <- app.Run(ctx) }()
+	go func() { done <- app.Run(ctx, orchagent.RoleExecution) }()
+	defer func() {
+		cancel()
+		if runErr := <-done; runErr != nil && !errors.Is(runErr, context.Canceled) {
+			err = errors.Join(err, runErr)
+		}
+	}()
 
 	// Define is insert-only: storing the same file again is a no-op.
 	if _, err := app.Define(ctx, oncall); err != nil {
@@ -78,48 +83,15 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	stream, err := conversation.Stream(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = stream.Close() }()
 	accepted, err := conversation.Post(ctx, "api is down")
 	if err != nil {
 		return err
 	}
-	for {
-		e, err := stream.Recv(ctx)
-		if err != nil {
-			return err
-		}
-		if e.Run != accepted.RunID {
-			continue
-		}
-		if e.Type == event.TypeFailed || e.Type == event.TypeStopped {
-			detail, renderErr := event.Render(e)
-			if renderErr != nil {
-				return renderErr
-			}
-			return fmt.Errorf("run %s: %s", e.Run, detail)
-		}
-		if e.Type == event.TypeCompleted {
-			break
-		}
-	}
-	entries, err := conversation.Read(ctx, 0)
+	answer, err := conversation.Wait(ctx, accepted.RunID)
 	if err != nil {
 		return err
 	}
-	for _, entry := range entries {
-		if entry.RunID == accepted.RunID && string(entry.Role) == "assistant" {
-			fmt.Println(entry.Text)
-		}
-	}
-	fmt.Printf("run %s: completed\n", accepted.RunID)
-	cancel()
-	if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
-		return err
-	}
+	fmt.Printf("%s\nrun %s: completed\n", answer, accepted.RunID)
 	return nil
 }
 
