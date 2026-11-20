@@ -146,7 +146,7 @@ uvx --from zensical==0.1.2 zensical build
 
 To see the shared fonts, colors and logo locally, serve the generated guide and the account’s brand assets on one origin. [Preview a guide with the shared brand](https://github.com/urmzd/urmzd.github.io#preview-a-guide-with-the-shared-brand)
 
-The build writes static files to `site/`. Pull requests run a strict build. After a merge to `main`, the [documentation workflow](.github/workflows/docs.yml) deploys that build to GitHub Pages at `/orchagent/`.
+The build writes static files to `site/`. Pull requests run a strict build. After a merge to `main`, [docs.urmzd.com](https://github.com/urmzd/docs.urmzd.com) rebuilds the guide and publishes it at `/orchagent/` within 30 minutes.
 
 ## Agent Skill
 
