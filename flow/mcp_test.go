@@ -99,7 +99,7 @@ func coreExpandsAnMCPGrant(t *testing.T, pool *pgxpool.Pool) {
 		t.Fatal(err)
 	}
 
-	start(t, c.Run)
+	start(t, func(ctx context.Context) error { return c.Run(ctx) })
 	spec := definition.AgentSpec{Name: "triage", Model: "m", Provider: definition.ProviderOpenAI,
 		SystemPrompt: "Triage.", Tools: []string{"mcp:issues"}}
 	if _, err := createAgent(c.Definitions(), ctx, tenant, spec, "test"); err != nil {

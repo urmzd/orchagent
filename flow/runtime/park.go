@@ -17,6 +17,7 @@ import (
 	"github.com/urmzd/orchagent/flow/attachment"
 	"github.com/urmzd/orchagent/flow/definition"
 	"github.com/urmzd/orchagent/flow/event"
+	"github.com/urmzd/orchagent/flow/session"
 	"github.com/urmzd/orchagent/flow/turn/native"
 	saigetypes "github.com/urmzd/orchagent/flow/turn/native/saigetypes"
 )
@@ -210,7 +211,21 @@ var (
 func (r *Runtime) awaitAnswer(ctx context.Context, at *attemptLog, out Outcome) (resolution, error) {
 	q := out.Parked.Question
 	runID := at.in.runID()
-	if q.Kind == event.QuestionDelegation {
+	// A completed model activity can ask for delegation just as a stop is
+	// recorded. Fence that work before creating a child or registering a wait.
+	if res, stopped, err := r.stoppedSessionWait(ctx, at.in, q); stopped || err != nil {
+		return res, err
+	}
+	var waits []sessionWait
+	isListen := q.Kind == event.QuestionDelegation && q.Tool != nil && q.Tool.Name == "session_listen"
+	if isListen {
+		var err error
+		waits, err = r.prepareSessionListen(ctx, at.in, q)
+		if err != nil {
+			return resolution{}, err
+		}
+	}
+	if q.Kind == event.QuestionDelegation && !isListen {
 		// The child run is started once, as a recorded step: a replay reads
 		// its id back, and a retried start lands on the same run, whose id
 		// is derived from this run and the question.
@@ -218,15 +233,22 @@ func (r *Runtime) awaitAnswer(ctx context.Context, at *attemptLog, out Outcome) 
 			return r.startChild(ctx, at.in, q)
 		})
 		if err != nil {
+			if res, stopped, stopErr := r.stoppedSessionWait(ctx, at.in, q); stopped || stopErr != nil {
+				return res, stopErr
+			}
 			return resolution{}, err
 		}
 		q.ChildRunID = child
 	}
 	fresh := false
+	waitReason := "waiting on a person"
+	if q.Kind == event.QuestionDelegation {
+		waitReason = "waiting on sessions"
+	}
 	if _, err := durable.Step(ctx, questionStepPrefix+q.ID, func(ctx context.Context) (event.Question, error) {
 		fresh = true
 		if err := at.publish(ctx, event.Parked{
-			Attempt: at.attempt, Reason: "waiting on a person", Question: &q,
+			Attempt: at.attempt, Reason: waitReason, Question: &q,
 		}); err != nil {
 			return event.Question{}, err
 		}
@@ -260,6 +282,35 @@ func (r *Runtime) awaitAnswer(ctx context.Context, at *attemptLog, out Outcome) 
 		if stop != nil {
 			return r.resolve(ctx, runID, resolution{QuestionID: q.ID, Stopped: stop})
 		}
+		if q.Tool != nil && q.Tool.Name == "session_call" {
+			var args struct {
+				Wait *bool `json:"wait"`
+			}
+			if json.Unmarshal(q.Tool.Arguments, &args) == nil && args.Wait != nil && !*args.Wait {
+				child, err := r.loadRun(ctx, q.ChildRunID)
+				if err != nil {
+					return resolution{}, err
+				}
+				var ci Input
+				if err := json.Unmarshal(child.Input, &ci); err != nil {
+					return resolution{}, err
+				}
+				result := map[string]string{"run": q.ChildRunID}
+				if ci.Session != nil {
+					result["session"] = ci.Session.ID
+				}
+				raw, _ := json.Marshal(result)
+				res, err := r.resolve(ctx, runID, resolution{QuestionID: q.ID, Answer: &event.Answer{QuestionID: q.ID, Text: string(raw), At: r.now().UTC()}})
+				if err != nil {
+					return resolution{}, err
+				}
+				if fresh {
+					r.wake(ctx, runID)
+					return resolution{}, run.ErrParked
+				}
+				return res, nil
+			}
+		}
 		// The rest only in an attempt that replayed the turn rather than ran
 		// it: an attempt executes at most one turn, because its sequence
 		// band, its usage record and its accounting keys are the attempt's.
@@ -270,6 +321,11 @@ func (r *Runtime) awaitAnswer(ctx context.Context, at *attemptLog, out Outcome) 
 			// read rather than waited for.
 			if res, ok := r.storedResolution(ctx, runID, q.ID); ok {
 				return res, nil
+			}
+			if isListen {
+				if answer, ok := r.sessionListenEnded(ctx, at.in, q, waits); ok {
+					return r.resolve(ctx, runID, resolution{QuestionID: q.ID, Answer: answer})
+				}
 			}
 			// A child run that ended without answering (its retries ran
 			// out) answers here, from its record.
@@ -285,7 +341,7 @@ func (r *Runtime) awaitAnswer(ctx context.Context, at *attemptLog, out Outcome) 
 			}
 		}
 	}
-	return resolution{}, fmt.Errorf("runtime: run %s is waiting on a person for question %s: %w", runID, q.ID, err)
+	return resolution{}, fmt.Errorf("runtime: run %s is %s for question %s: %w", runID, waitReason, q.ID, err)
 }
 
 // expired is a question's default, as the answer it resolves to.
@@ -353,6 +409,9 @@ func decodeResolution(raw []byte) (resolution, error) {
 // Its turn is not resumed: the run ends with what it had said before it asked,
 // and what it had spent.
 func (r *Runtime) stoppedWhileParked(ctx context.Context, at *attemptLog, out Outcome, stop native.Stop, parks int) (Output, error) {
+	if err := r.closeRunBudget(ctx, at.in); err != nil {
+		return Output{}, err
+	}
 	r.claimStop(ctx, at.in)
 	stop.Reason = clip(stop.Reason)
 	if stop.Reason == "" {
@@ -991,20 +1050,106 @@ func WithChildRuns() Option {
 
 // startChild accepts the child run a delegation waits on and returns its id.
 func (r *Runtime) startChild(ctx context.Context, parent Input, q event.Question) (string, error) {
+	if stop, err := r.sessionStop(ctx, parent); err != nil {
+		return "", err
+	} else if stop != nil {
+		return "", durable.NonRetryable(ErrStopped)
+	}
 	if q.Tool == nil {
 		return "", durable.NonRetryable(fmt.Errorf("%w: delegation %s names no tool call", ErrInvalid, q.ID))
 	}
 	target, ok := strings.CutPrefix(q.Tool.Name, "tag_")
-	if !ok || target == "" {
+	if (!ok || target == "") && q.Tool.Name != "session_call" {
 		return "", durable.NonRetryable(fmt.Errorf("%w: %q is not a delegation tool", ErrInvalid, q.Tool.Name))
 	}
 	var args struct {
-		Text string `json:"text"`
+		Agent string `json:"agent"`
+		Text  string `json:"text"`
+		Label string `json:"label,omitempty"`
+		Fresh bool   `json:"fresh,omitempty"`
+		Wait  *bool  `json:"wait,omitempty"`
 	}
-	_ = json.Unmarshal(q.Tool.Arguments, &args)
+	if err := json.Unmarshal(q.Tool.Arguments, &args); err != nil {
+		return "", durable.NonRetryable(err)
+	}
+	if q.Tool.Name == "session_call" {
+		target = args.Agent
+	}
 	in, err := childInput(parent, target, args.Text, q.ID)
 	if err != nil {
 		return "", durable.NonRetryable(err)
+	}
+	if args.Fresh {
+		args.Label = q.ID
+	}
+	if args.Wait != nil && !*args.Wait {
+		in.Parent.QuestionID = ""
+	}
+	if err := r.childSession(ctx, parent, &in, args.Label); err != nil {
+		return "", durable.NonRetryable(err)
+	}
+	call := SessionCall{ID: in.Trigger.ID, Agent: target, Text: args.Text, Label: args.Label, Fresh: args.Fresh, Session: session.Record{}, QuestionID: in.Parent.QuestionID}
+	if in.Session != nil {
+		call.Session = *in.Session
+	}
+	expected := in.runID()
+	if r.childStarter != nil {
+		if r.childRunID == nil {
+			return "", durable.NonRetryable(fmt.Errorf("%w: governed calls require WithChildRunID", session.ErrDenied))
+		}
+		expected = r.childRunID(parent, call)
+		if expected == "" {
+			return "", durable.NonRetryable(session.ErrInvalid)
+		}
+	}
+	admission, err := r.reserveChild(ctx, parent, in, expected)
+	if err != nil {
+		return "", durable.NonRetryable(err)
+	}
+	finish := func(id string, err error) (string, error) {
+		if id != "" && id != expected {
+			return id, durable.NonRetryable(fmt.Errorf("%w: child admission returned another run ID", session.ErrInvalid))
+		}
+		if admission != nil {
+			if id != "" {
+				if bindErr := admission.BindReservation(context.WithoutCancel(ctx), in.Trigger.Tenant, in.Session.Key.Parent, admissionKey(in), id); bindErr != nil {
+					return id, bindErr
+				}
+			} else if err != nil {
+				if releaseErr := admission.Release(context.WithoutCancel(ctx), in.Trigger.Tenant, in.Session.Key.Parent, admissionKey(in)); releaseErr != nil {
+					return "", releaseErr
+				}
+			}
+		}
+		if id != "" {
+			// Stop may have scanned the reservation before admission existed.
+			// Once accepted, reconcile it before acknowledging the child call.
+			stop, stopErr := r.sessionStop(context.WithoutCancel(ctx), parent)
+			if stopErr != nil {
+				return id, stopErr
+			}
+			if stop != nil {
+				if stopErr := r.Stop(context.WithoutCancel(ctx), StopRequest{Tenant: parent.Trigger.Tenant, RunID: id, Reason: stop.Reason, By: stop.By}); stopErr != nil {
+					return id, stopErr
+				}
+			}
+		}
+		return id, err
+	}
+	if stop, err := r.sessionStop(ctx, parent); err != nil {
+		return finish("", err)
+	} else if stop != nil {
+		return finish("", durable.NonRetryable(ErrStopped))
+	}
+	if r.childStarter != nil {
+		if in.Session == nil {
+			return "", durable.NonRetryable(fmt.Errorf("%w: governed child calls need a session store", ErrInvalid))
+		}
+		id, err := r.childStarter(ctx, parent, call)
+		return finish(id, err)
+	}
+	if err := r.reserveChildBudget(ctx, parent, &in); err != nil {
+		return finish("", durable.NonRetryable(err))
 	}
 	// The child runs the version its parent pinned for it, when it pinned
 	// one; a target outside the pin resolves its latest.
@@ -1012,12 +1157,25 @@ func (r *Runtime) startChild(ctx context.Context, parent Input, q event.Question
 	acc, err := r.start(context.WithoutCancel(ctx), in, version)
 	if err != nil {
 		if acc.RunID != "" {
-			// Durable, and the janitor will drive it.
-			return acc.RunID, nil
+			// Durable, and the janitor will drive it. Complete its session index
+			// before the step commits, so a transient index failure is retried.
+			if r.sessions != nil && in.Session != nil {
+				if err := r.sessions.BindRun(context.WithoutCancel(ctx), in.Trigger.Tenant, in.Session.ID, acc.RunID); err != nil {
+					return finish(acc.RunID, err)
+				}
+			}
+			return finish(acc.RunID, nil)
 		}
-		return "", fmt.Errorf("runtime: start the child run for %s: %w", q.Tool.Name, err)
+		if in.Budget != nil {
+			if store, ok := r.sessions.(session.BudgetStore); ok {
+				if e := store.SettleBudget(context.WithoutCancel(ctx), in.Trigger.Tenant, parent.runID(), "child:"+in.runID(), session.Budget{}); e != nil {
+					return finish("", e)
+				}
+			}
+		}
+		return finish("", fmt.Errorf("runtime: start the child run for %s: %w", q.Tool.Name, err))
 	}
-	return acc.RunID, nil
+	return finish(acc.RunID, nil)
 }
 
 // childInput is the input of the child run a delegation starts: a
@@ -1080,8 +1238,23 @@ func (r *Runtime) childEnded(ctx context.Context, q event.Question) (*event.Answ
 // ended, and wakes it. It is best effort: a parent that is not told reads the
 // child's ending from the ledger when its janitor poll comes.
 func (r *Runtime) answerParent(ctx context.Context, in Input, text string, stopped *native.Stop, failure error) {
-	if in.Parent == nil || r.stops == nil {
+	r.wakeSessionListeners(ctx, in)
+	if in.Parent == nil || in.Parent.QuestionID == "" || r.stops == nil {
 		return
+	}
+	if _, records, err := r.recordsOf(ctx, in.Parent.RunID, false, prefixQuestion); err == nil {
+		for _, record := range records {
+			var q event.Question
+			if json.Unmarshal(record.Output, &q) == nil && q.ID == in.Parent.QuestionID && q.Tool != nil && q.Tool.Name == "session_call" {
+				var args struct {
+					Wait *bool `json:"wait"`
+				}
+				if json.Unmarshal(q.Tool.Arguments, &args) == nil && args.Wait != nil && !*args.Wait {
+					r.wake(ctx, in.Parent.RunID)
+					return
+				}
+			}
+		}
 	}
 	a := event.Answer{QuestionID: in.Parent.QuestionID, RunID: in.runID(), Text: text, At: r.now().UTC()}
 	switch {

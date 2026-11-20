@@ -205,6 +205,31 @@ func Run(t *testing.T, factory func(t *testing.T) queue.Queue) {
 		}
 	})
 
+	t.Run("FractionalDelaysDoNotClaimEarly", func(t *testing.T) {
+		q := factory(t)
+		// A backend with millisecond precision must round the absolute
+		// ready time up, including fractions from both the clock and delay.
+		delay := waitShort + 500*time.Microsecond
+		notBefore := time.Now().Add(delay)
+		mustEnqueue(t, q, "r1", delay)
+		it, _ := mustClaim(t, q, waitLong, time.Minute)
+		if claimedAt := time.Now(); claimedAt.Before(notBefore) {
+			t.Fatalf("claimed at %v before fractional enqueue delay ended at %v", claimedAt, notBefore)
+		}
+
+		notBefore = time.Now().Add(delay)
+		if err := q.Release(context.Background(), it, delay, false); err != nil {
+			t.Fatalf("Release: %v", err)
+		}
+		next, _ := mustClaim(t, q, waitLong, time.Minute)
+		if claimedAt := time.Now(); claimedAt.Before(notBefore) {
+			t.Fatalf("claimed at %v before fractional release delay ended at %v", claimedAt, notBefore)
+		}
+		if next.RunID != it.RunID || next.Attempt != it.Attempt+1 || next.Failures != it.Failures {
+			t.Fatalf("claim after release = %+v, want same run and failures, next attempt after %+v", next, it)
+		}
+	})
+
 	t.Run("SettleRemoves", func(t *testing.T) {
 		q := factory(t)
 		mustEnqueue(t, q, "r1", 0)

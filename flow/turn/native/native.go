@@ -179,6 +179,8 @@ type Hold = turn.Hold
 
 // Turn is one request to an agent.
 type Turn struct {
+	Budget *turn.Budget
+
 	// Instructions is a trusted host-generated return contract. It supplements
 	// the pinned system rules; callers must not supply arbitrary system text.
 	Instructions string
@@ -749,6 +751,13 @@ func (r *Runner) Run(ctx context.Context, t Turn, emit func(context.Context, eve
 		// tool's do (see park.go).
 		ToolGate: approvalGate(r.tools),
 	}
+	if t.Budget != nil {
+		b := t.Budget
+		if b.CostMicros < 0 || b.Tokens < 0 || b.Requests < 0 || (b.CostMicros == 0 && b.Tokens == 0 && b.Requests == 0) {
+			return res, fmt.Errorf("native: empty or invalid budget")
+		}
+		agentCfg.Budget = saigetypes.NewBudget(saigetypes.BudgetPolicy{Limit: saigetypes.Cost(b.CostMicros), MaxTokens: int(b.Tokens), MaxRequests: int(b.Requests), AllowUnpriced: b.CostMicros == 0})
+	}
 	// requests is how a host's request to compact reaches the agent loop;
 	// nil when this deployment does not take them.
 	var requests *compactRequests
@@ -957,6 +966,12 @@ func (r *Runner) Run(ctx context.Context, t Turn, emit func(context.Context, eve
 	}
 	if waitErr != nil {
 		streamErr = errors.Join(streamErr, waitErr)
+	}
+	if streamErr != nil && t.Budget != nil && errors.Is(streamErr, saigetypes.ErrBudgetExceeded) && agentCfg.Budget.Uncertain() == 0 {
+		// Reaching an exact cap is an intentional stop. Preserve the answer already
+		// produced; saige still refused every request beyond the reservation.
+		res.Stopped = &Stop{Reason: "Budget reached"}
+		return res, nil
 	}
 	if streamErr != nil {
 		return res, fmt.Errorf("native: agent %q version %s: %w", r.rev.Spec.Name, r.rev.Version, streamErr)

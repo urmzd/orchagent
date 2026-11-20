@@ -8,5 +8,10 @@ model:
 tools:
   registry:
     - lookup_runbook
+limits:
+  budget:
+    max_cost: 1
+    max_requests: 4
+    max_tokens: 4096
 ---
 Help the on-call engineer.

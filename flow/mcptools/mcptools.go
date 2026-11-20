@@ -156,6 +156,7 @@ type config struct {
 	transport  mcp.Transport
 	env        []string
 	person     *PersonCredential
+	tokens     *TokenSource
 }
 
 // WithResolver sets how CredentialRef is resolved. Without one, a provider
@@ -233,7 +234,10 @@ func Connect(ctx context.Context, p toolprovider.Provider, opts ...Option) (*Ses
 	if err != nil {
 		return nil, err
 	}
-	red := redactor{secret: secret}
+	if person.Source != nil && p.Transport != toolprovider.TransportHTTP {
+		return nil, fmt.Errorf("%w: OAuth token sources require HTTP", ErrCredential)
+	}
+	red := redactor{secret: secret, rotating: &secretSet{}}
 	base := c.logger
 	if base == nil {
 		base = slog.New(slog.DiscardHandler)
@@ -276,6 +280,16 @@ func (s *Session) Where() string { return s.where }
 // credential is the secret a session to p is opened with, and for a
 // person-scoped provider the person's credential it came from.
 func (c config) credential(ctx context.Context, p toolprovider.Provider) (Secret, PersonCredential, error) {
+	if c.tokens != nil {
+		if c.person != nil {
+			return Secret{}, PersonCredential{}, fmt.Errorf("%w: shared token source cannot override a person credential", ErrCredential)
+		}
+		if p.Scope() == toolprovider.ScopePerson || p.Transport != toolprovider.TransportHTTP || p.CredentialRef != "" {
+			return Secret{}, PersonCredential{}, fmt.Errorf("%w: token source requires a shared HTTP provider without a credential reference", ErrCredential)
+		}
+		secret, err := c.tokens.token(ctx)
+		return secret, PersonCredential{}, err
+	}
 	if p.Scope() == toolprovider.ScopePerson {
 		// The record's CredentialRef is never read here: Validate refuses
 		// one on a person-scoped provider, and a session opened with it
@@ -327,7 +341,11 @@ func (s *Session) buildTransport(ctx context.Context, p toolprovider.Provider, s
 			next = http.DefaultTransport
 		}
 		origin, ok := originOf(p.Endpoint)
-		client.Transport = bearer{next: next, secret: secret, origin: origin, ok: ok}
+		source := c.tokens
+		if s.person.Source != nil {
+			source = s.person.Source
+		}
+		client.Transport = bearer{next: next, secret: secret, source: source, red: s.red, origin: origin, ok: ok}
 		client.CheckRedirect = noDowngrade(client.CheckRedirect)
 	}
 	return &mcp.StreamableClientTransport{Endpoint: p.Endpoint, HTTPClient: &client}, nil
@@ -385,6 +403,8 @@ func (s *Session) stdioTransport(ctx context.Context, p toolprovider.Provider, s
 // server, or anyone who can make it redirect, cannot send the credential
 // somewhere the admin did not configure.
 type bearer struct {
+	source *TokenSource
+	red    redactor
 	next   http.RoundTripper
 	secret Secret
 	origin string
@@ -395,7 +415,16 @@ func (b bearer) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = req.Clone(req.Context())
 	req.Header.Del("Authorization")
 	if o, ok := originOf(req.URL.String()); b.ok && ok && o == b.origin {
-		req.Header.Set("Authorization", "Bearer "+b.secret.Reveal())
+		secret := b.secret
+		if b.source != nil {
+			var err error
+			secret, err = b.source.token(req.Context())
+			if err != nil {
+				return nil, err
+			}
+			b.red.rotating.add(secret)
+		}
+		req.Header.Set("Authorization", "Bearer "+secret.Reveal())
 	}
 	return b.next.RoundTrip(req)
 }

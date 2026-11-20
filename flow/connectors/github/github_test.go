@@ -533,8 +533,8 @@ func TestActionsChangeGitHubAndReportWhatTheyChanged(t *testing.T) {
 	for _, a := range c.Actions() {
 		actions[a.Name] = a
 	}
-	if len(actions) != 6 {
-		t.Fatalf("actions = %v, want six", actions)
+	if len(actions) != 7 {
+		t.Fatalf("actions = %v, want seven", actions)
 	}
 
 	res, err := actions["github_comment"].Invoke(ctx, target, json.RawMessage(`{"body":"looked into it"}`))

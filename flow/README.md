@@ -215,6 +215,19 @@ is asked for (`low`, `high`, and so on). Hosts set it, with `provider` and
 does not take fails the build with the efforts it does take, and a fallback
 always runs at its own default.
 
+### Refresh OAuth credentials
+
+HTTP MCP connections can use `mcptools.NewTokenSource` with a host callback
+that returns the current access token. Use `mcptools.WithTokenSource` for a
+shared provider, or `PersonCredential{Source: source}` for a person-scoped
+provider. Keep one source per authorized connection so cached sessions retain
+person identity. The host owns discovery, consent, encrypted storage and refresh.
+
+The source is consulted before every same-origin HTTP request. Failed refreshes
+stop the request, redirects never receive another origin's bearer token, and
+all issued token values remain redacted for the session's lifetime. A shared
+source cannot stand in for a missing person's credential.
+
 ### Grant MCP tools
 
 A definition is granted an MCP provider's tools by naming the server:
@@ -564,3 +577,35 @@ between those two writes can still duplicate the initial message. Records are
 retained until explicitly removed by the host. See the
 [delivery architecture](docs/architecture/overview.md) for scope, recovery and
 retention requirements.
+
+### Native session delivery
+
+Slack and GitHub connectors can show run lifecycle reactions, continue known
+threads without another mention, and map delivered native message handles back
+to their runs through host callbacks. Cross-surface actions require exact channel
+or repository grants. GitHub reviews pin the reviewed head, validate inline diff
+locations, recover native review IDs on retry, and deny approval unless the host
+explicitly allows it for that run.
+
+Native feedback is the opt-in `run.feedback.v1` observation. It has sequence zero
+and deduplicates by event identity, so later feedback does not advance or reopen
+a completed execution stream. The host remains responsible for authenticated
+feedback ownership, persistence, and session visibility.
+
+### Fix pull requests
+
+An opt-in `github_create_fix_pr` action creates a draft on a generated
+`humagen/fix-…` branch after the host authorizes the current run. It pins the
+inspected default-branch SHA, refuses workflow edits and stale initial bases,
+and recovers an existing commit or PR after a lost response. Titles end with
+`[humagen]`, and the PR links the verified source issue or pull request. The
+connector never writes the source or default branch. The host owns approval
+policy and requester repository permission checks.
+
+### Rotating Slack file credentials
+
+`slack.Config.FileTokenSource` obtains the current installation token for each
+allowed file request. A refresh failure stops intake instead of using a stale
+static token. The generic intake `WithRequestHeaders` hook receives the request
+context after URL validation, including redirect hops; Slack attaches credentials
+only to its approved download hosts.

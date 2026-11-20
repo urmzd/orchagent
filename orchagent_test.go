@@ -57,7 +57,7 @@ func start(t *testing.T, opts ...orchagent.Option) (context.Context, *orchagent.
 
 func TestAskText(t *testing.T) {
 	ctx, app := start(t, orchagent.WithModelProvider("scripted", scripted("hello from helper")))
-	reply, err := app.Ask(ctx, "helper", "hi")
+	reply, err := app.Ask(ctx, "helper", "hi") //nolint:staticcheck // Verify the one-release legacy API contract.
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestAskText(t *testing.T) {
 
 func TestAskEventsEndAtTerminal(t *testing.T) {
 	ctx, app := start(t, orchagent.WithModelProvider("scripted", scripted("streamed")))
-	reply, err := app.Ask(ctx, "helper", "hi")
+	reply, err := app.Ask(ctx, "helper", "hi") //nolint:staticcheck // Verify the one-release legacy API contract.
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestDefineIsInsertOnly(t *testing.T) {
 
 func TestAskUnknownAgent(t *testing.T) {
 	ctx, app := start(t, orchagent.WithModelProvider("scripted", scripted("x")))
-	if _, err := app.Ask(ctx, "nobody", "hi"); err == nil {
+	if _, err := app.Ask(ctx, "nobody", "hi"); err == nil { //nolint:staticcheck // Verify the one-release legacy API contract.
 		t.Fatal("Ask of an undefined agent succeeded")
 	}
 }
@@ -132,7 +132,7 @@ func TestAskNeedsTenant(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = app.Close() }()
-	if _, err := app.Ask(ctx, "helper", "hi"); err == nil {
+	if _, err := app.Ask(ctx, "helper", "hi"); err == nil { //nolint:staticcheck // Verify the one-release legacy API contract.
 		t.Fatal("Ask without a tenant succeeded")
 	}
 	if _, err := app.Define(ctx, helper); err == nil {

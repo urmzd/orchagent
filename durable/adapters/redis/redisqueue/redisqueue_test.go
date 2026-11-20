@@ -120,6 +120,31 @@ func TestCeilMillis(t *testing.T) {
 	}
 }
 
+func TestReadyAtMillisNeverPrecedesDelay(t *testing.T) {
+	// The CI failure used an integral-millisecond delay with a fractional
+	// current time. Also cover fractional delays crossing a millisecond,
+	// exact boundaries, pre-epoch times, and durations near the limit.
+	for _, seconds := range []int64{-1, 1_730_000_000} {
+		for _, fraction := range []int64{0, 1, 559_273, 999_999} {
+			now := time.Unix(seconds, fraction)
+			for _, delay := range []time.Duration{-time.Millisecond, 0, time.Nanosecond, 250 * time.Millisecond, 250*time.Millisecond + 500*time.Microsecond, time.Duration(1<<63 - 1)} {
+				got := readyAtMillis(now, delay)
+				if delay <= 0 {
+					if got != now.UnixMilli() {
+						t.Fatalf("immediate readyAtMillis(%v, %v) = %d", now, delay, got)
+					}
+					continue
+				}
+				deadline := now.Add(delay)
+				ready := time.UnixMilli(got)
+				if ready.Before(deadline) || ready.Sub(deadline) >= time.Millisecond {
+					t.Fatalf("readyAtMillis(%v, %v) = %v, want [%v, %v)", now, delay, ready, deadline, deadline.Add(time.Millisecond))
+				}
+			}
+		}
+	}
+}
+
 func TestRangeStart(t *testing.T) {
 	if got := rangeStart(""); got != "-" {
 		t.Errorf("rangeStart(\"\") = %q, want \"-\"", got)

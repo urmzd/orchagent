@@ -44,6 +44,7 @@ func samples() []event.Body {
 	cost := &event.Cost{Micros: 1_250, Currency: "USD", AsOf: "2026-07-24"}
 	usage := event.Usage{ModelCalls: 2, Requests: 2, PromptTokens: 900, CachedPromptTokens: 400, CompletionTokens: 120, Cost: cost}
 	bodies := []event.Body{
+		event.Feedback{RunID: "r1", Actor: event.Actor{ID: "ana"}, Rating: "down", Reasons: []string{"incorrect"}, Comment: "Wrong line", Surface: "slack"},
 		event.Accepted{Attempt: 1},
 		event.Started{Attempt: 1},
 		event.Parked{Attempt: 1, Reason: "waiting on a person", Question: &q},

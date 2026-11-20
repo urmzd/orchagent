@@ -56,6 +56,7 @@ func (rt *Runtime) Turn(ctx context.Context, def turn.Pinned, in turn.Input, emi
 	}
 	t := Turn{
 		Instructions: in.Instructions,
+		Budget:       in.Budget,
 		Stop:         turn.StopSignal(ctx),
 		Compact:      turn.CompactSignal(ctx),
 		Holds:        turn.HoldsFrom(ctx),

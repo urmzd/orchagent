@@ -58,6 +58,7 @@ import (
 	"github.com/urmzd/orchagent/flow/mcptools"
 	"github.com/urmzd/orchagent/flow/membership"
 	"github.com/urmzd/orchagent/flow/runtime"
+	"github.com/urmzd/orchagent/flow/session"
 	"github.com/urmzd/orchagent/flow/thread"
 	"github.com/urmzd/orchagent/flow/toolprovider"
 	"github.com/urmzd/orchagent/flow/turn"
@@ -132,7 +133,22 @@ func WithBus(b bus.Bus) Option { return func(o *options) { o.Bus = b } }
 // WithDefinitions sets the agent store. The store decides which providers it
 // accepts (definition.WithProviders or WithChecks); App.Providers lists the
 // names this App can run.
-func WithDefinitions(s definition.Source) Option { return func(o *options) { o.Definitions = s } }
+func WithDefinitions(s definition.Source) Option {
+	return func(o *options) { o.Definitions, o.DefinitionResolver = s, nil }
+}
+
+// WithDefinitionResolver preserves a host's definition validation and source.
+// It is intended for a host runtime that resolves model policies itself; it
+// registers no executable model provider. The last definition option wins.
+func WithDefinitionResolver(r *definition.Resolver) Option {
+	return func(o *options) {
+		o.DefinitionResolver = r
+		o.Definitions = nil
+		if r != nil {
+			o.Definitions = r.Source()
+		}
+	}
+}
 
 // WithDurable sets the run ledger and queue runs execute from, for example
 // the two durable.Open returns. Both are required.
@@ -147,6 +163,9 @@ func WithMemberships(s membership.Store) Option { return func(o *options) { o.Me
 
 // WithThreads sets the conversation journal.
 func WithThreads(s thread.Store) Option { return func(o *options) { o.Threads = s } }
+
+// WithSessions sets the continuing conversation index.
+func WithSessions(s session.Store) Option { return func(o *options) { o.Sessions = s } }
 
 // WithKnowledge sets the knowledge store agents are grounded in.
 func WithKnowledge(s knowledge.Store) Option { return func(o *options) { o.Knowledge = s } }

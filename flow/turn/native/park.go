@@ -854,6 +854,9 @@ func (r *replayFirst) Stream(ctx context.Context, req saigetypes.Request) (<-cha
 		return r.Inner.Stream(ctx, req)
 	}
 	deltas := saigetypes.MessageDeltas(r.msg)
+	// This is a durable replay, not a provider request. Its zero receipt releases
+	// saige's reservation without consuming the continuation's live allowance.
+	deltas = append(deltas, saigetypes.UsageDelta{CacheHit: true})
 	ch := make(chan saigetypes.Delta, len(deltas))
 	for _, d := range deltas {
 		ch <- d

@@ -47,3 +47,18 @@ what the agent had written. A host that keeps its own mapping can still stop
 a run directly with `App.Stop`, using the run id `Acceptance.RunID` reported
 and every event of the run carries, `runtime.RunKey(tenant, event id, agent)`.
 It is not the Slack event id.
+
+## Feedback ownership
+
+Signed reaction additions and removals use Slack's `event_ts` to order changes
+for one native message, actor and rating. `DeliveryState` retains the addition's
+event ID and a removal watermark across replica changes. Older or ambiguous
+equal-time deliveries cannot overwrite a newer reaction; a removal received
+before its addition prevents that late addition from resurrecting feedback.
+Missing or malformed event timestamps are ignored for ratings.
+
+Removal calls optional `Feedback.Withdraw` with the original addition identity,
+never generic `Record(Removed=true)`. The host must remove only the assessment
+still owned by that addition, preserving newer console or native assessments
+even when their rating matches. Without `Withdraw`, removal does nothing.
+The ordering field follows Slack's [Events API contract](https://docs.slack.dev/apis/events-api/).

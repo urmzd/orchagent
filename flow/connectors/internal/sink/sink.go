@@ -85,6 +85,13 @@ type Surface interface {
 	Update(ctx context.Context, target address.Address, handle, body string) error
 }
 
+// AfterDelivery optionally indexes a delivered message outside the delivery
+// store transaction. It must be idempotent: failures remain pending across
+// restarts, and a crash before acknowledgement can repeat the callback.
+type AfterDelivery interface {
+	AfterDelivery(context.Context, address.Address, string) error
+}
+
 // Renderer turns a document into the surface's markup. It must be pure: the
 // engine calls it whenever it needs bytes and compares the result with what it
 // last wrote, so a renderer that varies on anything but its input (a timestamp
@@ -95,6 +102,8 @@ type Renderer func(render.View) string
 // is safe for concurrent use, and deliveries to different runs do not block each
 // other while their surfaces are being written.
 type Engine struct {
+	observe func(context.Context, address.Address, string, render.View) error
+
 	surface  Surface
 	render   Renderer
 	interval time.Duration
@@ -110,6 +119,12 @@ type Engine struct {
 
 // Option configures an Engine.
 type Option func(*Engine)
+
+// WithObserver records the native message handle after delivery. An error
+// leaves the write pending, so the host never acknowledges an unindexed answer.
+func WithObserver(observe func(context.Context, address.Address, string, render.View) error) Option {
+	return func(e *Engine) { e.observe = observe }
+}
 
 // WithInterval sets the coalescing window. A non-positive interval flushes on
 // every event, which is what a test wants and no production surface does.
@@ -174,9 +189,10 @@ type state struct {
 	handle string
 	// written is the body last accepted by the surface. Comparing against it is
 	// what makes a redelivery free.
-	written   string
-	dirty     bool
-	lastFlush time.Time
+	written      string
+	dirty        bool
+	afterPending bool
+	lastFlush    time.Time
 }
 
 // Deliver applies e and writes the run's message if it is due.
@@ -198,22 +214,28 @@ func (eng *Engine) Deliver(ctx context.Context, target address.Address, e event.
 			return err
 		}
 		if !due {
-			return nil
+			return eng.finish(ctx, st)
 		}
-		return eng.persist(ctx, st, func(current *state) error {
+		if err := eng.persist(ctx, st, func(current *state) error {
 			// Another replica may have flushed or advanced this document
 			// between the two transactions. Always use the latest state.
 			if current.dirty && eng.due(current, current.doc.View()) {
 				return eng.write(ctx, current, current.doc.View())
 			}
 			return nil
-		})
+		}); err != nil {
+			return err
+		}
+		return eng.finish(ctx, st)
 	}
 
 	st.mu.Lock()
-	defer st.mu.Unlock()
-
-	return eng.deliver(ctx, st, e)
+	err := eng.deliver(ctx, st, e)
+	st.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	return eng.finish(ctx, st)
 }
 
 func (eng *Engine) deliver(ctx context.Context, st *state, e event.Envelope) error {
@@ -258,6 +280,10 @@ func (eng *Engine) Flush(ctx context.Context) error {
 				return nil
 			}); err != nil {
 				errs = append(errs, err)
+				continue
+			}
+			if err := eng.finish(ctx, st); err != nil {
+				errs = append(errs, err)
 			}
 		}
 		return errors.Join(errs...)
@@ -278,6 +304,9 @@ func (eng *Engine) Flush(ctx context.Context) error {
 			}
 		}
 		st.mu.Unlock()
+		if err := eng.finish(ctx, st); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	return errors.Join(errs...)
 }
@@ -324,10 +353,46 @@ func (eng *Engine) write(ctx context.Context, st *state, v render.View) error {
 		return fmt.Errorf("sink: update message %s for run %s on %s: %w", st.handle, v.RunID, st.target, err)
 	}
 
+	if eng.observe != nil {
+		if err := eng.observe(ctx, st.target, st.handle, v); err != nil {
+			return err
+		}
+	}
 	st.written = body
 	st.dirty = false
+	_, st.afterPending = eng.surface.(AfterDelivery)
 	st.lastFlush = eng.now()
 	return nil
+}
+
+func (eng *Engine) finish(ctx context.Context, st *state) error {
+	after, ok := eng.surface.(AfterDelivery)
+	if !ok {
+		return nil
+	}
+	st.mu.Lock()
+	pending, handle, written := st.afterPending, st.handle, st.written
+	st.mu.Unlock()
+	if !pending || handle == "" {
+		return nil
+	}
+	if err := after.AfterDelivery(ctx, st.target, handle); err != nil {
+		return err
+	}
+	ack := func(current *state) error {
+		// A newer delivery may have completed while this callback ran. Its
+		// distinct write still requires its own post-delivery work.
+		if current.handle == handle && current.written == written {
+			current.afterPending = false
+		}
+		return nil
+	}
+	if eng.store != nil {
+		return eng.persist(ctx, st, ack)
+	}
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return ack(st)
 }
 
 // state returns the run's rendering state, creating it if this is the first
@@ -386,6 +451,7 @@ type savedState struct {
 	Doc             *render.Doc
 	Handle, Written string
 	Dirty           bool
+	AfterPending    bool
 	LastFlush       time.Time
 }
 
@@ -405,14 +471,15 @@ func (eng *Engine) persist(ctx context.Context, st *state, apply func(*state) er
 				return nil, false, fmt.Errorf("sink: unsupported state format %d", saved.Format)
 			}
 		}
-		current := &state{key: st.key, target: st.target, durableKey: st.durableKey, doc: saved.Doc, handle: saved.Handle, written: saved.Written, dirty: saved.Dirty, lastFlush: saved.LastFlush}
+		current := &state{key: st.key, target: st.target, durableKey: st.durableKey, doc: saved.Doc, handle: saved.Handle, written: saved.Written, dirty: saved.Dirty, afterPending: saved.AfterPending, lastFlush: saved.LastFlush}
 		deliveryErr = apply(current)
-		data, err := json.Marshal(savedState{Format: 1, Doc: current.doc, Handle: current.handle, Written: current.written, Dirty: current.dirty, LastFlush: current.lastFlush})
+		data, err := json.Marshal(savedState{Format: 1, Doc: current.doc, Handle: current.handle, Written: current.written, Dirty: current.dirty, AfterPending: current.afterPending, LastFlush: current.lastFlush})
 		if err != nil {
 			return nil, false, err
 		}
 		st.doc, st.handle, st.written, st.dirty, st.lastFlush = current.doc, current.handle, current.written, current.dirty, current.lastFlush
-		return data, current.dirty, nil
+		st.afterPending = current.afterPending
+		return data, current.dirty || current.afterPending, nil
 	})
 	return errors.Join(err, deliveryErr)
 }

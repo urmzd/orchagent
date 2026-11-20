@@ -98,3 +98,42 @@ func TestInvalidReviewTargetsNeverFallBackToTopLevelComments(t *testing.T) {
 		t.Fatal("unexpected top-level comment")
 	}
 }
+
+func TestPlainReviewRepliesAuthorizeTheirExactThread(t *testing.T) {
+	for _, grant := range []string{"github://acme/repo/pull/42?review_comment=5", "github://acme/repo/pull/42"} {
+		t.Run(grant, func(t *testing.T) {
+			var checked []string
+			c, tags := start(t, github.Config{Agents: mention.NewNames("reviewer"), ContinueThread: func(a address.Address) bool {
+				checked = append(checked, a.String())
+				return a.String() == grant
+			}})
+			for _, tc := range []struct {
+				root     int64
+				text     string
+				accepted bool
+			}{
+				{5, "Explain this", strings.Contains(grant, "review_comment=5")},
+				{6, "Explain this", false},
+				{6, "@reviewer explain this", true},
+				{-1, "@reviewer explain this", false},
+			} {
+				raw, _ := json.Marshal(map[string]any{"action": "created", "repository": map[string]any{"name": "repo", "owner": map[string]string{"login": "acme"}}, "sender": map[string]string{"type": "User", "login": "ada"}, "pull_request": map[string]any{"number": 42}, "comment": map[string]any{"id": 10, "in_reply_to_id": tc.root, "body": tc.text}})
+				w := httptest.NewRecorder()
+				c.ServeHTTP(w, deliver(t, "pull_request_review_comment", fmt.Sprint(tc.root, tc.text), string(raw)))
+				select {
+				case tag := <-tags:
+					if !tc.accepted || tag.Channel != fmt.Sprintf("github://acme/repo/pull/42?review_comment=%d", tc.root) {
+						t.Fatalf("unexpected event: %+v", tag)
+					}
+				default:
+					if tc.accepted {
+						t.Fatalf("known reply %d dropped", tc.root)
+					}
+				}
+			}
+			if len(checked) != 2 || checked[0] != "github://acme/repo/pull/42?review_comment=5" || checked[1] != "github://acme/repo/pull/42?review_comment=6" {
+				t.Fatalf("authorized wrong targets: %v", checked)
+			}
+		})
+	}
+}

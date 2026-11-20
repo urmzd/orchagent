@@ -136,7 +136,7 @@ func personsReachTheirOwn(t *testing.T, pool *pgxpool.Pool) {
 		t.Fatalf("the declared tool was not accepted without dialling: %+v, %v", snap, err)
 	}
 
-	start(t, c.Run)
+	start(t, func(ctx context.Context) error { return c.Run(ctx) })
 	spec := definition.AgentSpec{Name: "triage", Model: "m", Provider: definition.ProviderOpenAI,
 		SystemPrompt: "Triage.", Tools: []string{"mcp:issues"}}
 	if _, err := createAgent(c.Definitions(), ctx, tenant, spec, "test"); err != nil {

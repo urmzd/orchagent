@@ -25,10 +25,12 @@ var ErrNoPersonCredential = errors.New("mcptools: no credential of the person's 
 type PersonCredential struct {
 	Ref    string
 	Secret Secret
+	// Source refreshes this person's OAuth token before each HTTP request.
+	Source *TokenSource
 }
 
 // Empty reports whether c holds no credential.
-func (c PersonCredential) Empty() bool { return c.Ref == "" && c.Secret.Empty() }
+func (c PersonCredential) Empty() bool { return c.Ref == "" && c.Secret.Empty() && c.Source == nil }
 
 // String names the reference, which is not secret, or prints Redacted.
 func (c PersonCredential) String() string {
@@ -45,13 +47,18 @@ func (c PersonCredential) GoString() string { return c.String() }
 // the same secret. It runs on every expansion of a person's group, so the
 // comparison does not depend on where two secrets first differ.
 func (c PersonCredential) same(o PersonCredential) bool {
-	return c.Ref == o.Ref && subtle.ConstantTimeCompare([]byte(c.Secret.Reveal()), []byte(o.Secret.Reveal())) == 1
+	return c.Source == o.Source && c.Ref == o.Ref && subtle.ConstantTimeCompare([]byte(c.Secret.Reveal()), []byte(o.Secret.Reveal())) == 1
 }
 
 // resolve turns c into the secret a session sends, through r for a
 // reference.
 func (c PersonCredential) resolve(ctx context.Context, r Resolver, provider string) (Secret, error) {
 	switch {
+	case c.Source != nil:
+		if c.Ref != "" || !c.Secret.Empty() {
+			return Secret{}, fmt.Errorf("%w: token source cannot be combined with another credential", ErrCredential)
+		}
+		return c.Source.token(ctx)
 	case c.Ref != "" && !c.Secret.Empty():
 		return Secret{}, fmt.Errorf("%w: provider %q: a person's credential is a reference or a secret, not both", ErrCredential, provider)
 	case !c.Secret.Empty():
