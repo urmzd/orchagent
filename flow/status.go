@@ -80,19 +80,9 @@ type Run struct {
 // next attempt replays it. A caller that needs the two to agree polls until
 // the status is Terminal.
 func (a *App) Status(ctx context.Context, tenant, runID string) (Run, error) {
-	rec, err := a.ledger.GetRun(ctx, runID)
+	rec, in, err := a.runInput(ctx, tenant, runID)
 	if err != nil {
-		if errors.Is(err, drun.ErrNotFound) {
-			return Run{}, fmt.Errorf("%w: run %q", ErrNotFound, runID)
-		}
-		return Run{}, fmt.Errorf("flow: read run %q: %w", runID, err)
-	}
-	var in runtime.Input
-	if err := json.Unmarshal(rec.Input, &in); err != nil {
-		return Run{}, fmt.Errorf("flow: decode run %q input: %w", runID, err)
-	}
-	if in.Trigger.Tenant != tenant {
-		return Run{}, fmt.Errorf("%w: run %q", ErrNotFound, runID)
+		return Run{}, err
 	}
 	out := Run{
 		ID:        rec.ID,
@@ -153,4 +143,23 @@ func statusOf(s drun.RunStatus) Status {
 	default:
 		return StatusAccepted
 	}
+}
+
+// runInput reads the immutable run input after checking the caller's tenant.
+func (a *App) runInput(ctx context.Context, tenant, runID string) (drun.Run, runtime.Input, error) {
+	rec, err := a.ledger.GetRun(ctx, runID)
+	if err != nil {
+		if errors.Is(err, drun.ErrNotFound) {
+			return drun.Run{}, runtime.Input{}, fmt.Errorf("%w: run %q", ErrNotFound, runID)
+		}
+		return drun.Run{}, runtime.Input{}, fmt.Errorf("flow: read run %q: %w", runID, err)
+	}
+	var in runtime.Input
+	if err := json.Unmarshal(rec.Input, &in); err != nil {
+		return drun.Run{}, runtime.Input{}, fmt.Errorf("flow: decode run %q input: %w", runID, err)
+	}
+	if in.Trigger.Tenant != tenant {
+		return drun.Run{}, runtime.Input{}, fmt.Errorf("%w: run %q", ErrNotFound, runID)
+	}
+	return rec, in, nil
 }

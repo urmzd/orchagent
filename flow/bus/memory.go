@@ -79,36 +79,32 @@ type stored struct {
 }
 
 // memRing is one run's ring, or one channel's ring of non-run events. The
-// ring is fixed-length: push overwrites the oldest slot once it is full.
+// ring grows as events arrive. Once full, push overwrites the oldest slot.
 type memRing struct {
 	key     string
 	buf     []stored
 	head    int
-	n       int
+	limit   int
 	highest uint64              // a run's highest sequence, retained or evicted
 	ids     map[string]struct{} // a channel ring's retained event ids
 	elem    *list.Element
 }
 
 func (r *memRing) push(s stored) {
-	slot := (r.head + r.n) % len(r.buf)
-	if r.n == len(r.buf) {
-		if r.ids != nil {
-			delete(r.ids, r.buf[slot].e.ID)
+	if len(r.buf) < r.limit {
+		if len(r.buf) == cap(r.buf) {
+			next := make([]stored, len(r.buf), min(r.limit, max(1, 2*len(r.buf))))
+			copy(next, r.buf)
+			r.buf = next
 		}
-		r.buf[slot] = s
-		r.head = (r.head + 1) % len(r.buf)
+		r.buf = append(r.buf, s)
 		return
 	}
-	r.buf[slot] = s
-	r.n++
-}
-
-func (r *memRing) retained(dst []stored) []stored {
-	for i := range r.n {
-		dst = append(dst, r.buf[(r.head+i)%len(r.buf)])
+	if r.ids != nil {
+		delete(r.ids, r.buf[r.head].e.ID)
 	}
-	return dst
+	r.buf[r.head] = s
+	r.head = (r.head + 1) % r.limit
 }
 
 // ringKey names the ring an event is retained in.
@@ -164,7 +160,7 @@ func (m *Memory) ringLocked(key string, ids bool) *memRing {
 		m.lru.MoveToFront(r.elem)
 		return r
 	}
-	r := &memRing{key: key, buf: make([]stored, m.retention)}
+	r := &memRing{key: key, limit: m.retention}
 	if ids {
 		r.ids = make(map[string]struct{})
 	}
@@ -211,9 +207,11 @@ func (m *Memory) open(ctx context.Context, sub Subscription, after uint64, byPos
 		}
 		slices.Sort(keys) // deterministic interleaving across rings
 		for _, key := range keys {
-			for _, e := range m.rings[key].retained(nil) {
+			r := m.rings[key]
+			for i := range r.buf {
+				e := &r.buf[(r.head+i)%len(r.buf)]
 				if e.pos > after && sub.Accepts(e.e) {
-					s.catchup = append(s.catchup, e)
+					s.catchup = append(s.catchup, *e)
 				}
 			}
 		}

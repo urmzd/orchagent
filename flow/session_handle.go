@@ -2,11 +2,13 @@ package flow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/urmzd/orchagent/durable"
 	"github.com/urmzd/orchagent/flow/bus"
 	"github.com/urmzd/orchagent/flow/event"
 	"github.com/urmzd/orchagent/flow/runtime"
@@ -71,6 +73,36 @@ func (s *Session) Post(ctx context.Context, text string) (runtime.Acceptance, er
 	e := event.Envelope{ID: "post-" + id, Source: r.Key.Parent, Type: event.TypeMessagePosted, Channel: r.Channel, Time: time.Now().UTC(), Tenant: r.Key.Tenant,
 		Data: event.MessagePosted{Request: event.Request{Text: text, Mentions: []string{r.Key.Agent}, Actor: actor}}}
 	return s.app.rt.AcceptSession(ctx, e, r.Key.Agent, r)
+}
+
+// Wait returns the final text of a run in this session. A stopped run returns
+// its partial answer and ErrRunStopped. A failed run returns ErrRunFailed.
+// Wait reads the durable result, so callers can reopen the session and wait
+// again after a disconnect. Cancelling ctx ends the wait and leaves the run
+// active. A run from another session or tenant returns ErrNotFound.
+func (s *Session) Wait(ctx context.Context, runID string) (string, error) {
+	if runID == "" {
+		return "", fmt.Errorf("%w: no run to wait for", session.ErrInvalid)
+	}
+	_, in, err := s.app.runInput(ctx, s.record.Key.Tenant, runID)
+	if err != nil {
+		return "", err
+	}
+	if in.Session == nil || in.Session.ID != s.record.ID {
+		return "", fmt.Errorf("%w: run %q", ErrNotFound, runID)
+	}
+	out, err := s.app.rt.Result(ctx, runID)
+	var failed *durable.RunFailedError
+	if errors.As(err, &failed) {
+		return "", fmt.Errorf("run %s: %w: %s", runID, ErrRunFailed, failed.Message)
+	}
+	if err != nil {
+		return "", err
+	}
+	if out.Stopped != nil {
+		return out.Text, fmt.Errorf("run %s: %w: %s", runID, ErrRunStopped, out.Stopped.Reason)
+	}
+	return out.Text, nil
 }
 
 // Stream tails this session and its children. Cursors are per run because run
