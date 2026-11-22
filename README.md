@@ -19,6 +19,22 @@
   <a href="LICENSE"><img src="https://img.shields.io/github/license/urmzd/orchagent" alt="License"></a>
 </p>
 
+> [!IMPORTANT]
+> **This repository is archived.** Its code now lives in
+> [saige](https://github.com/urmzd/saige), and orchagent gets no more changes.
+>
+> | orchagent | saige |
+> |---|---|
+> | `github.com/urmzd/orchagent/durable` | `github.com/urmzd/saige/durable` |
+> | `github.com/urmzd/orchagent/sandbox` | `github.com/urmzd/saige/sandbox` |
+> | `github.com/urmzd/orchagent/flow` | `github.com/urmzd/saige/flow` |
+>
+> To upgrade, change the import prefix. The
+> [saige upgrade guide](https://github.com/urmzd/saige/blob/main/docs/guides/upgrading.md)
+> lists the breaking changes. These parts did not move, because nothing uses
+> them: the Jira and webhook connectors, the Kubernetes Job runner, the `cli`
+> tool provider, the author tools and the dispatcher.
+
 ## Contents
 
 - [Features](#features)
